@@ -179,6 +179,16 @@ func respondError(c *gin.Context, err error) {
 		status, code, title = http.StatusTooManyRequests, "rate_limited", "Too many requests"
 	case errors.Is(err, domain.ErrSpeechUnavailable):
 		status, code, title = http.StatusServiceUnavailable, "speech_unavailable", "Speech service unavailable"
+	case errors.Is(err, domain.ErrPayloadTooLarge):
+		status, code, title = http.StatusRequestEntityTooLarge, "payload_too_large", "Too large"
+	case errors.Is(err, domain.ErrResumeExpired):
+		status, code, title = http.StatusGone, "resume_expired", "This link or code has expired"
+	case errors.Is(err, domain.ErrTooManyAttempts):
+		status, code, title = http.StatusTooManyRequests, "too_many_attempts", "Too many failed attempts"
+	case errors.Is(err, domain.ErrResumeCheckFailed):
+		status, code, title = http.StatusUnauthorized, "resume_check_failed", "The check didn't match"
+	case errors.Is(err, domain.ErrInvalidInput):
+		status, code, title = http.StatusBadRequest, "invalid_request", "Invalid request"
 	default:
 		log.Printf("error : %s %s: %v", c.Request.Method, c.FullPath(), err)
 	}

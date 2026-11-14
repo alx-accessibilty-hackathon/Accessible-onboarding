@@ -20,7 +20,8 @@
     "e2e": "playwright test",
     "size": "size-limit",
     "mock": "npx --yes @stoplight/prism-cli mock ../api/openapi.yaml --port 4010",
-    "api:types": "npx --yes openapi-typescript ../api/openapi.yaml -o src/api/types.gen.ts"
+    "api:types": "npx --yes openapi-typescript ../api/openapi.yaml -o src/api/types.gen.ts",
+    "audio:check": "node scripts/audio-check.mjs"
   },
   "dependencies": {
     "@r2wc/react-to-web-component": "^2.0.3",
@@ -43,6 +44,7 @@
     "eslint": "^9.17.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^5.1.0",
+    "fake-indexeddb": "^6.2.8",
     "globals": "^15.13.0",
     "jsdom": "^25.0.1",
     "prettier": "^3.4.2",

@@ -54,7 +54,7 @@ func clone[T any](v *T) *T {
 
 type fakeLearners struct{ s *memStore }
 
-func (f fakeLearners) Get(_ context.Context, id uuid.UUID) (*domain.Learner, error) {
+func (f fakeLearners) GetByID(_ context.Context, id uuid.UUID) (*domain.Learner, error) {
 	f.s.mu.Lock()
 	defer f.s.mu.Unlock()
 	l, ok := f.s.learners[id]
@@ -62,6 +62,26 @@ func (f fakeLearners) Get(_ context.Context, id uuid.UUID) (*domain.Learner, err
 		return nil, domain.ErrNotFound
 	}
 	return clone(l), nil
+}
+
+func (f fakeLearners) GetByIDAndPartnerID(ctx context.Context, id, partnerID uuid.UUID) (*domain.Learner, error) {
+	l, err := f.GetByID(ctx, id)
+	if err != nil || l.PartnerID != partnerID {
+		return nil, domain.ErrNotFound
+	}
+	return l, nil
+}
+
+func (f fakeLearners) ListByPartnerID(_ context.Context, partnerID uuid.UUID) ([]*domain.Learner, error) {
+	f.s.mu.Lock()
+	defer f.s.mu.Unlock()
+	out := []*domain.Learner{}
+	for _, l := range f.s.learners {
+		if l.PartnerID == partnerID {
+			out = append(out, clone(l))
+		}
+	}
+	return out, nil
 }
 
 func (f fakeLearners) UpdatePreferences(_ context.Context, id uuid.UUID, language *string, simple *bool) error {
@@ -108,7 +128,17 @@ func (f fakeRegistrations) Start(_ context.Context, learner *domain.Learner, reg
 	return clone(l), clone(r), nil
 }
 
-func (f fakeRegistrations) Get(_ context.Context, id uuid.UUID) (*domain.Registration, error) {
+func (f fakeRegistrations) GetAnswer(_ context.Context, regID uuid.UUID, questionID string) (*domain.Answer, error) {
+	f.s.mu.Lock()
+	defer f.s.mu.Unlock()
+	a, ok := f.s.answers[regID][questionID]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return clone(a), nil
+}
+
+func (f fakeRegistrations) GetRegistrationByID(_ context.Context, id uuid.UUID) (*domain.Registration, error) {
 	f.s.mu.Lock()
 	defer f.s.mu.Unlock()
 	r, ok := f.s.regs[id]
@@ -129,7 +159,7 @@ func (f fakeRegistrations) UpdateProgress(_ context.Context, id uuid.UUID, step 
 	return nil
 }
 
-func (f fakeRegistrations) ListAnswers(_ context.Context, regID uuid.UUID) ([]*domain.Answer, error) {
+func (f fakeRegistrations) ListAnswersByRegistrationID(_ context.Context, regID uuid.UUID) ([]*domain.Answer, error) {
 	f.s.mu.Lock()
 	defer f.s.mu.Unlock()
 	out := []*domain.Answer{}
@@ -221,6 +251,12 @@ func (f fakePartners) ListReferralPartners(context.Context) ([]*domain.Partner, 
 	return f.referral, nil
 }
 func (f fakePartners) ListAllowedOrigins(context.Context) ([]string, error) { return nil, nil }
+func (f fakePartners) GetByID(context.Context, uuid.UUID) (*domain.Partner, error) {
+	return nil, domain.ErrNotFound
+}
+func (f fakePartners) GetByClientID(context.Context, string) (*domain.Partner, []byte, error) {
+	return nil, nil, domain.ErrNotFound
+}
 
 // ---- sessions ----
 

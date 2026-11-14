@@ -43,9 +43,30 @@ func TestHealth(t *testing.T) {
 	assert.JSONEq(t, `{"status":"ok"}`, w.Body.String())
 }
 
-// Every route exists (404 would mean a missing route). The requests are invalid on purpose
-// (no body, "123" is not a UUID), so the handlers answer before calling the use cases,
-// which are nil here. 501 means the handler is still a skeleton.
+func TestOpenAPI(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/openapi.yaml", nil)
+	testRouter().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "openapi: 3.0.3")
+	assert.Contains(t, w.Header().Get("Content-Type"), "application/yaml")
+}
+
+func TestDocs(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/docs", nil)
+	testRouter().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "swagger-ui")
+	assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
+}
+
+// Every route exists (404 would mean a missing route). The use cases are nil here, so the
+// requests are invalid on purpose (no body, "123" is not a UUID) and the handlers answer
+// before calling them; 501 means the handler has no use case behind it. Without a token,
+// role- and scope-protected routes answer 401.
 func TestRoutesAreRegistered(t *testing.T) {
 	routes := []struct {
 		method, path string
@@ -62,9 +83,14 @@ func TestRoutesAreRegistered(t *testing.T) {
 		{http.MethodGet, "/api/v1/jobs/123", http.StatusBadRequest},
 		{http.MethodGet, "/api/v1/jobs/123/jobposting.jsonld", http.StatusBadRequest},
 		{http.MethodPost, "/api/v1/jobs/123/applications", http.StatusBadRequest},
-		{http.MethodPost, "/api/v1/employer/jobs", http.StatusBadRequest},
-		{http.MethodPost, "/api/v1/employer/jobs/123/publish", http.StatusBadRequest},
-		{http.MethodGet, "/api/v1/partner-api/learners", http.StatusNotImplemented},
+		{http.MethodPost, "/api/v1/employer/jobs", http.StatusUnauthorized}, // employer role needed
+		{http.MethodPost, "/api/v1/employer/jobs/123/publish", http.StatusUnauthorized},
+		{http.MethodGet, "/api/v1/partner-api/learners", http.StatusUnauthorized}, // scope needed
+		{http.MethodGet, "/api/v1/partner-api/learners/123", http.StatusUnauthorized},
+		{http.MethodPost, "/api/v1/resume/lookup", http.StatusNotImplemented},
+		{http.MethodPost, "/api/v1/resume/verify", http.StatusNotImplemented},
+		{http.MethodPost, "/api/v1/partner/registrations/123/consent-code", http.StatusUnauthorized},
+		{http.MethodPost, "/api/v1/telegram/webhook", http.StatusNotImplemented},
 	}
 	r := testRouter()
 	for _, rt := range routes {

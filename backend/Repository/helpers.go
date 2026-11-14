@@ -70,7 +70,7 @@ func toRegistration(r sqlc.Registration) *domain.Registration {
 		FlowID:        r.FlowID,
 		FlowVersion:   int(r.FlowVersion),
 		Status:        r.Status,
-		CurrentStep:   r.CurrentStep,
+		CurrentStep:   deref(r.CurrentStep),
 		ActingStaffID: r.ActingStaffID,
 		CreatedAt:     r.CreatedAt,
 		UpdatedAt:     r.UpdatedAt,

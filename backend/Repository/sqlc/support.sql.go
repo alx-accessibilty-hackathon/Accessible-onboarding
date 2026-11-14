@@ -18,10 +18,21 @@ FROM support_requests
 WHERE learner_id = $1
 `
 
+type GetSupportRequestByLearnerRow struct {
+	ID             uuid.UUID
+	LearnerID      uuid.UUID
+	Nonce          []byte
+	Ciphertext     []byte
+	ShareCourses   bool
+	ShareEmployers bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 // For the support inbox (Should). Returns the encrypted payload; decrypt with the learner ID.
-func (q *Queries) GetSupportRequestByLearner(ctx context.Context, learnerID uuid.UUID) (SupportRequest, error) {
+func (q *Queries) GetSupportRequestByLearner(ctx context.Context, learnerID uuid.UUID) (GetSupportRequestByLearnerRow, error) {
 	row := q.db.QueryRow(ctx, getSupportRequestByLearner, learnerID)
-	var i SupportRequest
+	var i GetSupportRequestByLearnerRow
 	err := row.Scan(
 		&i.ID,
 		&i.LearnerID,

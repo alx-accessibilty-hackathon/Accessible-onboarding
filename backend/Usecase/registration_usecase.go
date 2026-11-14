@@ -14,27 +14,45 @@ import (
 	"github.com/google/uuid"
 )
 
-// RegistrationUsecase: start a registration (issues a learner token), get it,
-// save progress, save answers (version check), and submit.
+// RegistrationUsecase: start a registration (issues a learner token), get it, save progress,
+// save answers (version check) and submit (this file, Dev A); continue on another device,
+// consent codes and Telegram (registration_resume.go, Dev B).
 type RegistrationUsecase struct {
 	LearnerRepo      domain.LearnerRepositoryI
 	RegistrationRepo domain.RegistrationRepositoryI
 	SupportRepo      domain.SupportRepositoryI // only to say whether support needs were sent
 	PartnerRepo      domain.PartnerRepositoryI // referral partners (the "I have no ID" route)
-	Sessions         domain.SessionIssuer      // learner tokens (Dev B's auth use case)
+	Sessions         domain.SessionIssuer      // learner token for a new sign-up (the auth use case)
 	Flows            domain.FlowStore
+	SessionRepo      domain.SessionRepositoryI // resume tokens, verification codes, outbox
+	Security         domain.SecurityService
+	Messages         domain.MessageService
+	PublicURL        string // PUBLIC_WEB_URL, for resume links (set in main.go)
 }
 
 var _ domain.RegistrationUsecaseI = (*RegistrationUsecase)(nil)
 
-func NewRegistrationUsecase(lrp domain.LearnerRepositoryI, rrp domain.RegistrationRepositoryI, srp domain.SupportRepositoryI, prp domain.PartnerRepositoryI, sessions domain.SessionIssuer, flows domain.FlowStore) *RegistrationUsecase {
+func NewRegistrationUsecase(
+	lrp domain.LearnerRepositoryI,
+	rrp domain.RegistrationRepositoryI,
+	supportRepo domain.SupportRepositoryI,
+	prp domain.PartnerRepositoryI,
+	sessions domain.SessionIssuer,
+	flows domain.FlowStore,
+	sessionRepo domain.SessionRepositoryI,
+	sec domain.SecurityService,
+	msg domain.MessageService,
+) *RegistrationUsecase {
 	return &RegistrationUsecase{
 		LearnerRepo:      lrp,
 		RegistrationRepo: rrp,
-		SupportRepo:      srp,
+		SupportRepo:      supportRepo,
 		PartnerRepo:      prp,
 		Sessions:         sessions,
 		Flows:            flows,
+		SessionRepo:      sessionRepo,
+		Security:         sec,
+		Messages:         msg,
 	}
 }
 
@@ -96,11 +114,11 @@ func (uc *RegistrationUsecase) Get(ctx context.Context, actor domain.Actor, id u
 	if err != nil {
 		return nil, err
 	}
-	learner, err := uc.LearnerRepo.Get(ctx, reg.LearnerID)
+	learner, err := uc.LearnerRepo.GetByID(ctx, reg.LearnerID)
 	if err != nil {
 		return nil, err
 	}
-	answers, err := uc.RegistrationRepo.ListAnswers(ctx, reg.ID)
+	answers, err := uc.RegistrationRepo.ListAnswersByRegistrationID(ctx, reg.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +229,7 @@ func (uc *RegistrationUsecase) Submit(ctx context.Context, actor domain.Actor, r
 	if err != nil {
 		return nil, err
 	}
-	saved, err := uc.RegistrationRepo.ListAnswers(ctx, reg.ID)
+	saved, err := uc.RegistrationRepo.ListAnswersByRegistrationID(ctx, reg.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +319,7 @@ func buildSignupRecords(learnerID uuid.UUID, answers map[string]json.RawMessage)
 
 // submittedResult rebuilds the submit answer for a registration that is already submitted.
 func (uc *RegistrationUsecase) submittedResult(ctx context.Context, reg *domain.Registration) (*domain.SubmitResult, error) {
-	learner, err := uc.LearnerRepo.Get(ctx, reg.LearnerID)
+	learner, err := uc.LearnerRepo.GetByID(ctx, reg.LearnerID)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +394,7 @@ func loadOwnedRegistration(ctx context.Context, repo domain.RegistrationReposito
 	if actor.IsAnonymous() {
 		return nil, domain.ErrUnauthorized
 	}
-	reg, err := repo.Get(ctx, id)
+	reg, err := repo.GetRegistrationByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}

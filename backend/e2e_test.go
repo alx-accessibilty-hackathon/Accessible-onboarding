@@ -58,9 +58,9 @@ func newE2E(t *testing.T) (*e2e, *sqlc.Queries, map[string]uuid.UUID) {
 
 	partnerRepo, learnerRepo, registrationRepo := repository.NewPartnerRepo(db), repository.NewLearnerRepo(db), repository.NewRegistrationRepo(db)
 	supportRepo, jobRepo := repository.NewSupportRepo(db), repository.NewJobRepo(db)
-	auth := usecase.NewAuthUsecase(nil, nil, partnerRepo, security)
+	auth := usecase.NewAuthUsecase(repository.NewSessionRepo(db), repository.NewStaffRepo(db), partnerRepo, learnerRepo, security)
 
-	reg := controllers.NewRegistrationController(usecase.NewRegistrationUsecase(learnerRepo, registrationRepo, supportRepo, partnerRepo, auth, flows))
+	reg := controllers.NewRegistrationController(usecase.NewRegistrationUsecase(learnerRepo, registrationRepo, supportRepo, partnerRepo, auth, flows, nil, security, nil))
 	sup := controllers.NewSupportController(usecase.NewSupportUsecase(supportRepo, registrationRepo, flows, security))
 	job := controllers.NewJobController(usecase.NewJobUsecase(jobRepo, flows, "https://bridge.example"))
 	app := controllers.NewApplicationController(usecase.NewApplicationUsecase(repository.NewApplicationRepo(db), jobRepo, learnerRepo))
@@ -213,7 +213,7 @@ func TestLearnerSignsUpAndApplies(t *testing.T) {
 	assert.Equal(t, created.LearnerID, submitted.LearnerID)
 	assert.Equal(t, "self_declared", submitted.IdentityLevel)
 	assert.Nil(t, submitted.Referral)
-	learner, err := q.GetLearner(context.Background(), created.LearnerID)
+	learner, err := q.GetLearnerByID(context.Background(), created.LearnerID)
 	require.NoError(t, err)
 	assert.Equal(t, "+251912345678", *learner.PhoneE164)
 	assert.Equal(t, "2017-09-25", learner.Dob.Format("2006-01-02"))

@@ -41,7 +41,7 @@ func (uc *ApplicationUsecase) Apply(ctx context.Context, actor domain.Actor, app
 		return nil, domain.ErrForbidden
 	}
 
-	learner, err := uc.LearnerRepo.Get(ctx, learnerID)
+	learner, err := uc.LearnerRepo.GetByID(ctx, learnerID)
 	if errors.Is(err, domain.ErrNotFound) {
 		return nil, domain.ErrForbidden
 	}

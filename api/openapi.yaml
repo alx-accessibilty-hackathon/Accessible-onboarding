@@ -1,22 +1,1672 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
-  title: Bridge API
-  version: 0.1.0
-  description: |
-    Accessible sign-up, profile and career gateway (ALX Accessibility Hackathon, Track 1).
-
-    Every error has the same shape: `{ status, code, title, errors[] }`. The frontend shows a
-    translated message for `code`; `errors[].field` is the JSON field (or flow step ID) and
-    `errors[].code` a shared code such as `required`, `phone_invalid` or `invalid_choice`.
-
-    This file has the learner-data and careers endpoints (Dev A). Dev B adds config, consents,
-    auth, speech and the partner API.
+  title: Bridge Onboarding API
+  description: >
+    Accessible drop-in onboarding module developed for Digital Bridge Hackathon 2026 (Track 1). Supports WCAG 2.2 AA compliant onboarding, multilingual support (Amharic & English), offline sync, speech-to-text, private support requests, and inclusive ID routes.
+  version: 1.0.0
 servers:
-  - url: http://localhost:8080/api/v1
-    description: Local API
   - url: /api/v1
-    description: Same site (nginx or the Vite proxy)
+    description: Current API v1 endpoint
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      description: Returns service status for docker and health monitors.
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+      security: []
+  /config:
+    get:
+      summary: Get widget configuration
+      description: Returns configuration for the embedding partner widget.
+      security:
+        - PartnerKey: []
+      responses:
+        "200":
+          description: Partner configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalError'
+  /registrations:
+    post:
+      tags:
+        - Registrations
+      operationId: createRegistration
+      summary: Start a sign-up
+      description: Creates a draft learner and registration for the partner whose key is sent, and returns a learner token for this device.
+      security:
+        - PartnerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRegistrationRequest"
+            example:
+              flow_id: signup
+              flow_version: 1
+              language: am
+              simple_mode: false
+      responses:
+        "201":
+          description: Started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateRegistrationResponse"
+              example:
+                registration_id: 6f1c2a9e-0b6c-4d3a-9a1e-2f3b4c5d6e7f
+                learner_id: c2a9d0e1-7d21-4b8a-8c9d-0e1f2a3b4c5d
+                status: draft
+                current_step: welcome
+                session:
+                  token: lt_Zk3qT9vX2mPa8LwQ4rYb7n
+                  expires_at: 2026-12-14T12:00:00Z
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /registrations/{id}:
+    get:
+      tags:
+        - Registrations
+      operationId: getRegistration
+      summary: Get a registration
+      description: Status, current step, preferences and every saved answer with its version. Support needs are never returned, only whether they were sent.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "200":
+          description: The registration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+              example:
+                registration_id: 6f1c2a9e-0b6c-4d3a-9a1e-2f3b4c5d6e7f
+                status: draft
+                current_step: dob
+                language: am
+                simple_mode: true
+                answers:
+                  full_name:
+                    question_id: full_name
+                    value: አበበ ከበደ
+                    input_method: voice
+                    version: 2
+                    updated_at: 2026-11-14T13:05:00Z
+                  contact_method:
+                    question_id: contact_method
+                    value: phone
+                    input_method: choice
+                    version: 1
+                    updated_at: 2026-11-14T13:06:00Z
+                  phone:
+                    question_id: phone
+                    value: "+251912345678"
+                    input_method: typed
+                    version: 1
+                    updated_at: 2026-11-14T13:07:00Z
+                support_request:
+                  submitted: false
+                updated_at: 2026-11-14T13:07:00Z
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags:
+        - Registrations
+      operationId: updateProgress
+      summary: Save progress and preferences
+      description: Only the fields that are sent change.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProgressRequest"
+            example:
+              current_step: dob
+              simple_mode: true
+      responses:
+        "204":
+          description: Saved
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+  /registrations/{id}/answers/{questionId}:
+    put:
+      tags:
+        - Registrations
+      operationId: saveAnswer
+      summary: Save one answer
+      description: |
+        Checks the value against the step in the flow file and stores the cleaned value
+        (phone numbers in E.164). `base_version` is the version the device last saw (0 = none):
+        if another device saved a newer one, nothing is saved and 409 returns the saved answer.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveAnswerRequest"
+            example:
+              value: 0912 345 678
+              input_method: voice
+              base_version: 0
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Answer"
+              example:
+                question_id: phone
+                value: "+251912345678"
+                input_method: voice
+                version: 1
+                updated_at: 2026-11-14T13:07:00Z
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Another device saved first (`answer_conflict`), or the registration is already submitted (`already_submitted`)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/AnswerConflict"
+                  - $ref: "#/components/schemas/Error"
+              example:
+                status: 409
+                code: answer_conflict
+                title: Answer changed on another device
+                current:
+                  question_id: phone
+                  value: "+251911000000"
+                  input_method: typed
+                  version: 3
+                  updated_at: 2026-11-14T13:10:00Z
+        "422":
+          description: The value breaks a rule of the step, or the step has no answer (`question_id` / `unknown_question`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: value
+                    code: phone_invalid
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+      - name: questionId
+        in: path
+        required: true
+        description: Step ID from the flow file, for example `phone`.
+        schema:
+          type: string
+          maxLength: 64
+        example: phone
+  /registrations/{id}/support-request:
+    put:
+      tags:
+        - Support
+      operationId: saveSupportRequest
+      summary: Save support needs
+      description: Replaces the learner's support request. The needs are encrypted (AES-256-GCM) before they are stored and are never sent back.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportRequest"
+            example:
+              needs:
+                - screen_reader
+                - extra_time
+              other_text: I need breaks every hour
+              share_with:
+                courses: false
+                employers: false
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportSaved"
+              example:
+                status: saved
+                updated_at: 2026-11-14T13:20:00Z
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+  /registrations/{id}/consents:
+    post:
+      summary: Record consent decision
+      security:
+        - LearnerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ kind, granted, method ]
+              properties:
+                kind:
+                  type: string
+                  enum: [ data_processing, cloud_speech, sms, telegram, partner_access ]
+                granted:
+                  type: boolean
+                method:
+                  type: string
+                  enum: [ tap, sms_code, spoken, partner_witnessed ]
+      responses:
+        "201":
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  kind:
+                    type: string
+                  granted:
+                    type: boolean
+                  created_at:
+                    type: string
+                    format: date-time
+        "400":
+          $ref: '#/components/responses/InvalidID'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+  /registrations/{id}/submit:
+    post:
+      tags:
+        - Registrations
+      operationId: submitRegistration
+      summary: Finish the sign-up
+      description: |
+        Checks every required answer on the learner's path, fills the learner record, records the
+        identity evidence (self-declared) and, for "I have no ID", a referral to the chosen partner
+        organisation. All in one transaction. Submitting again returns the same result.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+            example: {}
+      responses:
+        "200":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitResponse"
+              example:
+                status: registered
+                learner_id: c2a9d0e1-7d21-4b8a-8c9d-0e1f2a3b4c5d
+                identity_level: self_declared
+                referral:
+                  id: 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                  partner_name: AAAPD
+                  status: requested
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Required answers are missing (one entry per step)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: full_name
+                    code: required
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+  /speech/transcriptions:
+    post:
+      summary: Transcribe audio speech to text
+      security:
+        - LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [ audio, language ]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Audio recording up to 3 MB
+                language:
+                  type: string
+                  example: "am"
+                step_id:
+                  type: string
+                  example: "phone"
+                field_type:
+                  type: string
+                  example: "phone"
+      responses:
+        "200":
+          description: Audio transcribed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionResponse'
+        "413":
+          description: Audio file exceeds 3 MB limit
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "503":
+          description: All speech providers unavailable
+  /jobs:
+    get:
+      tags:
+        - Jobs
+      operationId: listJobs
+      summary: List published jobs
+      description: Newest first, with accommodation codes. Matching against the learner's needs happens in the browser.
+      security:
+        - PartnerKey: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          description: "`next_cursor` of the previous page"
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        "200":
+          description: One page of jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                  - next_cursor
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+                  next_cursor:
+                    type: string
+                    nullable: true
+              example:
+                items:
+                  - id: 4a0c7d5e-1111-4222-8333-444455556666
+                    title: Junior Data Analyst
+                    description: Clean and report data for our training programmes.
+                    employer:
+                      name: Example Co
+                    location_type: hybrid
+                    location_text: Addis Ababa
+                    work_hours: Mon–Fri, 9:00–17:00
+                    employment_type: full_time
+                    accommodations:
+                      - flexible_hours
+                      - screen_reader
+                      - remote_work
+                    status: published
+                    published_at: 2026-11-14T10:00:00Z
+                next_cursor: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /jobs/{id}:
+    get:
+      tags:
+        - Jobs
+      operationId: getJob
+      summary: Get one published job
+      security:
+        - PartnerKey: []
+      responses:
+        "200":
+          description: The job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+  /jobs/{id}/jobposting.jsonld:
+    get:
+      tags:
+        - Jobs
+      operationId: getJobPosting
+      summary: The job as schema.org JobPosting
+      description: |
+        Public. Readable accommodations are in `jobBenefits`; the codes are in `acc:offers`, our
+        documented extension (schema.org has no accommodations property). `jobLocationType` is
+        `TELECOMMUTE` only for remote jobs.
+      security: []
+      responses:
+        "200":
+          description: JSON-LD
+          content:
+            application/ld+json:
+              schema:
+                type: object
+              example:
+                "@context":
+                  - https://schema.org
+                  - acc: https://YOUR-HOST/ns/accommodations#
+                "@type": JobPosting
+                title: Junior Data Analyst
+                description: Clean and report data for our training programmes.
+                datePosted: 2026-11-14
+                employmentType: FULL_TIME
+                hiringOrganization:
+                  "@type": Organization
+                  name: Example Co
+                jobLocation:
+                  "@type": Place
+                  address:
+                    "@type": PostalAddress
+                    addressLocality: Addis Ababa
+                    addressCountry: ET
+                workHours: Mon–Fri, 9:00–17:00
+                jobBenefits: "Supports we offer: flexible hours and breaks; tools and documents that work with screen readers; remote work."
+                acc:offers:
+                  - flexible_hours
+                  - screen_reader
+                  - remote_work
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+  /jobs/{id}/applications:
+    post:
+      tags:
+        - Applications
+      operationId: createApplication
+      summary: Apply for a job
+      description: Only a registered learner, once per job. `attach_support_request` lets the employer see the learner's support needs.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApplicationRequest"
+            example:
+              answers:
+                contact_confirm:
+                  value: yes
+                  input_method: choice
+                motivation:
+                  value: I like working with numbers and want to learn more.
+                  input_method: voice
+                start_date:
+                  value: 2026-12-01
+                  input_method: typed
+              attach_support_request: false
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+              example:
+                id: a7b6c5d4-e3f2-4a1b-9c8d-7e6f5a4b3c2d
+                job_id: 4a0c7d5e-1111-4222-8333-444455556666
+                status: submitted
+                created_at: 2026-11-14T19:00:00Z
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The learner hasn't finished signing up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already applied (`already_exists`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: 409
+                code: already_exists
+                title: Already exists
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+  /auth/staff/login:
+    post:
+      summary: Staff member login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ email, password ]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Staff login session
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+      security: []
+  /auth/staff/me:
+    get:
+      summary: Current staff profile and role
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: Staff profile
+  /employer/jobs:
+    get:
+      tags:
+        - Employer
+      operationId: listEmployerJobs
+      summary: My jobs
+      description: The signed-in employer's jobs, drafts included.
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: Jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                  - next_cursor
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+                  next_cursor:
+                    type: string
+                    nullable: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags:
+        - Employer
+      operationId: createEmployerJob
+      summary: Create a draft job
+      description: "`location_text` is required unless the job is remote. Accommodations are codes from the needs vocabulary (not `other`)."
+      security:
+        - StaffBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobRequest"
+            example:
+              title: Junior Data Analyst
+              description: Clean and report data for our training programmes.
+              location_type: hybrid
+              location_text: Addis Ababa
+              work_hours: Mon–Fri, 9:00–17:00
+              employment_type: full_time
+              accommodations:
+                - flexible_hours
+                - screen_reader
+                - remote_work
+      responses:
+        "201":
+          description: Draft saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /employer/jobs/{id}/publish:
+    post:
+      tags:
+        - Employer
+      operationId: publishEmployerJob
+      summary: Publish a job
+      description: Only the employer who owns the job; another employer's job answers 404. Publishing twice keeps the first date.
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishJobResponse"
+              example:
+                id: 4a0c7d5e-1111-4222-8333-444455556666
+                status: published
+                jsonld_url: https://YOUR-HOST/api/v1/jobs/4a0c7d5e-1111-4222-8333-444455556666/jobposting.jsonld
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+  /oauth/token:
+    post:
+      summary: Partner server OAuth 2.0 client credentials token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [ grant_type, client_id, client_secret ]
+              properties:
+                grant_type:
+                  type: string
+                  example: "client_credentials"
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+                scope:
+                  type: string
+      responses:
+        "200":
+          description: OAuth access token
+      security: []
+  /partner-api/learners:
+    get:
+      summary: List registered learners for partner server
+      security:
+        - PartnerServerBearer: []
+      responses:
+        "200":
+          description: List of learners
+  /partner-api/learners/{id}:
+    get:
+      summary: Get learner record for partner server
+      security:
+        - PartnerServerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Learner details
+  /auth/logout:
+    post:
+      summary: Terminate session ("Forget me on this phone")
+      responses:
+        "200":
+          description: Session terminated
+      security: []
+  /resume/lookup:
+    post:
+      summary: Lookup resume session check type
+      security:
+        - PartnerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  example: "K7M9P2"
+                token:
+                  type: string
+                  example: "r_8fK9mP2xQ7vLz3"
+      responses:
+        "200":
+          description: Resume session found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registration_id:
+                    type: string
+                    format: uuid
+                  check:
+                    type: string
+                    enum: [ dob, phone ]
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "410":
+          description: Resume token expired
+        "429":
+          description: Too many failed attempts
+  /resume/verify:
+    post:
+      summary: Verify resume session credentials and issue session token
+      security:
+        - PartnerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                token:
+                  type: string
+                dob:
+                  type: object
+                  properties:
+                    calendar:
+                      type: string
+                      enum: [ ethiopian, gregorian ]
+                    year:
+                      type: integer
+                    month:
+                      type: integer
+                    day:
+                      type: integer
+                phone_last4:
+                  type: string
+                  maxLength: 4
+      responses:
+        "200":
+          description: Resume verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registration_id:
+                    type: string
+                    format: uuid
+                  session:
+                    $ref: '#/components/schemas/Session'
+        "401":
+          description: Verification check failed
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "410":
+          description: Resume token expired
+        "429":
+          description: Too many failed attempts
+  /partner/registrations/{id}/consent-code:
+    post:
+      summary: Send consent code to learner phone
+      security:
+        - StaffBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+      responses:
+        "200":
+          description: Consent code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  phone:
+                    type: string
+                  expires_in:
+                    type: integer
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /telegram/webhook:
+    post:
+      summary: Telegram bot webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+      security: []
+  /registrations/{id}/resume-links:
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+    post:
+      operationId: createResumeLink
+      tags:
+        - Registrations
+      summary: Continue on another device
+      description: 'A link and a short code (both stored only as hashes, valid 72 hours). With send_via "sms" they are also texted to the learner (simulated inbox in dev: GET /dev/messages).'
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                send_via:
+                  type: string
+                  enum:
+                    - none
+                    - sms
+                phone:
+                  type: string
+                  maxLength: 32
+            example:
+              send_via: sms
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - url
+                  - code
+                  - expires_at
+                properties:
+                  url:
+                    type: string
+                  code:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+                  message:
+                    type: object
+                    properties:
+                      channel:
+                        type: string
+                      status:
+                        type: string
+              example:
+                url: https://YOUR-HOST/r/k_8fK9mP2xQ7vLz3
+                code: K7M-9P2
+                expires_at: 2026-11-17T14:00:00Z
+                message:
+                  channel: sms
+                  status: queued
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Not your registration
+          content:
+            application/json:
+              schema: &a1
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Already submitted (already_submitted)
+          content:
+            application/json:
+              schema: *a1
+        "422":
+          description: Invalid send_via or phone
+          content:
+            application/json:
+              schema: *a1
+  /dev/messages:
+    get:
+      operationId: devMessages
+      tags:
+        - Development
+      summary: Simulated SMS / Telegram inbox (APP_ENV=dev only)
+      security: []
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              example:
+                items:
+                  - id: m1
+                    channel: sms
+                    to: "+251912345678"
+                    body: "Bridge: continue your sign-up at … Code: K7M-9P2"
+                    created_at: 2026-11-14T13:00:00Z
 
+components:
+  securitySchemes:
+    PartnerKey:
+      type: apiKey
+      in: header
+      name: X-Partner-Key
+    LearnerBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    StaffBearer:
+      type: http
+      scheme: bearer
+    PartnerServerBearer:
+      type: http
+      scheme: bearer
+
+  schemas:
+    ConfigResponse:
+      type: object
+      properties:
+        partner:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        languages:
+          type: array
+          items:
+            type: string
+        default_language:
+          type: string
+        id_routes:
+          type: array
+          items:
+            type: string
+        referral_partners:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+        help:
+          type: object
+          properties:
+            phone:
+              type: string
+            telegram:
+              type: string
+        theme:
+          type: object
+          properties:
+            primary:
+              type: string
+        speech:
+          type: object
+          properties:
+            server:
+              type: boolean
+            cloud_available:
+              type: boolean
+
+    TranscriptionResponse:
+      type: object
+      properties:
+        transcript:
+          type: string
+          example: "0912345678"
+        confidence:
+          type: number
+          example: 0.85
+        provider:
+          type: string
+          example: "azure"
+
+    Session:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        code:
+          type: string
+        title:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+    Error:
+      type: object
+      required:
+        - status
+        - code
+      properties:
+        status:
+          type: integer
+        code:
+          type: string
+          description: Translate with errors.<code> on the frontend
+        title:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+    FieldError:
+      type: object
+      required:
+        - field
+        - code
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+    CreateRegistrationRequest:
+      type: object
+      required:
+        - flow_id
+        - language
+      properties:
+        flow_id:
+          type: string
+          maxLength: 64
+          enum:
+            - signup
+        flow_version:
+          type: integer
+          minimum: 1
+          description: Latest when left out
+        language:
+          type: string
+          minLength: 2
+          maxLength: 8
+          example: am
+        simple_mode:
+          type: boolean
+          default: false
+    CreateRegistrationResponse:
+      type: object
+      required:
+        - registration_id
+        - learner_id
+        - status
+        - current_step
+        - session
+      properties:
+        registration_id:
+          type: string
+          format: uuid
+        learner_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - draft
+        current_step:
+          type: string
+        session:
+          $ref: "#/components/schemas/Session"
+    UpdateProgressRequest:
+      type: object
+      properties:
+        current_step:
+          type: string
+          maxLength: 64
+        language:
+          type: string
+          minLength: 2
+          maxLength: 8
+        simple_mode:
+          type: boolean
+    SaveAnswerRequest:
+      type: object
+      required:
+        - value
+        - input_method
+      properties:
+        value:
+          description: "A string for text, phone, digits and single choice; a list for multi choice; a date is { calendar, ethiopian?: { year, month, day }, iso } or an ISO string."
+        input_method:
+          type: string
+          enum:
+            - typed
+            - voice
+            - choice
+            - partner
+        base_version:
+          type: integer
+          minimum: 0
+          default: 0
+    Answer:
+      type: object
+      required:
+        - question_id
+        - value
+        - input_method
+        - version
+        - updated_at
+      properties:
+        question_id:
+          type: string
+        value: {}
+        input_method:
+          type: string
+          enum:
+            - typed
+            - voice
+            - choice
+            - partner
+        version:
+          type: integer
+          minimum: 1
+        updated_at:
+          type: string
+          format: date-time
+    AnswerConflict:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          required:
+            - current
+          properties:
+            current:
+              $ref: "#/components/schemas/Answer"
+    Registration:
+      type: object
+      required:
+        - registration_id
+        - status
+        - current_step
+        - language
+        - simple_mode
+        - answers
+        - support_request
+        - updated_at
+      properties:
+        registration_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - draft
+            - submitted
+        current_step:
+          type: string
+        language:
+          type: string
+        simple_mode:
+          type: boolean
+        answers:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Answer"
+        support_request:
+          type: object
+          required:
+            - submitted
+          properties:
+            submitted:
+              type: boolean
+        updated_at:
+          type: string
+          format: date-time
+    SubmitResponse:
+      type: object
+      required:
+        - status
+        - learner_id
+        - identity_level
+      properties:
+        status:
+          type: string
+          enum:
+            - registered
+        learner_id:
+          type: string
+          format: uuid
+        identity_level:
+          type: string
+          enum:
+            - self_declared
+            - partner_attested
+            - verified
+        referral:
+          type: object
+          required:
+            - id
+            - partner_name
+            - status
+          properties:
+            id:
+              type: string
+              format: uuid
+            partner_name:
+              type: string
+            status:
+              type: string
+              enum:
+                - requested
+                - in_progress
+                - attested
+                - closed
+    SupportRequest:
+      type: object
+      properties:
+        needs:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            description: A code from shared/vocab/needs.json
+        other_text:
+          type: string
+          maxLength: 500
+        share_with:
+          type: object
+          properties:
+            courses:
+              type: boolean
+            employers:
+              type: boolean
+    SupportSaved:
+      type: object
+      required:
+        - status
+        - updated_at
+      properties:
+        status:
+          type: string
+          enum:
+            - saved
+        updated_at:
+          type: string
+          format: date-time
+    Job:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - employer
+        - location_type
+        - employment_type
+        - accommodations
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        employer:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+        location_type:
+          type: string
+          enum:
+            - onsite
+            - remote
+            - hybrid
+        location_text:
+          type: string
+        work_hours:
+          type: string
+        employment_type:
+          type: string
+          enum:
+            - full_time
+            - part_time
+            - contract
+            - internship
+            - temporary
+        accommodations:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum:
+            - draft
+            - published
+            - closed
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+    CreateJobRequest:
+      type: object
+      required:
+        - title
+        - description
+        - location_type
+        - employment_type
+      properties:
+        title:
+          type: string
+          minLength: 2
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 3000
+        location_type:
+          type: string
+          enum:
+            - onsite
+            - remote
+            - hybrid
+        location_text:
+          type: string
+          maxLength: 200
+        work_hours:
+          type: string
+          maxLength: 200
+        employment_type:
+          type: string
+          enum:
+            - full_time
+            - part_time
+            - contract
+            - internship
+            - temporary
+        accommodations:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+    PublishJobResponse:
+      type: object
+      required:
+        - id
+        - status
+        - jsonld_url
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - published
+        jsonld_url:
+          type: string
+          format: uri
+    CreateApplicationRequest:
+      type: object
+      required:
+        - answers
+      properties:
+        answers:
+          type: object
+          description: The job-application flow's answers, keyed by step ID.
+        attach_support_request:
+          type: boolean
+          default: false
+    Application:
+      type: object
+      required:
+        - id
+        - job_id
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - submitted
+            - seen
+            - withdrawn
+        created_at:
+          type: string
+          format: date-time
+
+  responses:
+    Unauthorized:
+      description: Unauthorized request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InvalidID:
+      description: Invalid identifier format
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequest:
+      description: Unreadable JSON (`invalid_request`) or a malformed ID (`invalid_id`)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 400
+            code: invalid_id
+            errors:
+              - field: id
+                code: invalid
+    Forbidden:
+      description: Signed in, but this isn't yours (or the wrong role)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 403
+            code: forbidden
+            title: Not allowed
+    ValidationFailed:
+      description: One or more fields break a rule
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 422
+            code: validation_failed
+            title: Validation failed
+            errors:
+              - field: needs
+                code: invalid_choice
+  parameters:
+    RegistrationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
 tags:
   - name: Registrations
     description: Sign-up, answers, progress, submit
@@ -28,750 +1678,5 @@ tags:
     description: A learner applying for a job
   - name: Employer
     description: An employer's own jobs
-
-paths:
-  /registrations:
-    post:
-      tags: [Registrations]
-      operationId: createRegistration
-      summary: Start a sign-up
-      description: Creates a draft learner and registration for the partner whose key is sent, and returns a learner token for this device.
-      security: [{ partnerKey: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CreateRegistrationRequest' }
-            example: { flow_id: signup, flow_version: 1, language: am, simple_mode: false }
-      responses:
-        '201':
-          description: Started
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/CreateRegistrationResponse' }
-              example:
-                registration_id: 6f1c2a9e-0b6c-4d3a-9a1e-2f3b4c5d6e7f
-                learner_id: c2a9d0e1-7d21-4b8a-8c9d-0e1f2a3b4c5d
-                status: draft
-                current_step: welcome
-                session: { token: lt_Zk3qT9vX2mPa8LwQ4rYb7n, expires_at: '2026-12-14T12:00:00Z' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
-
-  /registrations/{id}:
-    parameters:
-      - $ref: '#/components/parameters/RegistrationId'
-    get:
-      tags: [Registrations]
-      operationId: getRegistration
-      summary: Get a registration
-      description: Status, current step, preferences and every saved answer with its version. Support needs are never returned, only whether they were sent.
-      security: [{ partnerKey: [], learnerToken: [] }]
-      responses:
-        '200':
-          description: The registration
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Registration' }
-              example:
-                registration_id: 6f1c2a9e-0b6c-4d3a-9a1e-2f3b4c5d6e7f
-                status: draft
-                current_step: dob
-                language: am
-                simple_mode: true
-                answers:
-                  full_name:
-                    {
-                      question_id: full_name,
-                      value: አበበ ከበደ,
-                      input_method: voice,
-                      version: 2,
-                      updated_at: '2026-11-14T13:05:00Z',
-                    }
-                  contact_method:
-                    {
-                      question_id: contact_method,
-                      value: phone,
-                      input_method: choice,
-                      version: 1,
-                      updated_at: '2026-11-14T13:06:00Z',
-                    }
-                  phone:
-                    {
-                      question_id: phone,
-                      value: '+251912345678',
-                      input_method: typed,
-                      version: 1,
-                      updated_at: '2026-11-14T13:07:00Z',
-                    }
-                support_request: { submitted: false }
-                updated_at: '2026-11-14T13:07:00Z'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    patch:
-      tags: [Registrations]
-      operationId: updateProgress
-      summary: Save progress and preferences
-      description: Only the fields that are sent change.
-      security: [{ partnerKey: [], learnerToken: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/UpdateProgressRequest' }
-            example: { current_step: dob, simple_mode: true }
-      responses:
-        '204': { description: Saved }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
-
-  /registrations/{id}/answers/{questionId}:
-    parameters:
-      - $ref: '#/components/parameters/RegistrationId'
-      - name: questionId
-        in: path
-        required: true
-        description: Step ID from the flow file, for example `phone`.
-        schema: { type: string, maxLength: 64 }
-        example: phone
-    put:
-      tags: [Registrations]
-      operationId: saveAnswer
-      summary: Save one answer
-      description: |
-        Checks the value against the step in the flow file and stores the cleaned value
-        (phone numbers in E.164). `base_version` is the version the device last saw (0 = none):
-        if another device saved a newer one, nothing is saved and 409 returns the saved answer.
-      security: [{ partnerKey: [], learnerToken: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SaveAnswerRequest' }
-            example: { value: 0912 345 678, input_method: voice, base_version: 0 }
-      responses:
-        '200':
-          description: Saved
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Answer' }
-              example:
-                {
-                  question_id: phone,
-                  value: '+251912345678',
-                  input_method: voice,
-                  version: 1,
-                  updated_at: '2026-11-14T13:07:00Z',
-                }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409':
-          description: Another device saved first (`answer_conflict`), or the registration is already submitted (`already_submitted`)
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/AnswerConflict'
-                  - $ref: '#/components/schemas/Error'
-              example:
-                status: 409
-                code: answer_conflict
-                title: Answer changed on another device
-                current:
-                  {
-                    question_id: phone,
-                    value: '+251911000000',
-                    input_method: typed,
-                    version: 3,
-                    updated_at: '2026-11-14T13:10:00Z',
-                  }
-        '422':
-          description: The value breaks a rule of the step, or the step has no answer (`question_id` / `unknown_question`)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-              example:
-                {
-                  status: 422,
-                  code: validation_failed,
-                  title: Validation failed,
-                  errors: [{ field: value, code: phone_invalid }],
-                }
-
-  /registrations/{id}/support-request:
-    parameters:
-      - $ref: '#/components/parameters/RegistrationId'
-    put:
-      tags: [Support]
-      operationId: saveSupportRequest
-      summary: Save support needs
-      description: Replaces the learner's support request. The needs are encrypted (AES-256-GCM) before they are stored and are never sent back.
-      security: [{ partnerKey: [], learnerToken: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SupportRequest' }
-            example:
-              needs: [screen_reader, extra_time]
-              other_text: I need breaks every hour
-              share_with: { courses: false, employers: false }
-      responses:
-        '200':
-          description: Saved
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SupportSaved' }
-              example: { status: saved, updated_at: '2026-11-14T13:20:00Z' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
-
-  /registrations/{id}/submit:
-    parameters:
-      - $ref: '#/components/parameters/RegistrationId'
-    post:
-      tags: [Registrations]
-      operationId: submitRegistration
-      summary: Finish the sign-up
-      description: |
-        Checks every required answer on the learner's path, fills the learner record, records the
-        identity evidence (self-declared) and, for "I have no ID", a referral to the chosen partner
-        organisation. All in one transaction. Submitting again returns the same result.
-      security: [{ partnerKey: [], learnerToken: [] }]
-      requestBody:
-        content:
-          application/json:
-            schema: { type: object }
-            example: {}
-      responses:
-        '200':
-          description: Registered
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SubmitResponse' }
-              example:
-                status: registered
-                learner_id: c2a9d0e1-7d21-4b8a-8c9d-0e1f2a3b4c5d
-                identity_level: self_declared
-                referral:
-                  {
-                    id: 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d,
-                    partner_name: AAAPD,
-                    status: requested,
-                  }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422':
-          description: Required answers are missing (one entry per step)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-              example:
-                {
-                  status: 422,
-                  code: validation_failed,
-                  title: Validation failed,
-                  errors: [{ field: full_name, code: required }],
-                }
-
-  /jobs:
-    get:
-      tags: [Jobs]
-      operationId: listJobs
-      summary: List published jobs
-      description: Newest first, with accommodation codes. Matching against the learner's needs happens in the browser.
-      security: [{ partnerKey: [] }]
-      parameters:
-        - {
-            name: limit,
-            in: query,
-            schema: { type: integer, minimum: 1, maximum: 100, default: 20 },
-          }
-        - {
-            name: cursor,
-            in: query,
-            description: '`next_cursor` of the previous page',
-            schema: { type: string, maxLength: 200 },
-          }
-      responses:
-        '200':
-          description: One page of jobs
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [items, next_cursor]
-                properties:
-                  items: { type: array, items: { $ref: '#/components/schemas/Job' } }
-                  next_cursor: { type: [string, 'null'] }
-              example:
-                items:
-                  - id: 4a0c7d5e-1111-4222-8333-444455556666
-                    title: Junior Data Analyst
-                    description: Clean and report data for our training programmes.
-                    employer: { name: Example Co }
-                    location_type: hybrid
-                    location_text: Addis Ababa
-                    work_hours: Mon–Fri, 9:00–17:00
-                    employment_type: full_time
-                    accommodations: [flexible_hours, screen_reader, remote_work]
-                    status: published
-                    published_at: '2026-11-14T10:00:00Z'
-                next_cursor: null
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
-
-  /jobs/{id}:
-    parameters:
-      - $ref: '#/components/parameters/JobId'
-    get:
-      tags: [Jobs]
-      operationId: getJob
-      summary: Get one published job
-      security: [{ partnerKey: [] }]
-      responses:
-        '200':
-          description: The job
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Job' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
-  /jobs/{id}/jobposting.jsonld:
-    parameters:
-      - $ref: '#/components/parameters/JobId'
-    get:
-      tags: [Jobs]
-      operationId: getJobPosting
-      summary: The job as schema.org JobPosting
-      description: |
-        Public. Readable accommodations are in `jobBenefits`; the codes are in `acc:offers`, our
-        documented extension (schema.org has no accommodations property). `jobLocationType` is
-        `TELECOMMUTE` only for remote jobs.
-      security: []
-      responses:
-        '200':
-          description: JSON-LD
-          content:
-            application/ld+json:
-              schema: { type: object }
-              example:
-                '@context': ['https://schema.org', { acc: 'https://YOUR-HOST/ns/accommodations#' }]
-                '@type': JobPosting
-                title: Junior Data Analyst
-                description: Clean and report data for our training programmes.
-                datePosted: '2026-11-14'
-                employmentType: FULL_TIME
-                hiringOrganization: { '@type': Organization, name: Example Co }
-                jobLocation:
-                  {
-                    '@type': Place,
-                    address:
-                      { '@type': PostalAddress, addressLocality: Addis Ababa, addressCountry: ET },
-                  }
-                workHours: Mon–Fri, 9:00–17:00
-                jobBenefits: 'Supports we offer: flexible hours and breaks; tools and documents that work with screen readers; remote work.'
-                acc:offers: [flexible_hours, screen_reader, remote_work]
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
-  /jobs/{id}/applications:
-    parameters:
-      - $ref: '#/components/parameters/JobId'
-    post:
-      tags: [Applications]
-      operationId: createApplication
-      summary: Apply for a job
-      description: Only a registered learner, once per job. `attach_support_request` lets the employer see the learner's support needs.
-      security: [{ partnerKey: [], learnerToken: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CreateApplicationRequest' }
-            example:
-              answers:
-                contact_confirm: { value: 'yes', input_method: choice }
-                motivation:
-                  {
-                    value: I like working with numbers and want to learn more.,
-                    input_method: voice,
-                  }
-                start_date: { value: '2026-12-01', input_method: typed }
-              attach_support_request: false
-      responses:
-        '201':
-          description: Sent
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Application' }
-              example:
-                {
-                  id: a7b6c5d4-e3f2-4a1b-9c8d-7e6f5a4b3c2d,
-                  job_id: 4a0c7d5e-1111-4222-8333-444455556666,
-                  status: submitted,
-                  created_at: '2026-11-14T19:00:00Z',
-                }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403':
-          description: The learner hasn't finished signing up
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409':
-          description: Already applied (`already_exists`)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-              example: { status: 409, code: already_exists, title: Already exists }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
-
-  /employer/jobs:
-    get:
-      tags: [Employer]
-      operationId: listEmployerJobs
-      summary: My jobs
-      description: The signed-in employer's jobs, drafts included.
-      security: [{ staffToken: [] }]
-      responses:
-        '200':
-          description: Jobs
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [items, next_cursor]
-                properties:
-                  items: { type: array, items: { $ref: '#/components/schemas/Job' } }
-                  next_cursor: { type: 'null' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-    post:
-      tags: [Employer]
-      operationId: createEmployerJob
-      summary: Create a draft job
-      description: '`location_text` is required unless the job is remote. Accommodations are codes from the needs vocabulary (not `other`).'
-      security: [{ staffToken: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CreateJobRequest' }
-            example:
-              title: Junior Data Analyst
-              description: Clean and report data for our training programmes.
-              location_type: hybrid
-              location_text: Addis Ababa
-              work_hours: Mon–Fri, 9:00–17:00
-              employment_type: full_time
-              accommodations: [flexible_hours, screen_reader, remote_work]
-      responses:
-        '201':
-          description: Draft saved
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Job' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
-
-  /employer/jobs/{id}/publish:
-    parameters:
-      - $ref: '#/components/parameters/JobId'
-    post:
-      tags: [Employer]
-      operationId: publishEmployerJob
-      summary: Publish a job
-      description: Only the employer who owns the job; another employer's job answers 404. Publishing twice keeps the first date.
-      security: [{ staffToken: [] }]
-      responses:
-        '200':
-          description: Published
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/PublishJobResponse' }
-              example:
-                {
-                  id: 4a0c7d5e-1111-4222-8333-444455556666,
-                  status: published,
-                  jsonld_url: 'https://YOUR-HOST/api/v1/jobs/4a0c7d5e-1111-4222-8333-444455556666/jobposting.jsonld',
-                }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
-components:
-  securitySchemes:
-    partnerKey:
-      type: apiKey
-      in: header
-      name: X-Partner-Key
-      description: The partner's publishable key (public; it is in the widget's HTML).
-    learnerToken:
-      type: http
-      scheme: bearer
-      description: Learner token (`lt_…`) from POST /registrations. 30 days, renewed when used.
-    staffToken:
-      type: http
-      scheme: bearer
-      description: Staff token (`st_…`) from POST /auth/staff/login. Employer routes need the employer role.
-
-  parameters:
-    RegistrationId:
-      name: id
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
-    JobId:
-      name: id
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
-
-  responses:
-    BadRequest:
-      description: Unreadable JSON (`invalid_request`) or a malformed ID (`invalid_id`)
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          example: { status: 400, code: invalid_id, errors: [{ field: id, code: invalid }] }
-    Unauthorized:
-      description: No or unknown partner key or token
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          example: { status: 401, code: unauthorized, title: Sign-in needed }
-    Forbidden:
-      description: Signed in, but this isn't yours (or the wrong role)
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          example: { status: 403, code: forbidden, title: Not allowed }
-    NotFound:
-      description: Doesn't exist (or isn't published)
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          example: { status: 404, code: not_found, title: Not found }
-    ValidationFailed:
-      description: One or more fields break a rule
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-          example:
-            {
-              status: 422,
-              code: validation_failed,
-              title: Validation failed,
-              errors: [{ field: needs, code: invalid_choice }],
-            }
-
-  schemas:
-    Error:
-      type: object
-      required: [status, code]
-      properties:
-        status: { type: integer }
-        code: { type: string, description: 'Translate with errors.<code> on the frontend' }
-        title: { type: string }
-        errors:
-          type: array
-          items: { $ref: '#/components/schemas/FieldError' }
-    FieldError:
-      type: object
-      required: [field, code]
-      properties:
-        field: { type: string }
-        code: { type: string }
-    Session:
-      type: object
-      required: [token, expires_at]
-      properties:
-        token: { type: string }
-        expires_at: { type: string, format: date-time }
-
-    CreateRegistrationRequest:
-      type: object
-      required: [flow_id, language]
-      properties:
-        flow_id: { type: string, maxLength: 64, enum: [signup] }
-        flow_version: { type: integer, minimum: 1, description: Latest when left out }
-        language: { type: string, minLength: 2, maxLength: 8, examples: [am, en] }
-        simple_mode: { type: boolean, default: false }
-    CreateRegistrationResponse:
-      type: object
-      required: [registration_id, learner_id, status, current_step, session]
-      properties:
-        registration_id: { type: string, format: uuid }
-        learner_id: { type: string, format: uuid }
-        status: { type: string, enum: [draft] }
-        current_step: { type: string }
-        session: { $ref: '#/components/schemas/Session' }
-    UpdateProgressRequest:
-      type: object
-      properties:
-        current_step: { type: string, maxLength: 64 }
-        language: { type: string, minLength: 2, maxLength: 8 }
-        simple_mode: { type: boolean }
-    SaveAnswerRequest:
-      type: object
-      required: [value, input_method]
-      properties:
-        value:
-          description: 'A string for text, phone, digits and single choice; a list for multi choice; a date is { calendar, ethiopian?: { year, month, day }, iso } or an ISO string.'
-        input_method: { type: string, enum: [typed, voice, choice, partner] }
-        base_version: { type: integer, minimum: 0, default: 0 }
-    Answer:
-      type: object
-      required: [question_id, value, input_method, version, updated_at]
-      properties:
-        question_id: { type: string }
-        value: {}
-        input_method: { type: string, enum: [typed, voice, choice, partner] }
-        version: { type: integer, minimum: 1 }
-        updated_at: { type: string, format: date-time }
-    AnswerConflict:
-      allOf:
-        - $ref: '#/components/schemas/Error'
-        - type: object
-          required: [current]
-          properties:
-            current: { $ref: '#/components/schemas/Answer' }
-    Registration:
-      type: object
-      required:
-        [
-          registration_id,
-          status,
-          current_step,
-          language,
-          simple_mode,
-          answers,
-          support_request,
-          updated_at,
-        ]
-      properties:
-        registration_id: { type: string, format: uuid }
-        status: { type: string, enum: [draft, submitted] }
-        current_step: { type: string }
-        language: { type: string }
-        simple_mode: { type: boolean }
-        answers:
-          type: object
-          additionalProperties: { $ref: '#/components/schemas/Answer' }
-        support_request:
-          type: object
-          required: [submitted]
-          properties:
-            submitted: { type: boolean }
-        updated_at: { type: string, format: date-time }
-    SubmitResponse:
-      type: object
-      required: [status, learner_id, identity_level]
-      properties:
-        status: { type: string, enum: [registered] }
-        learner_id: { type: string, format: uuid }
-        identity_level: { type: string, enum: [self_declared, partner_attested, verified] }
-        referral:
-          type: object
-          required: [id, partner_name, status]
-          properties:
-            id: { type: string, format: uuid }
-            partner_name: { type: string }
-            status: { type: string, enum: [requested, in_progress, attested, closed] }
-
-    SupportRequest:
-      type: object
-      properties:
-        needs:
-          type: array
-          maxItems: 20
-          items: { type: string, description: A code from shared/vocab/needs.json }
-        other_text: { type: string, maxLength: 500 }
-        share_with:
-          type: object
-          properties:
-            courses: { type: boolean }
-            employers: { type: boolean }
-    SupportSaved:
-      type: object
-      required: [status, updated_at]
-      properties:
-        status: { type: string, enum: [saved] }
-        updated_at: { type: string, format: date-time }
-
-    Job:
-      type: object
-      required:
-        [id, title, description, employer, location_type, employment_type, accommodations, status]
-      properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        description: { type: string }
-        employer:
-          type: object
-          required: [name]
-          properties:
-            name: { type: string }
-        location_type: { type: string, enum: [onsite, remote, hybrid] }
-        location_text: { type: string }
-        work_hours: { type: string }
-        employment_type:
-          { type: string, enum: [full_time, part_time, contract, internship, temporary] }
-        accommodations: { type: array, items: { type: string } }
-        status: { type: string, enum: [draft, published, closed] }
-        published_at: { type: [string, 'null'], format: date-time }
-    CreateJobRequest:
-      type: object
-      required: [title, description, location_type, employment_type]
-      properties:
-        title: { type: string, minLength: 2, maxLength: 200 }
-        description: { type: string, maxLength: 3000 }
-        location_type: { type: string, enum: [onsite, remote, hybrid] }
-        location_text: { type: string, maxLength: 200 }
-        work_hours: { type: string, maxLength: 200 }
-        employment_type:
-          { type: string, enum: [full_time, part_time, contract, internship, temporary] }
-        accommodations: { type: array, maxItems: 20, items: { type: string } }
-    PublishJobResponse:
-      type: object
-      required: [id, status, jsonld_url]
-      properties:
-        id: { type: string, format: uuid }
-        status: { type: string, enum: [published] }
-        jsonld_url: { type: string, format: uri }
-
-    CreateApplicationRequest:
-      type: object
-      required: [answers]
-      properties:
-        answers:
-          type: object
-          description: The job-application flow's answers, keyed by step ID.
-        attach_support_request: { type: boolean, default: false }
-    Application:
-      type: object
-      required: [id, job_id, status, created_at]
-      properties:
-        id: { type: string, format: uuid }
-        job_id: { type: string, format: uuid }
-        status: { type: string, enum: [submitted, seen, withdrawn] }
-        created_at: { type: string, format: date-time }
+  - name: Development
+    description: Only when APP_ENV=dev

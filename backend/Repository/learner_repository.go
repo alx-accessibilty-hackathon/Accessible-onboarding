@@ -13,7 +13,7 @@ import (
 )
 
 // LearnerRepository handles learners, their ID evidence and referrals.
-// Tables: learners, identity_evidence, referrals. Queries: queries/registrations.sql.
+// Tables: learners, identity_evidence, referrals. Queries: queries/learners.sql, queries/registrations.sql.
 // (Learners are created and their profile is filled by RegistrationRepository.Start and
 // SubmitTx, because those write several tables in one transaction.)
 type LearnerRepository struct {
@@ -30,8 +30,8 @@ func NewLearnerRepo(db *pgxpool.Pool) *LearnerRepository {
 	}
 }
 
-func (r *LearnerRepository) Get(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
-	row, err := r.Q.GetLearner(ctx, id)
+func (r *LearnerRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
+	row, err := r.Q.GetLearnerByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrNotFound
 	}
@@ -39,6 +39,32 @@ func (r *LearnerRepository) Get(ctx context.Context, id uuid.UUID) (*domain.Lear
 		return nil, err
 	}
 	return toLearner(row), nil
+}
+
+func (r *LearnerRepository) GetByIDAndPartnerID(ctx context.Context, id uuid.UUID, partnerID uuid.UUID) (*domain.Learner, error) {
+	row, err := r.Q.GetLearnerByIDAndPartnerID(ctx, sqlc.GetLearnerByIDAndPartnerIDParams{
+		ID:        id,
+		PartnerID: partnerID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toLearner(row), nil
+}
+
+func (r *LearnerRepository) ListByPartnerID(ctx context.Context, partnerID uuid.UUID) ([]*domain.Learner, error) {
+	rows, err := r.Q.ListLearnersByPartnerID(ctx, partnerID)
+	if err != nil {
+		return nil, err
+	}
+	learners := make([]*domain.Learner, 0, len(rows))
+	for _, row := range rows {
+		learners = append(learners, toLearner(row))
+	}
+	return learners, nil
 }
 
 func (r *LearnerRepository) UpdatePreferences(ctx context.Context, id uuid.UUID, language *string, simple *bool) error {

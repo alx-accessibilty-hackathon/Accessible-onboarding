@@ -13,6 +13,66 @@ import (
 	"github.com/google/uuid"
 )
 
+const getPartnerByClientID = `-- name: GetPartnerByClientID :one
+SELECT id, slug, name, kind, publishable_key, allowed_origins, client_id, client_secret_hash, config, created_at
+FROM partners
+WHERE client_id = $1
+`
+
+// For OAuth client credentials: the partner and the SHA-256 hash of its client secret.
+func (q *Queries) GetPartnerByClientID(ctx context.Context, clientID *string) (Partner, error) {
+	row := q.db.QueryRow(ctx, getPartnerByClientID, clientID)
+	var i Partner
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.Kind,
+		&i.PublishableKey,
+		&i.AllowedOrigins,
+		&i.ClientID,
+		&i.ClientSecretHash,
+		&i.Config,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPartnerByID = `-- name: GetPartnerByID :one
+SELECT id, slug, name, kind, publishable_key, allowed_origins, client_id, config, created_at
+FROM partners
+WHERE id = $1
+`
+
+type GetPartnerByIDRow struct {
+	ID             uuid.UUID
+	Slug           string
+	Name           string
+	Kind           string
+	PublishableKey string
+	AllowedOrigins []string
+	ClientID       *string
+	Config         json.RawMessage
+	CreatedAt      time.Time
+}
+
+func (q *Queries) GetPartnerByID(ctx context.Context, id uuid.UUID) (GetPartnerByIDRow, error) {
+	row := q.db.QueryRow(ctx, getPartnerByID, id)
+	var i GetPartnerByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.Kind,
+		&i.PublishableKey,
+		&i.AllowedOrigins,
+		&i.ClientID,
+		&i.Config,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getPartnerByPublishableKey = `-- name: GetPartnerByPublishableKey :one
 
 SELECT id, slug, name, kind, publishable_key, allowed_origins, client_id, config, created_at

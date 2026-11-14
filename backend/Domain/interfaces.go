@@ -13,9 +13,12 @@ import (
 
 // ---- Use cases (called by controllers) ----
 
-type ConfigUsecaseI interface{} // GET /config
+type ConfigUsecaseI interface {
+	GetConfig(ctx context.Context, partnerKey string) (*ClientConfig, error)
+}
 
-// RegistrationUsecaseI: start a sign-up, read it back, save progress and answers, submit.
+// RegistrationUsecaseI: start a sign-up, read it back, save progress and answers, submit
+// (Dev A), and continue on another device, consent codes and Telegram (Dev B).
 type RegistrationUsecaseI interface {
 	// Start creates a draft learner and registration for the actor's partner and issues a
 	// learner token. flowVersion 0 means the latest version of the flow.
@@ -27,6 +30,18 @@ type RegistrationUsecaseI interface {
 	// saved version (0 = nothing saved yet). A stale baseVersion returns *ConflictError.
 	SaveAnswer(ctx context.Context, actor Actor, regID uuid.UUID, questionID string, value json.RawMessage, inputMethod string, baseVersion int) (*Answer, error)
 	Submit(ctx context.Context, actor Actor, regID uuid.UUID) (*SubmitResult, error)
+
+	ResumeLookup(ctx context.Context, codeOrToken string) (*ResumeLookupResult, error)
+	ResumeVerify(ctx context.Context, codeOrToken string, dob *ResumeDOB, phoneLast4 string) (*ResumeVerifyResult, int, error)
+	// CreateResumeLink makes a link and a short code to continue on another device (R15),
+	// optionally sending them by SMS or Telegram.
+	CreateResumeLink(ctx context.Context, actor Actor, regID uuid.UUID, sendVia, phone string) (*ResumeLink, error)
+	// SendConsentCode texts a consent code to the learner's stored phone (partner staff, E1).
+	// It returns the phone number masked, e.g. "+2519•••••678".
+	SendConsentCode(ctx context.Context, actor Actor, registrationID uuid.UUID) (string, error)
+	HandleTelegramWebhook(ctx context.Context, update *TelegramUpdate) error
+	// DevMessages lists the simulated SMS / Telegram messages (development only).
+	DevMessages(ctx context.Context) ([]*OutboxMessage, error)
 }
 
 // SupportUsecaseI saves a learner's support request (needs), encrypted. Returns when it was saved.
@@ -34,9 +49,25 @@ type SupportUsecaseI interface {
 	Save(ctx context.Context, actor Actor, regID uuid.UUID, req *SupportRequest) (time.Time, error)
 }
 
-type ConsentUsecaseI interface{} // consents
-type AuthUsecaseI interface{}    // logout, staff login, OAuth client credentials
-type SpeechUsecaseI interface{}  // speech-to-text
+type ConsentUsecaseI interface {
+	CreateConsent(ctx context.Context, actor Actor, registrationID uuid.UUID, consent *Consent) (*Consent, error)
+}
+
+// AuthUsecaseI: tokens for learners, staff and partner servers.
+type AuthUsecaseI interface {
+	// ResolveToken turns a bearer token into the caller. ErrUnauthorized if unknown, expired or revoked.
+	ResolveToken(ctx context.Context, token string) (*Actor, error)
+	Logout(ctx context.Context, token string) error
+	// StaffLogin gives the same ErrUnauthorized for a wrong email and a wrong password.
+	StaffLogin(ctx context.Context, email, password string) (token string, expiresAt time.Time, staff *StaffUser, err error)
+	StaffMe(ctx context.Context, actor Actor) (*StaffUser, error)
+	// IssuePartnerToken: OAuth 2.0 client credentials. Returns the token, its lifetime in
+	// seconds and the granted scope.
+	IssuePartnerToken(ctx context.Context, clientID, secret, scope string) (token string, expiresIn int, granted string, err error)
+}
+type SpeechUsecaseI interface {
+	Transcribe(ctx context.Context, audio []byte, language string, stepID string, fieldType string, learnerID *uuid.UUID) (*Transcription, error)
+}
 
 // JobUsecaseI: public job list and detail, JobPosting JSON-LD, and the employer's own jobs.
 type JobUsecaseI interface {
@@ -55,7 +86,12 @@ type ApplicationUsecaseI interface {
 	Apply(ctx context.Context, actor Actor, app *Application) (*Application, error)
 }
 
-type LearnerUsecaseI interface{} // partner API learners (and later /me)
+// LearnerUsecaseI: the partner API (level 2). partnerID is the calling partner server's ID;
+// nil means no partner server is signed in (ErrForbidden).
+type LearnerUsecaseI interface {
+	GetPartnerLearner(ctx context.Context, partnerID *uuid.UUID, learnerID uuid.UUID) (*Learner, error)
+	ListPartnerLearners(ctx context.Context, partnerID *uuid.UUID, updatedSince *time.Time, limit int) ([]*Learner, error)
+}
 
 // ---- Repositories (implemented in Repository/) ----
 
@@ -63,12 +99,22 @@ type PartnerRepositoryI interface {
 	GetByPublishableKey(ctx context.Context, key string) (*Partner, error) // ErrNotFound if unknown
 	ListReferralPartners(ctx context.Context) ([]*Partner, error)
 	ListAllowedOrigins(ctx context.Context) ([]string, error) // for the CORS middleware
+	GetByID(ctx context.Context, id uuid.UUID) (*Partner, error)
+	// GetByClientID returns the partner and the SHA-256 hash of its OAuth client secret.
+	GetByClientID(ctx context.Context, clientID string) (*Partner, []byte, error)
 }
-type StaffRepositoryI interface{}
+
+// StaffRepositoryI: staff accounts. ErrNotFound if unknown.
+type StaffRepositoryI interface {
+	GetByEmail(ctx context.Context, email string) (*StaffUser, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*StaffUser, error)
+}
 
 // LearnerRepositoryI: learners, plus the referrals made for them.
 type LearnerRepositoryI interface {
-	Get(ctx context.Context, id uuid.UUID) (*Learner, error) // ErrNotFound if unknown
+	GetByID(ctx context.Context, id uuid.UUID) (*Learner, error) // ErrNotFound if unknown
+	GetByIDAndPartnerID(ctx context.Context, id uuid.UUID, partnerID uuid.UUID) (*Learner, error)
+	ListByPartnerID(ctx context.Context, partnerID uuid.UUID) ([]*Learner, error)
 	// UpdatePreferences changes only the values that are not nil.
 	UpdatePreferences(ctx context.Context, id uuid.UUID, language *string, simple *bool) error
 	GetLatestReferral(ctx context.Context, learnerID uuid.UUID) (*Referral, error) // ErrNotFound if none
@@ -76,11 +122,12 @@ type LearnerRepositoryI interface {
 
 // RegistrationRepositoryI: registrations and their answers.
 type RegistrationRepositoryI interface {
+	GetRegistrationByID(ctx context.Context, id uuid.UUID) (*Registration, error) // ErrNotFound if unknown
+	GetAnswer(ctx context.Context, registrationID uuid.UUID, questionID string) (*Answer, error)
+	ListAnswersByRegistrationID(ctx context.Context, registrationID uuid.UUID) ([]*Answer, error)
 	// Start creates the draft learner and its registration in one transaction.
 	Start(ctx context.Context, learner *Learner, reg *Registration) (*Learner, *Registration, error)
-	Get(ctx context.Context, id uuid.UUID) (*Registration, error) // ErrNotFound if unknown
 	UpdateProgress(ctx context.Context, id uuid.UUID, step string) error
-	ListAnswers(ctx context.Context, regID uuid.UUID) ([]*Answer, error)
 	// SaveAnswerIfVersion returns *ConflictError (with the saved answer) on a stale baseVersion.
 	SaveAnswerIfVersion(ctx context.Context, a *Answer, baseVersion int) (*Answer, error)
 	// SubmitTx, in one transaction: marks the registration submitted, copies the profile into
@@ -96,8 +143,32 @@ type SupportRepositoryI interface {
 	Exists(ctx context.Context, learnerID uuid.UUID) (bool, error)
 }
 
-type ConsentRepositoryI interface{}
-type SessionRepositoryI interface{}
+type ConsentRepositoryI interface {
+	CreateConsent(ctx context.Context, consent *Consent) (*Consent, error)
+	GetConsentByLearnerAndKind(ctx context.Context, learnerID uuid.UUID, kind string) (*Consent, error)
+	ListConsentsByLearnerID(ctx context.Context, learnerID uuid.UUID) ([]*Consent, error)
+}
+type SessionRepositoryI interface {
+	CreateAuthSession(ctx context.Context, session *AuthSession) (*AuthSession, error)
+	GetAuthSessionByTokenHash(ctx context.Context, tokenHash []byte) (*AuthSession, error)
+	RevokeAuthSession(ctx context.Context, id uuid.UUID) error
+	// TouchAuthSession records a use; newExpiry (learner sessions) slides the expiry, nil keeps it.
+	TouchAuthSession(ctx context.Context, id uuid.UUID, newExpiry *time.Time) error
+
+	CreateResumeToken(ctx context.Context, registrationID uuid.UUID, tokenHash, codeHash []byte, expiresAt time.Time) (*ResumeToken, error)
+	GetResumeTokenByCodeHash(ctx context.Context, codeHash []byte) (*ResumeToken, error)
+	GetResumeTokenByTokenHash(ctx context.Context, tokenHash []byte) (*ResumeToken, error)
+	IncrementResumeTokenFailedAttempts(ctx context.Context, id uuid.UUID) (*ResumeToken, error)
+	MarkResumeTokenUsed(ctx context.Context, id uuid.UUID) error
+
+	CreateVerificationCode(ctx context.Context, phoneE164, purpose string, codeHash []byte, learnerID *uuid.UUID, expiresAt time.Time) (*VerificationCode, error)
+	GetActiveVerificationCode(ctx context.Context, phoneE164, purpose string) (*VerificationCode, error)
+	IncrementVerificationCodeFailedAttempts(ctx context.Context, id uuid.UUID) (*VerificationCode, error)
+	MarkVerificationCodeUsed(ctx context.Context, id uuid.UUID) error
+
+	CreateOutboxMessage(ctx context.Context, msg *OutboxMessage) (*OutboxMessage, error)
+	ListOutboxMessages(ctx context.Context) ([]*OutboxMessage, error) // the simulated inbox (dev)
+}
 
 // JobRepositoryI: jobs. Public reads only return published jobs; EmployerName is filled in.
 type JobRepositoryI interface {
@@ -118,6 +189,15 @@ type ApplicationRepositoryI interface {
 
 // SecurityService: tokens, hashing, encryption, passwords.
 type SecurityService interface {
+	NewToken(prefix string) (token string, hash []byte, err error)
+	HashToken(token string) []byte
+	NewResumeCode() (display string, normalized string, err error)
+	NormalizeCode(code string) string
+	HashCode(normalized string) []byte
+	NewVerificationCode() (code string, hash []byte, err error)
+	HashPassword(password string) (string, error)
+	CheckPassword(hash, password string) bool
+
 	// Encrypt seals plaintext with AES-256-GCM. aad ("additional data", e.g. the learner ID)
 	// must be given again to decrypt, so ciphertext copied onto another row won't open.
 	Encrypt(plaintext []byte, aad string) (nonce, ciphertext []byte, err error)
@@ -138,5 +218,11 @@ type FlowStore interface {
 	IsNeedCode(code string) bool
 }
 
-type SpeechService interface{}  // speech-to-text providers (mock, azure, local)
-type MessageService interface{} // SMS / Telegram (console provider for the demo)
+type SpeechService interface {
+	HasServerSpeech() bool
+	HasCloudSpeech() bool
+	Transcribe(ctx context.Context, audio []byte, language string, cloudConsent bool) (*Transcription, error)
+}
+type MessageService interface {
+	SendMessage(ctx context.Context, msg *Message) error
+}

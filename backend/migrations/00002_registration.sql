@@ -1,7 +1,3 @@
--- Learners and their sign-up: learners, registrations, answers, identity evidence,
--- referrals and (encrypted) support requests. From TECHNICAL_PLAN.md 5.5.
--- Never edit a migration after it is merged; add a new one.
-
 -- +goose Up
 CREATE TABLE learners (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,10 +24,10 @@ CREATE INDEX learners_phone_dob_idx ON learners (phone_e164, dob) WHERE phone_e1
 CREATE TABLE registrations (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   learner_id      uuid NOT NULL REFERENCES learners(id) ON DELETE CASCADE,
-  flow_id         text NOT NULL,                        -- flow file id, e.g. 'signup'
+  flow_id         text NOT NULL,
   flow_version    int  NOT NULL,
   status          text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted')),
-  current_step    text NOT NULL,
+  current_step    text,
   acting_staff_id uuid REFERENCES staff_users(id),      -- set when partner staff fill it in (E1)
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
@@ -42,10 +38,10 @@ CREATE INDEX registrations_draft_idx ON registrations (updated_at) WHERE status 
 
 CREATE TABLE answers (
   registration_id uuid NOT NULL REFERENCES registrations(id) ON DELETE CASCADE,
-  question_id     text NOT NULL,                        -- step id from the flow file, e.g. 'phone'
+  question_id     text NOT NULL,
   value           jsonb NOT NULL,
   input_method    text NOT NULL CHECK (input_method IN ('typed', 'voice', 'choice', 'partner')),
-  version         int  NOT NULL DEFAULT 1,              -- R15: the saved version wins on conflicts
+  version         int  NOT NULL DEFAULT 1,              -- R15 conflict rule
   updated_at      timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (registration_id, question_id)
 );
@@ -54,7 +50,7 @@ CREATE TABLE identity_evidence (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   learner_id  uuid NOT NULL REFERENCES learners(id) ON DELETE CASCADE,
   route       text NOT NULL CHECK (route IN ('fayda', 'kebele_id', 'refugee_id', 'unhcr_proof', 'other_document', 'none')),
-  doc_type    text,                                     -- for other_document: student_id, birth_certificate, ...
+  doc_type    text,                                     -- for other_document: student_id, birth_certificate, idir_equb_id, kebele_letter, ...
   last4       text CHECK (last4 ~ '^[0-9A-Za-z]{4}$'),
   level       text NOT NULL DEFAULT 'self_declared' CHECK (level IN ('self_declared', 'partner_attested', 'verified')),
   attested_by uuid REFERENCES staff_users(id),
@@ -76,9 +72,9 @@ CREATE INDEX referrals_partner_status_idx ON referrals (partner_id, status);
 
 CREATE TABLE support_requests (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  learner_id      uuid NOT NULL UNIQUE REFERENCES learners(id) ON DELETE CASCADE, -- one per learner
+  learner_id      uuid NOT NULL UNIQUE REFERENCES learners(id) ON DELETE CASCADE,  -- one per learner
+  ciphertext      bytea NOT NULL,   -- AES-256-GCM of {"needs":[...],"other_text":"..."}
   nonce           bytea NOT NULL,
-  ciphertext      bytea NOT NULL,   -- AES-256-GCM of {"needs":[...],"other_text":"..."}; never plain text
   share_courses   boolean NOT NULL DEFAULT false,
   share_employers boolean NOT NULL DEFAULT false,
   created_at      timestamptz NOT NULL DEFAULT now(),

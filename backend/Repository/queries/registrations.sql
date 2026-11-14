@@ -1,4 +1,5 @@
--- Learners, registrations, answers, identity evidence and referrals (Dev A).
+-- Learners, registrations, answers, identity evidence and referrals.
+-- Reads of a single learner are in learners.sql (GetLearnerByID).
 -- Each query needs a "-- name: <GoMethodName> :one|:many|:exec|:execrows" line.
 -- After editing, run `sqlc generate` (from backend/).
 
@@ -9,12 +10,6 @@ INSERT INTO learners (partner_id, language, simple_mode)
 VALUES ($1, $2, $3)
 RETURNING id, partner_id, status, full_name, preferred_name, contact_method, phone_e164, phone_verified,
           dob, dob_calendar, language, simple_mode, identity_level, created_at, updated_at, registered_at;
-
--- name: GetLearner :one
-SELECT id, partner_id, status, full_name, preferred_name, contact_method, phone_e164, phone_verified,
-       dob, dob_calendar, language, simple_mode, identity_level, created_at, updated_at, registered_at
-FROM learners
-WHERE id = $1;
 
 -- Only the values that were sent change (NULL keeps the current value).
 -- name: UpdateLearnerPreferences :execrows
@@ -47,7 +42,7 @@ INSERT INTO registrations (learner_id, flow_id, flow_version, current_step)
 VALUES ($1, $2, $3, $4)
 RETURNING id, learner_id, flow_id, flow_version, status, current_step, acting_staff_id, created_at, updated_at, submitted_at;
 
--- name: GetRegistration :one
+-- name: GetRegistrationByID :one
 SELECT id, learner_id, flow_id, flow_version, status, current_step, acting_staff_id, created_at, updated_at, submitted_at
 FROM registrations
 WHERE id = $1;
@@ -70,17 +65,16 @@ WHERE id = $1
 
 -- ---- answers ----
 
--- name: ListAnswers :many
+-- name: GetAnswer :one
+SELECT registration_id, question_id, value, input_method, version, updated_at
+FROM answers
+WHERE registration_id = $1 AND question_id = $2;
+
+-- name: ListAnswersByRegistrationID :many
 SELECT registration_id, question_id, value, input_method, version, updated_at
 FROM answers
 WHERE registration_id = $1
 ORDER BY question_id;
-
--- name: GetAnswer :one
-SELECT registration_id, question_id, value, input_method, version, updated_at
-FROM answers
-WHERE registration_id = $1
-  AND question_id = $2;
 
 -- Saves an answer only if the client saw the latest version (R15, TECHNICAL_PLAN.md 5.2).
 -- base_version 0 means "nothing saved yet". No row returned means another device saved first.

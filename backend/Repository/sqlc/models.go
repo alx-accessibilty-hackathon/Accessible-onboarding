@@ -41,6 +41,31 @@ type AuditLog struct {
 	CreatedAt  time.Time
 }
 
+type AuthSession struct {
+	ID          uuid.UUID
+	SubjectType string
+	SubjectID   uuid.UUID
+	TokenHash   []byte
+	Scopes      []string
+	ActingFor   *uuid.UUID
+	CreatedAt   time.Time
+	LastUsedAt  time.Time
+	ExpiresAt   time.Time
+	RevokedAt   *time.Time
+}
+
+type Consent struct {
+	ID        uuid.UUID
+	LearnerID uuid.UUID
+	Kind      string
+	Granted   bool
+	Method    string
+	PartnerID *uuid.UUID
+	StaffID   *uuid.UUID
+	CreatedAt time.Time
+	RevokedAt *time.Time
+}
+
 type Employer struct {
 	ID        uuid.UUID
 	Name      string
@@ -95,6 +120,18 @@ type Learner struct {
 	RegisteredAt  *time.Time
 }
 
+type MessagesOutbox struct {
+	ID        uuid.UUID
+	Channel   string
+	Recipient string
+	Body      string
+	Status    string
+	Provider  *string
+	Error     *string
+	CreatedAt time.Time
+	SentAt    *time.Time
+}
+
 type Partner struct {
 	ID               uuid.UUID
 	Slug             string
@@ -124,11 +161,22 @@ type Registration struct {
 	FlowID        string
 	FlowVersion   int32
 	Status        string
-	CurrentStep   string
+	CurrentStep   *string
 	ActingStaffID *uuid.UUID
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	SubmittedAt   *time.Time
+}
+
+type ResumeToken struct {
+	ID             uuid.UUID
+	RegistrationID uuid.UUID
+	TokenHash      []byte
+	CodeHash       []byte
+	FailedAttempts int32
+	ExpiresAt      time.Time
+	UsedAt         *time.Time
+	CreatedAt      time.Time
 }
 
 type StaffUser struct {
@@ -146,10 +194,22 @@ type StaffUser struct {
 type SupportRequest struct {
 	ID             uuid.UUID
 	LearnerID      uuid.UUID
-	Nonce          []byte
 	Ciphertext     []byte
+	Nonce          []byte
 	ShareCourses   bool
 	ShareEmployers bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+type VerificationCode struct {
+	ID             uuid.UUID
+	PhoneE164      string
+	Purpose        string
+	CodeHash       []byte
+	LearnerID      *uuid.UUID
+	FailedAttempts int32
+	ExpiresAt      time.Time
+	UsedAt         *time.Time
+	CreatedAt      time.Time
 }

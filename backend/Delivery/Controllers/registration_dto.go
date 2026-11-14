@@ -146,3 +146,75 @@ func toReferralDTO(ref *domain.Referral, partnerName string) *ReferralDTO {
 	}
 	return &ReferralDTO{ID: ref.ID, PartnerName: partnerName, Status: ref.Status}
 }
+
+// ---- Cross-device resume & messaging DTOs ----
+
+// POST /resume/lookup
+type ResumeLookupRequest struct {
+	Code  string `json:"code"`
+	Token string `json:"token"`
+}
+
+type ResumeLookupResponse struct {
+	RegistrationID uuid.UUID `json:"registration_id"`
+	Check          string    `json:"check"` // "dob" | "phone"
+}
+
+// POST /resume/verify
+type ResumeVerifyRequest struct {
+	Code       string     `json:"code"`
+	Token      string     `json:"token"`
+	DOB        *ResumeDOB `json:"dob"`
+	PhoneLast4 string     `json:"phone_last4" binding:"omitempty,len=4,numeric"`
+}
+
+type ResumeDOB struct {
+	Calendar string `json:"calendar"`
+	Year     int    `json:"year"`
+	Month    int    `json:"month"`
+	Day      int    `json:"day"`
+}
+
+type ResumeVerifyResponse struct {
+	RegistrationID uuid.UUID  `json:"registration_id"`
+	Session        SessionDTO `json:"session"`
+}
+
+// POST /partner/registrations/:id/consent-code
+// POST /registrations/:id/resume-links (body optional)
+type CreateResumeLinkRequest struct {
+	SendVia string `json:"send_via" binding:"omitempty,oneof=none sms"`
+	Phone   string `json:"phone" binding:"omitempty,max=32"` // defaults to the learner's phone
+}
+
+// 201 from POST /registrations/:id/resume-links
+type ResumeLinkResponse struct {
+	URL       string              `json:"url"`
+	Code      string              `json:"code"`
+	ExpiresAt string              `json:"expires_at"`
+	Message   *ResumeLinkMessages `json:"message,omitempty"`
+}
+
+type ResumeLinkMessages struct {
+	Channel string `json:"channel"`
+	Status  string `json:"status"`
+}
+
+func toResumeLinkResponse(l *domain.ResumeLink) ResumeLinkResponse {
+	r := ResumeLinkResponse{URL: l.URL, Code: l.Code, ExpiresAt: l.ExpiresAt.UTC().Format(time.RFC3339)}
+	if l.Channel != "" {
+		r.Message = &ResumeLinkMessages{Channel: l.Channel, Status: l.Status}
+	}
+	return r
+}
+
+type SendConsentCodeResponse struct {
+	Status    string `json:"status"`
+	Phone     string `json:"phone"`
+	ExpiresIn int    `json:"expires_in"`
+}
+
+// POST /telegram/webhook
+type TelegramWebhookResponse struct {
+	OK bool `json:"ok"`
+}

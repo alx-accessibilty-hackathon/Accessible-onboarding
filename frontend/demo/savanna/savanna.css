@@ -1,0 +1,78 @@
+/* Savanna theme styling for demo host pages */
+:root {
+  --savanna-primary: #101828;
+  --savanna-accent: #026aa2;
+  --savanna-bg: #f8fafc;
+  --savanna-card-bg: #ffffff;
+  --savanna-border: #e2e8f0;
+  --savanna-text: #1e293b;
+  --savanna-text-muted: #64748b;
+  --savanna-radius: 12px;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--savanna-bg);
+  color: var(--savanna-text);
+  line-height: 1.5;
+}
+
+.savanna-nav {
+  background: #ffffff;
+  border-bottom: 1px solid var(--savanna-border);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.savanna-logo {
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--savanna-primary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.savanna-nav-links {
+  display: flex;
+  gap: 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.savanna-nav-links a {
+  text-decoration: none;
+  color: var(--savanna-text-muted);
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.savanna-nav-links a:hover,
+.savanna-nav-links a.active {
+  color: var(--savanna-primary);
+}
+
+.savanna-container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.savanna-card {
+  background: var(--savanna-card-bg);
+  border: 1px solid var(--savanna-border);
+  border-radius: var(--savanna-radius);
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.savanna-banner-card {
+  border-left: 4px solid var(--savanna-accent);
+  background: #f0f9ff;
+  margin-bottom: 24px;
+}

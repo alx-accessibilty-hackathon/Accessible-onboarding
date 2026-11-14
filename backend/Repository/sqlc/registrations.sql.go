@@ -67,7 +67,8 @@ type CreateLearnerParams struct {
 	SimpleMode bool
 }
 
-// Learners, registrations, answers, identity evidence and referrals (Dev A).
+// Learners, registrations, answers, identity evidence and referrals.
+// Reads of a single learner are in learners.sql (GetLearnerByID).
 // Each query needs a "-- name: <GoMethodName> :one|:many|:exec|:execrows" line.
 // After editing, run `sqlc generate` (from backend/).
 // ---- learners ----
@@ -133,7 +134,7 @@ type CreateRegistrationParams struct {
 	LearnerID   uuid.UUID
 	FlowID      string
 	FlowVersion int32
-	CurrentStep string
+	CurrentStep *string
 }
 
 // ---- registrations ----
@@ -161,10 +162,10 @@ func (q *Queries) CreateRegistration(ctx context.Context, arg CreateRegistration
 }
 
 const getAnswer = `-- name: GetAnswer :one
+
 SELECT registration_id, question_id, value, input_method, version, updated_at
 FROM answers
-WHERE registration_id = $1
-  AND question_id = $2
+WHERE registration_id = $1 AND question_id = $2
 `
 
 type GetAnswerParams struct {
@@ -172,6 +173,7 @@ type GetAnswerParams struct {
 	QuestionID     string
 }
 
+// ---- answers ----
 func (q *Queries) GetAnswer(ctx context.Context, arg GetAnswerParams) (Answer, error) {
 	row := q.db.QueryRow(ctx, getAnswer, arg.RegistrationID, arg.QuestionID)
 	var i Answer
@@ -209,45 +211,14 @@ func (q *Queries) GetLatestReferralByLearner(ctx context.Context, learnerID uuid
 	return i, err
 }
 
-const getLearner = `-- name: GetLearner :one
-SELECT id, partner_id, status, full_name, preferred_name, contact_method, phone_e164, phone_verified,
-       dob, dob_calendar, language, simple_mode, identity_level, created_at, updated_at, registered_at
-FROM learners
-WHERE id = $1
-`
-
-func (q *Queries) GetLearner(ctx context.Context, id uuid.UUID) (Learner, error) {
-	row := q.db.QueryRow(ctx, getLearner, id)
-	var i Learner
-	err := row.Scan(
-		&i.ID,
-		&i.PartnerID,
-		&i.Status,
-		&i.FullName,
-		&i.PreferredName,
-		&i.ContactMethod,
-		&i.PhoneE164,
-		&i.PhoneVerified,
-		&i.Dob,
-		&i.DobCalendar,
-		&i.Language,
-		&i.SimpleMode,
-		&i.IdentityLevel,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.RegisteredAt,
-	)
-	return i, err
-}
-
-const getRegistration = `-- name: GetRegistration :one
+const getRegistrationByID = `-- name: GetRegistrationByID :one
 SELECT id, learner_id, flow_id, flow_version, status, current_step, acting_staff_id, created_at, updated_at, submitted_at
 FROM registrations
 WHERE id = $1
 `
 
-func (q *Queries) GetRegistration(ctx context.Context, id uuid.UUID) (Registration, error) {
-	row := q.db.QueryRow(ctx, getRegistration, id)
+func (q *Queries) GetRegistrationByID(ctx context.Context, id uuid.UUID) (Registration, error) {
+	row := q.db.QueryRow(ctx, getRegistrationByID, id)
 	var i Registration
 	err := row.Scan(
 		&i.ID,
@@ -264,17 +235,15 @@ func (q *Queries) GetRegistration(ctx context.Context, id uuid.UUID) (Registrati
 	return i, err
 }
 
-const listAnswers = `-- name: ListAnswers :many
-
+const listAnswersByRegistrationID = `-- name: ListAnswersByRegistrationID :many
 SELECT registration_id, question_id, value, input_method, version, updated_at
 FROM answers
 WHERE registration_id = $1
 ORDER BY question_id
 `
 
-// ---- answers ----
-func (q *Queries) ListAnswers(ctx context.Context, registrationID uuid.UUID) ([]Answer, error) {
-	rows, err := q.db.Query(ctx, listAnswers, registrationID)
+func (q *Queries) ListAnswersByRegistrationID(ctx context.Context, registrationID uuid.UUID) ([]Answer, error) {
+	rows, err := q.db.Query(ctx, listAnswersByRegistrationID, registrationID)
 	if err != nil {
 		return nil, err
 	}
@@ -452,7 +421,7 @@ WHERE id = $1
 
 type UpdateRegistrationProgressParams struct {
 	ID          uuid.UUID
-	CurrentStep string
+	CurrentStep *string
 }
 
 func (q *Queries) UpdateRegistrationProgress(ctx context.Context, arg UpdateRegistrationProgressParams) (int64, error) {

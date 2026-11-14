@@ -58,17 +58,17 @@ func TestRegistrationRepository(t *testing.T) {
 	assert.Equal(t, learner.ID, reg.LearnerID)
 	assert.Equal(t, domain.RegistrationStatusDraft, reg.Status)
 
-	got, err := regs.Get(ctx, reg.ID)
+	got, err := regs.GetRegistrationByID(ctx, reg.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "welcome", got.CurrentStep)
-	_, err = regs.Get(ctx, uuid.New())
+	_, err = regs.GetRegistrationByID(ctx, uuid.New())
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 
 	require.NoError(t, regs.UpdateProgress(ctx, reg.ID, "full_name"))
 	assert.ErrorIs(t, regs.UpdateProgress(ctx, uuid.New(), "full_name"), domain.ErrNotFound)
 	lang := "en"
 	require.NoError(t, learners.UpdatePreferences(ctx, learner.ID, &lang, nil))
-	l, err := learners.Get(ctx, learner.ID)
+	l, err := learners.GetByID(ctx, learner.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "en", l.Language)
 	assert.True(t, l.SimpleMode, "unchanged when not sent")
@@ -89,7 +89,7 @@ func TestRegistrationRepository(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, a2.Version)
 
-	list, err := regs.ListAnswers(ctx, reg.ID)
+	list, err := regs.ListAnswersByRegistrationID(ctx, reg.ID)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	assert.JSONEq(t, `"Abebe K."`, string(list[0].Value))
@@ -109,7 +109,7 @@ func TestRegistrationRepository(t *testing.T) {
 	require.NotNil(t, res.Referral)
 	assert.Equal(t, domain.ReferralStatusRequested, res.Referral.Status)
 
-	after, err := regs.Get(ctx, reg.ID)
+	after, err := regs.GetRegistrationByID(ctx, reg.ID)
 	require.NoError(t, err)
 	assert.Equal(t, domain.RegistrationStatusSubmitted, after.Status)
 	assert.NotNil(t, after.SubmittedAt)
@@ -136,13 +136,13 @@ func TestSubmitTxIsAllOrNothing(t *testing.T) {
 	var verr *domain.ValidationError
 	require.True(t, errors.As(err, &verr), "got %v", err)
 
-	after, err := regs.Get(ctx, reg.ID)
+	after, err := regs.GetRegistrationByID(ctx, reg.ID)
 	require.NoError(t, err)
 	assert.Equal(t, domain.RegistrationStatusDraft, after.Status, "rolled back")
 	var evidence int
 	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM identity_evidence`).Scan(&evidence))
 	assert.Zero(t, evidence)
-	l, err := repository.NewLearnerRepo(db).Get(ctx, learner.ID)
+	l, err := repository.NewLearnerRepo(db).GetByID(ctx, learner.ID)
 	require.NoError(t, err)
 	assert.Equal(t, domain.LearnerStatusDraft, l.Status)
 	assert.Empty(t, l.FullName)

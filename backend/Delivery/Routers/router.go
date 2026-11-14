@@ -2,6 +2,7 @@ package routers
 
 import (
 	"net/http"
+	"os"
 
 	controllers "bridge/Delivery/Controllers"
 	infrastructure "bridge/Infrastructure"
@@ -22,11 +23,35 @@ type Controllers struct {
 	Learner      *controllers.LearnerController
 }
 
-// Middlewares groups the middleware that needs setting up in main.go (rate limiters now;
-// the sign-in middlewares join here once the auth use case exists).
+// Middlewares groups the middleware set up in main.go. A nil handler lets requests through
+// (the router tests build the router without sign-in).
 type Middlewares struct {
-	IPLimiter     *infrastructure.IPRateLimiter     // per client IP
+	IPLimiter     *infrastructure.IPRateLimiter     // per client IP, every request
 	GlobalLimiter *infrastructure.GlobalRateLimiter // whole server
+	StrictLimiter *infrastructure.IPRateLimiter     // per IP: sign-in, OAuth, new registrations, resume
+
+	CORS              gin.HandlerFunc
+	PartnerKey        gin.HandlerFunc // X-Partner-Key + allowed origin
+	LearnerAuth       gin.HandlerFunc // Bearer lt_…
+	StaffAuth         gin.HandlerFunc // Bearer st_…
+	PartnerServerAuth gin.HandlerFunc // Bearer pt_…
+	TelegramSecret    gin.HandlerFunc
+
+	DevRoutes bool // APP_ENV=dev: /api/v1/dev/messages
+}
+
+func orPass(h gin.HandlerFunc) gin.HandlerFunc {
+	if h == nil {
+		return func(c *gin.Context) { c.Next() }
+	}
+	return h
+}
+
+func (m *Middlewares) strict() gin.HandlerFunc {
+	if m.StrictLimiter == nil {
+		return orPass(nil)
+	}
+	return m.StrictLimiter.Middleware()
 }
 
 // SetupRouter registers every route and returns the engine; main.go runs it.
@@ -37,46 +62,79 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 	router.RedirectTrailingSlash = false
 
 	router.Use(mw.GlobalLimiter.Middleware(), mw.IPLimiter.Middleware())
-	router.Use(infrastructure.CORSMiddleware())
+	router.Use(orPass(mw.CORS))
 
 	// Liveness check for Docker
-	router.GET("/health", func(c *gin.Context) {
+	healthHandler := func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-	// TODO: serve ../api/openapi.yaml at /api/openapi.yaml and Swagger UI at /api/docs
+	}
+	router.GET("/health", healthHandler)
+
+	// OpenAPI 3 spec and interactive documentation
+	openapiHandler := func(c *gin.Context) {
+		candidates := []string{
+			"../../../api/openapi.yaml",
+			"../../api/openapi.yaml",
+			"../api/openapi.yaml",
+			"api/openapi.yaml",
+			"./api/openapi.yaml",
+		}
+		for _, path := range candidates {
+			if data, err := os.ReadFile(path); err == nil {
+				c.Data(http.StatusOK, "application/yaml; charset=utf-8", data)
+				return
+			}
+		}
+		c.String(http.StatusNotFound, "openapi.yaml not found")
+	}
+
+	router.GET("/api/openapi.yaml", openapiHandler)
+	router.GET("/openapi.yaml", openapiHandler)
+
+	docsHandler := func(c *gin.Context) {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusOK, swaggerUIHTML)
+	}
+	router.GET("/api/docs", docsHandler)
+	router.GET("/docs", docsHandler)
 
 	v1 := router.Group("/api/v1")
+	partnerKey, learnerAuth, staffAuth := orPass(mw.PartnerKey), orPass(mw.LearnerAuth), orPass(mw.StaffAuth)
 
 	// Public: no key, no token
 	v1.GET("/jobs/:id/jobposting.jsonld", ctrl.Job.GetJobPostingController)
-	v1.POST("/auth/staff/login", ctrl.Auth.StaffLoginController)
-	v1.POST("/oauth/token", ctrl.Auth.OAuthTokenController)
-	v1.POST("/auth/logout", ctrl.Auth.LogoutController) // TODO: accept a learner or a staff token
+	v1.POST("/auth/staff/login", mw.strict(), ctrl.Auth.StaffLoginController)
+	v1.POST("/oauth/token", mw.strict(), ctrl.Auth.OAuthTokenController)
+	v1.POST("/auth/logout", ctrl.Auth.LogoutController) // learner or staff token, checked by the use case
+	v1.POST("/telegram/webhook", orPass(mw.TelegramSecret), ctrl.Registration.TelegramWebhookController)
 
 	// Widget routes: partner key only
-	widget := v1.Group("", infrastructure.PartnerKeyMiddleware())
+	widget := v1.Group("", partnerKey)
 	{
 		widget.GET("/config", ctrl.Config.GetConfigController)
-		widget.POST("/registrations", ctrl.Registration.CreateRegistrationController)
+		widget.POST("/registrations", mw.strict(), ctrl.Registration.CreateRegistrationController)
 		widget.GET("/jobs", ctrl.Job.ListJobsController)
 		widget.GET("/jobs/:id", ctrl.Job.GetJobController)
+		widget.POST("/resume/lookup", mw.strict(), ctrl.Registration.ResumeLookupController)
+		widget.POST("/resume/verify", mw.strict(), ctrl.Registration.ResumeVerifyController)
 	}
 
 	// Learner routes: partner key + learner token
-	learner := v1.Group("", infrastructure.PartnerKeyMiddleware(), infrastructure.LearnerAuthMiddleware())
+	learner := v1.Group("", partnerKey, learnerAuth)
 	{
 		learner.GET("/registrations/:id", ctrl.Registration.GetRegistrationController)
 		learner.PATCH("/registrations/:id", ctrl.Registration.UpdateProgressController)
 		learner.PUT("/registrations/:id/answers/:questionId", ctrl.Registration.SaveAnswerController)
 		learner.PUT("/registrations/:id/support-request", ctrl.Support.SaveSupportRequestController)
 		learner.POST("/registrations/:id/consents", ctrl.Consent.CreateConsentController)
+		learner.POST("/registrations/:id/resume-links", ctrl.Registration.CreateResumeLinkController)
 		learner.POST("/registrations/:id/submit", ctrl.Registration.SubmitRegistrationController)
 		learner.POST("/speech/transcriptions", ctrl.Speech.TranscribeController)
 		learner.POST("/jobs/:id/applications", ctrl.Application.CreateApplicationController)
 	}
 
 	// Staff routes: staff token
-	staff := v1.Group("", infrastructure.StaffAuthMiddleware())
+	staff := v1.Group("", staffAuth)
 	{
 		staff.GET("/auth/staff/me", ctrl.Auth.StaffMeController)
 
@@ -86,19 +144,55 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 			employer.POST("/jobs", ctrl.Job.CreateEmployerJobController)
 			employer.POST("/jobs/:id/publish", ctrl.Job.PublishEmployerJobController)
 		}
+
+		partnerStaff := staff.Group("/partner", infrastructure.RequireRole("partner_staff"))
+		{
+			partnerStaff.POST("/registrations/:id/consent-code", ctrl.Registration.SendConsentCodeController)
+		}
 	}
 
 	// Partner-server routes (Level 2 API): OAuth client-credentials token with a scope
-	partnerAPI := v1.Group("/partner-api", infrastructure.PartnerServerAuthMiddleware(), infrastructure.RequireScope("learners:read"))
+	partnerAPI := v1.Group("/partner-api", orPass(mw.PartnerServerAuth), infrastructure.RequireScope("learners:read"))
 	{
 		partnerAPI.GET("/learners", ctrl.Learner.ListPartnerLearnersController)
 		partnerAPI.GET("/learners/:id", ctrl.Learner.GetPartnerLearnerController)
 	}
 
-	// Should endpoints (add when the Musts are done; see TECHNICAL_PLAN_LITE.md):
-	// resume links and lookup/verify, learner phone-code sign-in, /dev/messages,
-	// /me (see, download, delete), partner staff routes (E1), /support/requests,
+	// Development only: the simulated SMS / Telegram inbox (resume codes, consent codes).
+	if mw.DevRoutes {
+		v1.GET("/dev/messages", ctrl.Registration.DevMessagesController)
+	}
+
+	// Should endpoints still to build (see TECHNICAL_PLAN_LITE.md): learner phone-code sign-in,
+	// /me (see, download, delete), the rest of the partner staff routes (E1), /support/requests,
 	// employer applications, JobPosting import and feed.
 
 	return router
 }
+
+const swaggerUIHTML = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Bridge Onboarding API Documentation</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function() {
+      SwaggerUIBundle({
+        url: '/api/openapi.yaml',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIBundle.SwaggerUIStandalonePreset
+        ]
+      });
+    };
+  </script>
+</body>
+</html>`

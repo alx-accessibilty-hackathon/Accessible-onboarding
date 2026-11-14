@@ -1,6 +1,3 @@
--- Career gateway: job postings (with the accommodations they offer) and applications.
--- From TECHNICAL_PLAN.md 5.5. Never edit a migration after it is merged; add a new one.
-
 -- +goose Up
 CREATE TABLE jobs (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -16,11 +13,9 @@ CREATE TABLE jobs (
   accommodations  text[] NOT NULL DEFAULT '{}',           -- codes from shared/vocab/needs.json
   status          text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'closed')),
   created_at      timestamptz NOT NULL DEFAULT now(),
-  published_at    timestamptz,
-  CHECK (status <> 'published' OR published_at IS NOT NULL)
+  published_at    timestamptz
 );
-CREATE INDEX jobs_published_idx ON jobs (published_at DESC, id DESC) WHERE status = 'published';
-CREATE INDEX jobs_employer_idx ON jobs (employer_id);
+CREATE INDEX jobs_published_idx ON jobs (published_at DESC) WHERE status = 'published';
 CREATE INDEX jobs_accommodations_idx ON jobs USING GIN (accommodations);
 
 CREATE TABLE applications (

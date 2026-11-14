@@ -2,344 +2,434 @@ package usecase
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"testing"
+	"time"
 
 	domain "bridge/Domain"
+	infrastructure "bridge/Infrastructure"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	testPartnerID  = uuid.MustParse("0b6c0000-0000-4000-8000-000000000001")
-	aaapdPartnerID = uuid.MustParse("7d210000-0000-4000-8000-000000000002")
-)
-
-type regFixture struct {
-	uc    *RegistrationUsecase
-	store *memStore
+type mockSessionRepo struct {
+	domain.SessionRepositoryI                 // methods these tests don't use
+	createAuthSessionFn                       func(ctx context.Context, session *domain.AuthSession) (*domain.AuthSession, error)
+	getAuthSessionByTokenHashFn               func(ctx context.Context, tokenHash []byte) (*domain.AuthSession, error)
+	revokeAuthSessionFn                       func(ctx context.Context, id uuid.UUID) error
+	createResumeTokenFn                       func(ctx context.Context, registrationID uuid.UUID, tokenHash, codeHash []byte, expiresAt time.Time) (*domain.ResumeToken, error)
+	getResumeTokenByCodeHashFn                func(ctx context.Context, codeHash []byte) (*domain.ResumeToken, error)
+	getResumeTokenByTokenHashFn               func(ctx context.Context, tokenHash []byte) (*domain.ResumeToken, error)
+	incrementResumeTokenFailedAttemptsFn      func(ctx context.Context, id uuid.UUID) (*domain.ResumeToken, error)
+	markResumeTokenUsedFn                     func(ctx context.Context, id uuid.UUID) error
+	createVerificationCodeFn                  func(ctx context.Context, phoneE164, purpose string, codeHash []byte, learnerID *uuid.UUID, expiresAt time.Time) (*domain.VerificationCode, error)
+	getActiveVerificationCodeFn               func(ctx context.Context, phoneE164, purpose string) (*domain.VerificationCode, error)
+	incrementVerificationCodeFailedAttemptsFn func(ctx context.Context, id uuid.UUID) (*domain.VerificationCode, error)
+	markVerificationCodeUsedFn                func(ctx context.Context, id uuid.UUID) error
+	createOutboxMessageFn                     func(ctx context.Context, msg *domain.OutboxMessage) (*domain.OutboxMessage, error)
 }
 
-func newRegFixture(t *testing.T) regFixture {
-	t.Helper()
-	s := newMemStore()
-	uc := NewRegistrationUsecase(
-		fakeLearners{s}, fakeRegistrations{s}, fakeSupport{s},
-		fakePartners{referral: []*domain.Partner{{ID: aaapdPartnerID, Name: "AAAPD"}}},
-		fakeSessions{}, loadFlows(t),
-	)
-	return regFixture{uc: uc, store: s}
-}
-
-// start begins a sign-up through a partner's widget and returns the registration and the
-// learner actor that the learner token would give.
-func (f regFixture) start(t *testing.T) (*domain.Registration, domain.Actor) {
-	t.Helper()
-	reg, _, _, err := f.uc.Start(context.Background(), domain.Actor{Kind: domain.ActorAnonymous, PartnerID: testPartnerID}, "signup", 0, "am", false)
-	require.NoError(t, err)
-	return reg, domain.Actor{Kind: domain.ActorLearner, ID: reg.LearnerID, PartnerID: testPartnerID}
-}
-
-// save saves an answer on top of the latest saved version.
-func (f regFixture) save(t *testing.T, actor domain.Actor, regID uuid.UUID, question, valueJSON string) *domain.Answer {
-	t.Helper()
-	base := 0
-	if a, ok := f.store.answers[regID][question]; ok {
-		base = a.Version
+func (m *mockSessionRepo) CreateAuthSession(ctx context.Context, session *domain.AuthSession) (*domain.AuthSession, error) {
+	if m.createAuthSessionFn != nil {
+		return m.createAuthSessionFn(ctx, session)
 	}
-	a, err := f.uc.SaveAnswer(context.Background(), actor, regID, question, json.RawMessage(valueJSON), "typed", base)
-	require.NoError(t, err, "save %s", question)
-	return a
+	return session, nil
 }
-
-// fieldCodes returns the field → code pairs of a validation error (fails the test otherwise).
-func fieldCodes(t *testing.T, err error) map[string]string {
-	t.Helper()
-	var verr *domain.ValidationError
-	require.True(t, errors.As(err, &verr), "want a validation error, got %v", err)
-	out := map[string]string{}
-	for _, f := range verr.Fields {
-		out[f.Field] = f.Code
+func (m *mockSessionRepo) GetAuthSessionByTokenHash(ctx context.Context, tokenHash []byte) (*domain.AuthSession, error) {
+	if m.getAuthSessionByTokenHashFn != nil {
+		return m.getAuthSessionByTokenHashFn(ctx, tokenHash)
 	}
-	return out
+	return nil, domain.ErrNotFound
+}
+func (m *mockSessionRepo) RevokeAuthSession(ctx context.Context, id uuid.UUID) error {
+	if m.revokeAuthSessionFn != nil {
+		return m.revokeAuthSessionFn(ctx, id)
+	}
+	return nil
+}
+func (m *mockSessionRepo) CreateResumeToken(ctx context.Context, registrationID uuid.UUID, tokenHash, codeHash []byte, expiresAt time.Time) (*domain.ResumeToken, error) {
+	if m.createResumeTokenFn != nil {
+		return m.createResumeTokenFn(ctx, registrationID, tokenHash, codeHash, expiresAt)
+	}
+	return nil, nil
+}
+func (m *mockSessionRepo) GetResumeTokenByCodeHash(ctx context.Context, codeHash []byte) (*domain.ResumeToken, error) {
+	if m.getResumeTokenByCodeHashFn != nil {
+		return m.getResumeTokenByCodeHashFn(ctx, codeHash)
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockSessionRepo) GetResumeTokenByTokenHash(ctx context.Context, tokenHash []byte) (*domain.ResumeToken, error) {
+	if m.getResumeTokenByTokenHashFn != nil {
+		return m.getResumeTokenByTokenHashFn(ctx, tokenHash)
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockSessionRepo) IncrementResumeTokenFailedAttempts(ctx context.Context, id uuid.UUID) (*domain.ResumeToken, error) {
+	if m.incrementResumeTokenFailedAttemptsFn != nil {
+		return m.incrementResumeTokenFailedAttemptsFn(ctx, id)
+	}
+	return nil, nil
+}
+func (m *mockSessionRepo) MarkResumeTokenUsed(ctx context.Context, id uuid.UUID) error {
+	if m.markResumeTokenUsedFn != nil {
+		return m.markResumeTokenUsedFn(ctx, id)
+	}
+	return nil
+}
+func (m *mockSessionRepo) CreateVerificationCode(ctx context.Context, phoneE164, purpose string, codeHash []byte, learnerID *uuid.UUID, expiresAt time.Time) (*domain.VerificationCode, error) {
+	if m.createVerificationCodeFn != nil {
+		return m.createVerificationCodeFn(ctx, phoneE164, purpose, codeHash, learnerID, expiresAt)
+	}
+	return nil, nil
+}
+func (m *mockSessionRepo) GetActiveVerificationCode(ctx context.Context, phoneE164, purpose string) (*domain.VerificationCode, error) {
+	if m.getActiveVerificationCodeFn != nil {
+		return m.getActiveVerificationCodeFn(ctx, phoneE164, purpose)
+	}
+	return nil, domain.ErrNotFound
+}
+func (m *mockSessionRepo) IncrementVerificationCodeFailedAttempts(ctx context.Context, id uuid.UUID) (*domain.VerificationCode, error) {
+	if m.incrementVerificationCodeFailedAttemptsFn != nil {
+		return m.incrementVerificationCodeFailedAttemptsFn(ctx, id)
+	}
+	return nil, nil
+}
+func (m *mockSessionRepo) MarkVerificationCodeUsed(ctx context.Context, id uuid.UUID) error {
+	if m.markVerificationCodeUsedFn != nil {
+		return m.markVerificationCodeUsedFn(ctx, id)
+	}
+	return nil
+}
+func (m *mockSessionRepo) CreateOutboxMessage(ctx context.Context, msg *domain.OutboxMessage) (*domain.OutboxMessage, error) {
+	if m.createOutboxMessageFn != nil {
+		return m.createOutboxMessageFn(ctx, msg)
+	}
+	return msg, nil
 }
 
-func TestStartCreatesDraftAtFirstStepAndIssuesToken(t *testing.T) {
-	f := newRegFixture(t)
-	reg, token, expiresAt, err := f.uc.Start(context.Background(), domain.Actor{Kind: domain.ActorAnonymous, PartnerID: testPartnerID}, "signup", 1, " AM ", true)
-	require.NoError(t, err)
-
-	assert.Equal(t, "lt_test", token)
-	assert.False(t, expiresAt.IsZero())
-	assert.Equal(t, domain.RegistrationStatusDraft, reg.Status)
-	assert.Equal(t, "welcome", reg.CurrentStep)
-	assert.Equal(t, 1, reg.FlowVersion)
-
-	learner := f.store.learners[reg.LearnerID]
-	assert.Equal(t, testPartnerID, learner.PartnerID)
-	assert.Equal(t, "am", learner.Language)
-	assert.True(t, learner.SimpleMode)
+type mockMessageService struct {
+	sent []*domain.Message
 }
 
-func TestStartNeedsAPartnerKey(t *testing.T) {
-	f := newRegFixture(t)
-	_, _, _, err := f.uc.Start(context.Background(), domain.Actor{Kind: domain.ActorAnonymous}, "signup", 0, "am", false)
-	assert.ErrorIs(t, err, domain.ErrUnauthorized)
+func (m *mockMessageService) SendMessage(ctx context.Context, msg *domain.Message) error {
+	m.sent = append(m.sent, msg)
+	return nil
 }
 
-func TestStartRejectsUnknownFlowVersionAndLanguage(t *testing.T) {
-	f := newRegFixture(t)
-	actor := domain.Actor{Kind: domain.ActorAnonymous, PartnerID: testPartnerID}
+func TestRegistrationUsecase_ResumeLookup_SuccessCode(t *testing.T) {
+	sec := infrastructure.InitSecurityService("testdatakey1234567890123456789012", "testcodekey1234567890123456789012")
+	regID := uuid.New()
+	learnerID := uuid.New()
+	normCode := "K7M9P2"
+	codeHash := sec.HashCode(normCode)
 
-	_, _, _, err := f.uc.Start(context.Background(), actor, "job-application", 0, "am", false)
-	assert.Equal(t, map[string]string{"flow_id": "invalid_choice"}, fieldCodes(t, err))
-
-	_, _, _, err = f.uc.Start(context.Background(), actor, "signup", 99, "am", false)
-	assert.Equal(t, map[string]string{"flow_version": "invalid_choice"}, fieldCodes(t, err))
-
-	_, _, _, err = f.uc.Start(context.Background(), actor, "signup", 0, "amharic!", false)
-	assert.Equal(t, map[string]string{"language": "invalid"}, fieldCodes(t, err))
-}
-
-func TestOnlyTheLearnerCanUseTheirRegistration(t *testing.T) {
-	f := newRegFixture(t)
-	reg, _ := f.start(t)
-	ctx := context.Background()
-
-	other := domain.Actor{Kind: domain.ActorLearner, ID: uuid.New(), PartnerID: testPartnerID}
-	_, err := f.uc.Get(ctx, other, reg.ID)
-	assert.ErrorIs(t, err, domain.ErrForbidden)
-	_, err = f.uc.SaveAnswer(ctx, other, reg.ID, "full_name", json.RawMessage(`"Abebe"`), "typed", 0)
-	assert.ErrorIs(t, err, domain.ErrForbidden)
-	_, err = f.uc.Submit(ctx, other, reg.ID)
-	assert.ErrorIs(t, err, domain.ErrForbidden)
-
-	_, err = f.uc.Get(ctx, domain.Actor{Kind: domain.ActorAnonymous, PartnerID: testPartnerID}, reg.ID)
-	assert.ErrorIs(t, err, domain.ErrUnauthorized)
-
-	_, err = f.uc.Get(ctx, other, uuid.New())
-	assert.ErrorIs(t, err, domain.ErrNotFound)
-
-	// Partner staff helping this learner (E1) may.
-	learnerID := reg.LearnerID
-	staff := domain.Actor{Kind: domain.ActorStaff, ID: uuid.New(), Role: domain.RolePartnerStaff, ActingFor: &learnerID}
-	_, err = f.uc.Get(ctx, staff, reg.ID)
-	assert.NoError(t, err)
-}
-
-func TestGetReturnsAnswersAndOnlyWhetherSupportWasSent(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-	f.save(t, actor, reg.ID, "full_name", `"አበበ ከበደ"`)
-
-	view, err := f.uc.Get(context.Background(), actor, reg.ID)
-	require.NoError(t, err)
-	require.Len(t, view.Answers, 1)
-	assert.JSONEq(t, `"አበበ ከበደ"`, string(view.Answers[0].Value))
-	assert.False(t, view.SupportSubmitted)
-	assert.Equal(t, "am", view.Learner.Language)
-}
-
-func TestSaveAnswerWithStaleVersionReturnsConflict(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-	ctx := context.Background()
-
-	first, err := f.uc.SaveAnswer(ctx, actor, reg.ID, "full_name", json.RawMessage(`"Abebe Kebede"`), "voice", 0)
-	require.NoError(t, err)
-	assert.Equal(t, 1, first.Version)
-
-	// A second device that never saw version 1 also sends base_version 0.
-	_, err = f.uc.SaveAnswer(ctx, actor, reg.ID, "full_name", json.RawMessage(`"Abebe K."`), "typed", 0)
-	var conflict *domain.ConflictError
-	require.True(t, errors.As(err, &conflict), "want ConflictError, got %v", err)
-	assert.Equal(t, 1, conflict.Current.Version)
-	assert.JSONEq(t, `"Abebe Kebede"`, string(conflict.Current.Value))
-
-	// After seeing version 1, it can overwrite it.
-	second, err := f.uc.SaveAnswer(ctx, actor, reg.ID, "full_name", json.RawMessage(`"Abebe K."`), "typed", 1)
-	require.NoError(t, err)
-	assert.Equal(t, 2, second.Version)
-}
-
-func TestSaveAnswerValidatesAgainstTheFlow(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-	ctx := context.Background()
-	save := func(question, value string) error {
-		_, err := f.uc.SaveAnswer(ctx, actor, reg.ID, question, json.RawMessage(value), "typed", 0)
-		return err
+	sessionRepo := &mockSessionRepo{
+		getResumeTokenByCodeHashFn: func(ctx context.Context, h []byte) (*domain.ResumeToken, error) {
+			assert.Equal(t, codeHash, h)
+			return &domain.ResumeToken{
+				ID:             uuid.New(),
+				RegistrationID: regID,
+				CodeHash:       codeHash,
+				ExpiresAt:      time.Now().Add(24 * time.Hour),
+				FailedAttempts: 0,
+			}, nil
+		},
 	}
 
-	assert.Equal(t, map[string]string{"value": "required"}, fieldCodes(t, save("full_name", `"   "`)))
-	assert.Equal(t, map[string]string{"value": "required"}, fieldCodes(t, save("full_name", `null`)))
-	assert.Equal(t, map[string]string{"value": "too_short"}, fieldCodes(t, save("full_name", `"A"`)))
-	assert.Equal(t, map[string]string{"value": "phone_invalid"}, fieldCodes(t, save("phone", `"12345"`)))
-	assert.Equal(t, map[string]string{"value": "invalid_choice"}, fieldCodes(t, save("contact_method", `"email"`)))
-	assert.Equal(t, map[string]string{"value": "invalid_choice"}, fieldCodes(t, save("referral_partner", `"`+uuid.NewString()+`"`)))
-	assert.Equal(t, map[string]string{"value": "digits_invalid"}, fieldCodes(t, save("id_last4", `"12a4"`)))
-	assert.Equal(t, map[string]string{"value": "date_invalid"}, fieldCodes(t, save("dob", `{"calendar":"gregorian","iso":"2010-02-30"}`)))
-
-	// Support needs and the consent screen have no answer endpoint; unknown steps neither.
-	for _, q := range []string{"support_needs", "consent_data", "welcome", "nope"} {
-		assert.Equal(t, map[string]string{"question_id": "unknown_question"}, fieldCodes(t, save(q, `"x"`)), q)
+	regRepo := &mockRegistrationRepo{
+		getRegistrationFn: func(ctx context.Context, id uuid.UUID) (*domain.Registration, error) {
+			assert.Equal(t, regID, id)
+			return &domain.Registration{
+				ID:        regID,
+				LearnerID: learnerID,
+			}, nil
+		},
 	}
 
-	_, err := f.uc.SaveAnswer(ctx, actor, reg.ID, "full_name", json.RawMessage(`"Abebe"`), "telepathy", 0)
-	assert.Equal(t, map[string]string{"input_method": "invalid_choice"}, fieldCodes(t, err))
+	dob := time.Date(1995, 4, 12, 0, 0, 0, 0, time.UTC)
+	learnerRepo := &mockLearnerRepo{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
+			assert.Equal(t, learnerID, id)
+			return &domain.Learner{
+				ID:  learnerID,
+				DOB: &dob,
+			}, nil
+		},
+	}
 
-	// Nothing was saved.
-	assert.Empty(t, f.store.answers[reg.ID])
-}
+	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
 
-func TestSaveAnswerStoresCleanValues(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-
-	phone := f.save(t, actor, reg.ID, "phone", `"0912 345 678"`)
-	assert.JSONEq(t, `"+251912345678"`, string(phone.Value))
-
-	name := f.save(t, actor, reg.ID, "full_name", `"  Abebe Kebede  "`)
-	assert.JSONEq(t, `"Abebe Kebede"`, string(name.Value))
-
-	partner := f.save(t, actor, reg.ID, "referral_partner", `"`+aaapdPartnerID.String()+`"`)
-	assert.JSONEq(t, `"`+aaapdPartnerID.String()+`"`, string(partner.Value))
-
-	// An optional answer can be cleared.
-	cleared := f.save(t, actor, reg.ID, "preferred_name", `""`)
-	assert.JSONEq(t, `""`, string(cleared.Value))
-}
-
-func TestUpdateProgress(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-	ctx := context.Background()
-
-	step, lang, simple := "full_name", "en", true
-	require.NoError(t, f.uc.UpdateProgress(ctx, actor, reg.ID, &step, &lang, &simple))
-	assert.Equal(t, "full_name", f.store.regs[reg.ID].CurrentStep)
-	assert.Equal(t, "en", f.store.learners[reg.LearnerID].Language)
-	assert.True(t, f.store.learners[reg.LearnerID].SimpleMode)
-
-	// Only what is sent changes.
-	require.NoError(t, f.uc.UpdateProgress(ctx, actor, reg.ID, nil, nil, nil))
-	assert.Equal(t, "en", f.store.learners[reg.LearnerID].Language)
-
-	bad := "not_a_step"
-	err := f.uc.UpdateProgress(ctx, actor, reg.ID, &bad, nil, nil)
-	assert.Equal(t, map[string]string{"current_step": "unknown_step"}, fieldCodes(t, err))
-}
-
-func TestSubmitListsMissingRequiredAnswers(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-
-	_, err := f.uc.Submit(context.Background(), actor, reg.ID)
-	assert.Equal(t, map[string]string{"full_name": "required", "contact_method": "required", "id_route": "required"}, fieldCodes(t, err))
-
-	// Choosing phone contact puts the phone step on the path, so it becomes required too.
-	f.save(t, actor, reg.ID, "full_name", `"Abebe Kebede"`)
-	f.save(t, actor, reg.ID, "contact_method", `"phone"`)
-	f.save(t, actor, reg.ID, "id_route", `"fayda"`)
-	_, err = f.uc.Submit(context.Background(), actor, reg.ID)
-	assert.Equal(t, map[string]string{"phone": "required"}, fieldCodes(t, err))
-	assert.Equal(t, domain.RegistrationStatusDraft, f.store.regs[reg.ID].Status)
-}
-
-func TestSubmitFillsTheLearnerAndIdentityEvidence(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-	f.save(t, actor, reg.ID, "full_name", `"Abebe Kebede"`)
-	f.save(t, actor, reg.ID, "preferred_name", `"Abe"`)
-	f.save(t, actor, reg.ID, "contact_method", `"phone"`)
-	f.save(t, actor, reg.ID, "phone", `"+251 91 234 5678"`)
-	f.save(t, actor, reg.ID, "dob", `{"calendar":"ethiopian","ethiopian":{"year":2010,"month":1,"day":15},"iso":"2017-09-25"}`)
-	f.save(t, actor, reg.ID, "id_route", `"fayda"`)
-	f.save(t, actor, reg.ID, "id_last4", `"4821"`)
-
-	res, err := f.uc.Submit(context.Background(), actor, reg.ID)
+	res, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
 	require.NoError(t, err)
-
-	assert.Equal(t, domain.LearnerStatusRegistered, res.Learner.Status)
-	assert.Equal(t, domain.IdentitySelfDeclared, res.Learner.IdentityLevel)
-	assert.Equal(t, "Abebe Kebede", res.Learner.FullName)
-	assert.Equal(t, "Abe", res.Learner.PreferredName)
-	assert.Equal(t, "+251912345678", res.Learner.PhoneE164)
-	require.NotNil(t, res.Learner.DOB)
-	assert.Equal(t, "2017-09-25", res.Learner.DOB.Format("2006-01-02"))
-	assert.Equal(t, "ethiopian", res.Learner.DOBCalendar)
-	assert.Nil(t, res.Referral)
-
-	require.Len(t, f.store.evidence, 1)
-	assert.Equal(t, "fayda", f.store.evidence[0].Route)
-	assert.Equal(t, "4821", f.store.evidence[0].Last4)
-	assert.Equal(t, domain.RegistrationStatusSubmitted, f.store.regs[reg.ID].Status)
-
-	// A submitted registration can't change any more.
-	_, err = f.uc.SaveAnswer(context.Background(), actor, reg.ID, "full_name", json.RawMessage(`"Someone else"`), "typed", 1)
-	assert.ErrorIs(t, err, domain.ErrAlreadySubmitted)
+	assert.Equal(t, regID, res.RegistrationID)
+	assert.Equal(t, "dob", res.Check)
 }
 
-func TestSubmitReferMeRouteCreatesAReferral(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-	f.save(t, actor, reg.ID, "full_name", `"Abebe Kebede"`)
-	f.save(t, actor, reg.ID, "contact_method", `"partner"`)
-	f.save(t, actor, reg.ID, "id_route", `"none"`)
+func TestRegistrationUsecase_ResumeLookup_Expired(t *testing.T) {
+	sec := infrastructure.InitSecurityService("testdatakey1234567890123456789012", "testcodekey1234567890123456789012")
+	regID := uuid.New()
+	codeHash := sec.HashCode("K7M9P2")
 
-	_, err := f.uc.Submit(context.Background(), actor, reg.ID)
-	assert.Equal(t, map[string]string{"referral_partner": "required", "referral_contact": "required"}, fieldCodes(t, err))
+	sessionRepo := &mockSessionRepo{
+		getResumeTokenByCodeHashFn: func(ctx context.Context, h []byte) (*domain.ResumeToken, error) {
+			return &domain.ResumeToken{
+				ID:             uuid.New(),
+				RegistrationID: regID,
+				CodeHash:       codeHash,
+				ExpiresAt:      time.Now().Add(-1 * time.Hour), // Expired!
+			}, nil
+		},
+	}
 
-	f.save(t, actor, reg.ID, "referral_partner", `"`+aaapdPartnerID.String()+`"`)
-	f.save(t, actor, reg.ID, "referral_contact", `"in_person"`)
-	res, err := f.uc.Submit(context.Background(), actor, reg.ID)
-	require.NoError(t, err)
+	uc := NewRegistrationUsecase(nil, nil, nil, nil, nil, nil, sessionRepo, sec, nil)
 
-	require.NotNil(t, res.Referral)
-	assert.Equal(t, aaapdPartnerID, res.Referral.PartnerID)
-	assert.Equal(t, "in_person", res.Referral.ContactPreference)
-	assert.Equal(t, domain.ReferralStatusRequested, res.Referral.Status)
-	assert.Equal(t, "AAAPD", res.ReferralPartnerName)
-	assert.Equal(t, "none", f.store.evidence[0].Route)
+	_, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
+	require.ErrorIs(t, err, domain.ErrResumeExpired)
 }
 
-func TestSubmitIgnoresAnswersOffThePath(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-	f.save(t, actor, reg.ID, "full_name", `"Abebe Kebede"`)
-	f.save(t, actor, reg.ID, "contact_method", `"phone"`)
-	f.save(t, actor, reg.ID, "phone", `"0912345678"`)
-	f.save(t, actor, reg.ID, "contact_method", `"none"`) // changed their mind: no phone step any more
-	f.save(t, actor, reg.ID, "id_route", `"other_document"`)
-	f.save(t, actor, reg.ID, "id_doc_type", `"student_id"`)
+func TestRegistrationUsecase_ResumeLookup_TooManyAttempts(t *testing.T) {
+	sec := infrastructure.InitSecurityService("testdatakey1234567890123456789012", "testcodekey1234567890123456789012")
+	regID := uuid.New()
+	codeHash := sec.HashCode("K7M9P2")
 
-	res, err := f.uc.Submit(context.Background(), actor, reg.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "none", res.Learner.ContactMethod)
-	assert.Empty(t, res.Learner.PhoneE164)
-	assert.Equal(t, "student_id", f.store.evidence[0].DocType)
+	sessionRepo := &mockSessionRepo{
+		getResumeTokenByCodeHashFn: func(ctx context.Context, h []byte) (*domain.ResumeToken, error) {
+			return &domain.ResumeToken{
+				ID:             uuid.New(),
+				RegistrationID: regID,
+				CodeHash:       codeHash,
+				ExpiresAt:      time.Now().Add(24 * time.Hour),
+				FailedAttempts: 5, // Locked!
+			}, nil
+		},
+	}
+
+	uc := NewRegistrationUsecase(nil, nil, nil, nil, nil, nil, sessionRepo, sec, nil)
+
+	_, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
+	require.ErrorIs(t, err, domain.ErrTooManyAttempts)
 }
 
-func TestSubmitTwiceReturnsTheSameResult(t *testing.T) {
-	f := newRegFixture(t)
-	reg, actor := f.start(t)
-	f.save(t, actor, reg.ID, "full_name", `"Abebe Kebede"`)
-	f.save(t, actor, reg.ID, "contact_method", `"none"`)
-	f.save(t, actor, reg.ID, "id_route", `"none"`)
-	f.save(t, actor, reg.ID, "referral_partner", `"`+aaapdPartnerID.String()+`"`)
-	f.save(t, actor, reg.ID, "referral_contact", `"phone"`)
+func TestRegistrationUsecase_ResumeVerify_SuccessDOB(t *testing.T) {
+	sec := infrastructure.InitSecurityService("testdatakey1234567890123456789012", "testcodekey1234567890123456789012")
+	regID := uuid.New()
+	learnerID := uuid.New()
+	tokenID := uuid.New()
+	codeHash := sec.HashCode("K7M9P2")
 
-	first, err := f.uc.Submit(context.Background(), actor, reg.ID)
-	require.NoError(t, err)
-	again, err := f.uc.Submit(context.Background(), actor, reg.ID)
-	require.NoError(t, err)
+	markedUsed := false
+	sessionCreated := false
 
-	assert.Equal(t, first.Learner.ID, again.Learner.ID)
-	assert.Equal(t, first.Referral.ID, again.Referral.ID)
-	assert.Equal(t, "AAAPD", again.ReferralPartnerName)
-	assert.Len(t, f.store.evidence, 1, "no second evidence row")
-	assert.Len(t, f.store.referrals, 1, "no second referral")
+	sessionRepo := &mockSessionRepo{
+		getResumeTokenByCodeHashFn: func(ctx context.Context, h []byte) (*domain.ResumeToken, error) {
+			return &domain.ResumeToken{
+				ID:             tokenID,
+				RegistrationID: regID,
+				CodeHash:       codeHash,
+				ExpiresAt:      time.Now().Add(24 * time.Hour),
+				FailedAttempts: 0,
+			}, nil
+		},
+		markResumeTokenUsedFn: func(ctx context.Context, id uuid.UUID) error {
+			assert.Equal(t, tokenID, id)
+			markedUsed = true
+			return nil
+		},
+		createAuthSessionFn: func(ctx context.Context, session *domain.AuthSession) (*domain.AuthSession, error) {
+			assert.Equal(t, "learner", session.SubjectType)
+			assert.Equal(t, learnerID, session.SubjectID)
+			sessionCreated = true
+			return session, nil
+		},
+	}
+
+	regRepo := &mockRegistrationRepo{
+		getRegistrationFn: func(ctx context.Context, id uuid.UUID) (*domain.Registration, error) {
+			return &domain.Registration{
+				ID:        regID,
+				LearnerID: learnerID,
+			}, nil
+		},
+	}
+
+	dob := time.Date(2000, 1, 15, 0, 0, 0, 0, time.UTC)
+	learnerRepo := &mockLearnerRepo{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
+			return &domain.Learner{
+				ID:  learnerID,
+				DOB: &dob,
+			}, nil
+		},
+	}
+
+	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
+
+	res, attemptsLeft, err := uc.ResumeVerify(context.Background(), "K7M-9P2", &domain.ResumeDOB{
+		Year:  2000,
+		Month: 1,
+		Day:   15,
+	}, "")
+
+	require.NoError(t, err)
+	assert.Equal(t, 5, attemptsLeft)
+	assert.Equal(t, regID, res.RegistrationID)
+	assert.True(t, len(res.SessionToken) > 0)
+	assert.True(t, markedUsed)
+	assert.True(t, sessionCreated)
+}
+
+func TestRegistrationUsecase_ResumeVerify_FailedCheck(t *testing.T) {
+	sec := infrastructure.InitSecurityService("testdatakey1234567890123456789012", "testcodekey1234567890123456789012")
+	regID := uuid.New()
+	learnerID := uuid.New()
+	tokenID := uuid.New()
+	codeHash := sec.HashCode("K7M9P2")
+
+	incremented := false
+
+	sessionRepo := &mockSessionRepo{
+		getResumeTokenByCodeHashFn: func(ctx context.Context, h []byte) (*domain.ResumeToken, error) {
+			return &domain.ResumeToken{
+				ID:             tokenID,
+				RegistrationID: regID,
+				CodeHash:       codeHash,
+				ExpiresAt:      time.Now().Add(24 * time.Hour),
+				FailedAttempts: 1,
+			}, nil
+		},
+		incrementResumeTokenFailedAttemptsFn: func(ctx context.Context, id uuid.UUID) (*domain.ResumeToken, error) {
+			assert.Equal(t, tokenID, id)
+			incremented = true
+			return &domain.ResumeToken{
+				ID:             tokenID,
+				FailedAttempts: 2,
+			}, nil
+		},
+	}
+
+	regRepo := &mockRegistrationRepo{
+		getRegistrationFn: func(ctx context.Context, id uuid.UUID) (*domain.Registration, error) {
+			return &domain.Registration{
+				ID:        regID,
+				LearnerID: learnerID,
+			}, nil
+		},
+	}
+
+	dob := time.Date(2000, 1, 15, 0, 0, 0, 0, time.UTC)
+	learnerRepo := &mockLearnerRepo{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
+			return &domain.Learner{
+				ID:  learnerID,
+				DOB: &dob,
+			}, nil
+		},
+	}
+
+	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
+
+	// Wrong DOB
+	res, attemptsLeft, err := uc.ResumeVerify(context.Background(), "K7M-9P2", &domain.ResumeDOB{
+		Year:  1999,
+		Month: 12,
+		Day:   31,
+	}, "")
+
+	require.ErrorIs(t, err, domain.ErrResumeCheckFailed)
+	assert.Nil(t, res)
+	assert.Equal(t, 3, attemptsLeft) // 5 - 2 = 3
+	assert.True(t, incremented)
+}
+
+func TestRegistrationUsecase_SendConsentCode_Success(t *testing.T) {
+	sec := infrastructure.InitSecurityService("testdatakey1234567890123456789012", "testcodekey1234567890123456789012")
+	regID := uuid.New()
+	learnerID := uuid.New()
+	partnerID := uuid.New()
+	phone := "+251912345678"
+
+	codeCreated := false
+	outboxCreated := false
+
+	sessionRepo := &mockSessionRepo{
+		createVerificationCodeFn: func(ctx context.Context, p, purpose string, hash []byte, lid *uuid.UUID, exp time.Time) (*domain.VerificationCode, error) {
+			assert.Equal(t, phone, p)
+			assert.Equal(t, "consent", purpose)
+			assert.Equal(t, learnerID, *lid)
+			codeCreated = true
+			return &domain.VerificationCode{
+				ID:        uuid.New(),
+				PhoneE164: p,
+				Purpose:   purpose,
+			}, nil
+		},
+		createOutboxMessageFn: func(ctx context.Context, msg *domain.OutboxMessage) (*domain.OutboxMessage, error) {
+			assert.Equal(t, "sms", msg.Channel)
+			assert.Equal(t, phone, msg.Recipient)
+			outboxCreated = true
+			return msg, nil
+		},
+	}
+
+	regRepo := &mockRegistrationRepo{
+		getRegistrationFn: func(ctx context.Context, id uuid.UUID) (*domain.Registration, error) {
+			return &domain.Registration{
+				ID:        regID,
+				LearnerID: learnerID,
+			}, nil
+		},
+	}
+
+	learnerRepo := &mockLearnerRepo{
+		getByIDFn: func(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
+			return &domain.Learner{
+				ID:        learnerID,
+				PartnerID: partnerID,
+				PhoneE164: phone,
+			}, nil
+		},
+	}
+
+	msgSvc := &mockMessageService{}
+	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, msgSvc)
+
+	staff := domain.Actor{Kind: domain.ActorStaff, ID: uuid.New(), Role: domain.RolePartnerStaff, PartnerID: partnerID}
+	sentPhone, err := uc.SendConsentCode(context.Background(), staff, regID)
+	require.NoError(t, err)
+	assert.Equal(t, "+2519•••••678", sentPhone, "the number is masked")
+	assert.True(t, codeCreated)
+	assert.True(t, outboxCreated)
+	require.Len(t, msgSvc.sent, 1)
+	assert.Equal(t, phone, msgSvc.sent[0].Recipient)
+}
+
+func TestRegistrationUsecase_HandleTelegramWebhook(t *testing.T) {
+	sec := infrastructure.InitSecurityService("testdatakey1234567890123456789012", "testcodekey1234567890123456789012")
+	sessionRepo := &mockSessionRepo{
+		createOutboxMessageFn: func(ctx context.Context, msg *domain.OutboxMessage) (*domain.OutboxMessage, error) {
+			assert.Equal(t, "telegram", msg.Channel)
+			assert.Equal(t, "12345678", msg.Recipient)
+			return msg, nil
+		},
+	}
+
+	msgSvc := &mockMessageService{}
+	uc := NewRegistrationUsecase(nil, nil, nil, nil, nil, nil, sessionRepo, sec, msgSvc)
+
+	update := &domain.TelegramUpdate{
+		UpdateID: 1001,
+		Message: &domain.TelegramMessage{
+			MessageID: 1,
+			Chat: domain.TelegramChat{
+				ID:   12345678,
+				Type: "private",
+			},
+			Text: "/start",
+		},
+	}
+
+	err := uc.HandleTelegramWebhook(context.Background(), update)
+	require.NoError(t, err)
 }

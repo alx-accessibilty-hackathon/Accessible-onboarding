@@ -30,6 +30,43 @@ func NewRegistrationRepo(db *pgxpool.Pool) *RegistrationRepository {
 	}
 }
 
+func (r *RegistrationRepository) GetRegistrationByID(ctx context.Context, id uuid.UUID) (*domain.Registration, error) {
+	row, err := r.Q.GetRegistrationByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toRegistration(row), nil
+}
+
+func (r *RegistrationRepository) GetAnswer(ctx context.Context, registrationID uuid.UUID, questionID string) (*domain.Answer, error) {
+	row, err := r.Q.GetAnswer(ctx, sqlc.GetAnswerParams{
+		RegistrationID: registrationID,
+		QuestionID:     questionID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toAnswer(row), nil
+}
+
+func (r *RegistrationRepository) ListAnswersByRegistrationID(ctx context.Context, registrationID uuid.UUID) ([]*domain.Answer, error) {
+	rows, err := r.Q.ListAnswersByRegistrationID(ctx, registrationID)
+	if err != nil {
+		return nil, err
+	}
+	answers := make([]*domain.Answer, 0, len(rows))
+	for _, row := range rows {
+		answers = append(answers, toAnswer(row))
+	}
+	return answers, nil
+}
+
 // Start creates the draft learner and the registration together: both or neither.
 func (r *RegistrationRepository) Start(ctx context.Context, learner *domain.Learner, reg *domain.Registration) (*domain.Learner, *domain.Registration, error) {
 	tx, err := r.DB.Begin(ctx)
@@ -51,7 +88,7 @@ func (r *RegistrationRepository) Start(ctx context.Context, learner *domain.Lear
 		LearnerID:   lrow.ID,
 		FlowID:      reg.FlowID,
 		FlowVersion: int32(reg.FlowVersion),
-		CurrentStep: reg.CurrentStep,
+		CurrentStep: nilIfEmpty(reg.CurrentStep),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -62,19 +99,8 @@ func (r *RegistrationRepository) Start(ctx context.Context, learner *domain.Lear
 	return toLearner(lrow), toRegistration(rrow), nil
 }
 
-func (r *RegistrationRepository) Get(ctx context.Context, id uuid.UUID) (*domain.Registration, error) {
-	row, err := r.Q.GetRegistration(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	return toRegistration(row), nil
-}
-
 func (r *RegistrationRepository) UpdateProgress(ctx context.Context, id uuid.UUID, step string) error {
-	n, err := r.Q.UpdateRegistrationProgress(ctx, sqlc.UpdateRegistrationProgressParams{ID: id, CurrentStep: step})
+	n, err := r.Q.UpdateRegistrationProgress(ctx, sqlc.UpdateRegistrationProgressParams{ID: id, CurrentStep: &step})
 	if err != nil {
 		return err
 	}
@@ -82,18 +108,6 @@ func (r *RegistrationRepository) UpdateProgress(ctx context.Context, id uuid.UUI
 		return domain.ErrNotFound
 	}
 	return nil
-}
-
-func (r *RegistrationRepository) ListAnswers(ctx context.Context, regID uuid.UUID) ([]*domain.Answer, error) {
-	rows, err := r.Q.ListAnswers(ctx, regID)
-	if err != nil {
-		return nil, err
-	}
-	answers := make([]*domain.Answer, 0, len(rows))
-	for _, row := range rows {
-		answers = append(answers, toAnswer(row))
-	}
-	return answers, nil
 }
 
 // SaveAnswerIfVersion runs the "save only if nobody saved in between" query (R15).
