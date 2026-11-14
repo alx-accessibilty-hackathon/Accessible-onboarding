@@ -28,6 +28,12 @@ func main() {
 	messages := infrastructure.InitMessageService(cfg.SMSProvider)
 	_ = messages // TODO: pass to the resume-link / consent-code use cases (Should)
 
+	// Flow files and the needs vocabulary, shared with the frontend. A broken file stops the server.
+	flows, err := infrastructure.LoadFlowStore(cfg.FlowsDir, cfg.NeedsFile)
+	if err != nil {
+		log.Fatal("flow files: ", err)
+	}
+
 	// Repositories
 	partnerRepo := repository.NewPartnerRepo(db)
 	staffRepo := repository.NewStaffRepo(db)
@@ -41,13 +47,14 @@ func main() {
 
 	// Use cases
 	configUsecase := usecase.NewConfigUsecase(partnerRepo)
-	registrationUsecase := usecase.NewRegistrationUsecase(learnerRepo, registrationRepo, sessionRepo, security)
-	supportUsecase := usecase.NewSupportUsecase(supportRepo, security)
-	consentUsecase := usecase.NewConsentUsecase(consentRepo)
 	authUsecase := usecase.NewAuthUsecase(sessionRepo, staffRepo, partnerRepo, security)
+	// authUsecase is the SessionIssuer: it creates the learner token when a sign-up starts.
+	registrationUsecase := usecase.NewRegistrationUsecase(learnerRepo, registrationRepo, supportRepo, partnerRepo, authUsecase, flows)
+	supportUsecase := usecase.NewSupportUsecase(supportRepo, registrationRepo, flows, security)
+	consentUsecase := usecase.NewConsentUsecase(consentRepo)
 	speechUsecase := usecase.NewSpeechUsecase(consentRepo, speech)
-	jobUsecase := usecase.NewJobUsecase(jobRepo)
-	applicationUsecase := usecase.NewApplicationUsecase(applicationRepo, jobRepo)
+	jobUsecase := usecase.NewJobUsecase(jobRepo, flows, cfg.PublicWebURL)
+	applicationUsecase := usecase.NewApplicationUsecase(applicationRepo, jobRepo, learnerRepo)
 	learnerUsecase := usecase.NewLearnerUsecase(learnerRepo)
 
 	// Controllers

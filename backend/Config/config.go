@@ -17,7 +17,8 @@ type Config struct {
 	AppEnv       string // APP_ENV: dev | production (default dev)
 	DatabaseURL  string // DATABASE_URL (required)
 	FlowsDir     string // FLOWS_DIR: shared flow files (default ../shared/flows)
-	PublicWebURL string // PUBLIC_WEB_URL: used to build resume links
+	NeedsFile    string // NEEDS_FILE: needs vocabulary (default ../shared/vocab/needs.json)
+	PublicWebURL string // PUBLIC_WEB_URL: the site's address, for resume links and JobPosting JSON-LD links
 
 	DataEncryptionKey string // DATA_ENCRYPTION_KEY: base64, 32 bytes (support requests)
 	CodeHashKey       string // CODE_HASH_KEY: base64, 32 bytes (resume codes)
@@ -43,6 +44,7 @@ func Load() (Config, error) {
 		AppEnv:                 getEnv("APP_ENV", "dev"),
 		DatabaseURL:            os.Getenv("DATABASE_URL"),
 		FlowsDir:               getEnv("FLOWS_DIR", "../shared/flows"),
+		NeedsFile:              getEnv("NEEDS_FILE", "../shared/vocab/needs.json"),
 		PublicWebURL:           getEnv("PUBLIC_WEB_URL", "http://localhost:5173"),
 		DataEncryptionKey:      os.Getenv("DATA_ENCRYPTION_KEY"),
 		CodeHashKey:            os.Getenv("CODE_HASH_KEY"),

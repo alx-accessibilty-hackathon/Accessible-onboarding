@@ -43,20 +43,33 @@ func TestHealth(t *testing.T) {
 	assert.JSONEq(t, `{"status":"ok"}`, w.Body.String())
 }
 
-func TestSkeletonRoutesAreRegistered(t *testing.T) {
-	routes := []struct{ method, path string }{
-		{http.MethodGet, "/api/v1/config"},
-		{http.MethodPost, "/api/v1/registrations"},
-		{http.MethodPut, "/api/v1/registrations/123/answers/phone"},
-		{http.MethodGet, "/api/v1/jobs/123/jobposting.jsonld"},
-		{http.MethodPost, "/api/v1/employer/jobs/123/publish"},
-		{http.MethodGet, "/api/v1/partner-api/learners"},
+// Every route exists (404 would mean a missing route). The requests are invalid on purpose
+// (no body, "123" is not a UUID), so the handlers answer before calling the use cases,
+// which are nil here. 501 means the handler is still a skeleton.
+func TestRoutesAreRegistered(t *testing.T) {
+	routes := []struct {
+		method, path string
+		want         int
+	}{
+		{http.MethodGet, "/api/v1/config", http.StatusNotImplemented},
+		{http.MethodPost, "/api/v1/registrations", http.StatusBadRequest},
+		{http.MethodGet, "/api/v1/registrations/123", http.StatusBadRequest},
+		{http.MethodPatch, "/api/v1/registrations/123", http.StatusBadRequest},
+		{http.MethodPut, "/api/v1/registrations/123/answers/phone", http.StatusBadRequest},
+		{http.MethodPut, "/api/v1/registrations/123/support-request", http.StatusBadRequest},
+		{http.MethodPost, "/api/v1/registrations/123/submit", http.StatusBadRequest},
+		{http.MethodGet, "/api/v1/jobs?limit=500", http.StatusUnprocessableEntity},
+		{http.MethodGet, "/api/v1/jobs/123", http.StatusBadRequest},
+		{http.MethodGet, "/api/v1/jobs/123/jobposting.jsonld", http.StatusBadRequest},
+		{http.MethodPost, "/api/v1/jobs/123/applications", http.StatusBadRequest},
+		{http.MethodPost, "/api/v1/employer/jobs", http.StatusBadRequest},
+		{http.MethodPost, "/api/v1/employer/jobs/123/publish", http.StatusBadRequest},
+		{http.MethodGet, "/api/v1/partner-api/learners", http.StatusNotImplemented},
 	}
 	r := testRouter()
 	for _, rt := range routes {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest(rt.method, rt.path, nil))
-		// 501 means the route exists and its handler is still a skeleton (404 would mean a missing route).
-		assert.Equal(t, http.StatusNotImplemented, w.Code, "%s %s", rt.method, rt.path)
+		assert.Equal(t, rt.want, w.Code, "%s %s", rt.method, rt.path)
 	}
 }

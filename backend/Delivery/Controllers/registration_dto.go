@@ -15,7 +15,7 @@ import (
 type CreateRegistrationRequest struct {
 	FlowID      string `json:"flow_id" binding:"required,max=64"`       // e.g. "signup"
 	FlowVersion int    `json:"flow_version" binding:"omitempty,gte=1"`  // defaults to the latest
-	Language    string `json:"language" binding:"required,min=2,max=8"` // "am", "en"… checked against the partner's languages in the use case
+	Language    string `json:"language" binding:"required,min=2,max=8"` // "am", "en"…; the use case checks it is a language code
 	SimpleMode  bool   `json:"simple_mode"`
 }
 
@@ -107,6 +107,15 @@ func toAnswerDTO(a *domain.Answer) AnswerDTO {
 		InputMethod: a.InputMethod,
 		Version:     a.Version,
 		UpdatedAt:   a.UpdatedAt,
+	}
+}
+
+func toSubmitRegistrationResponse(res *domain.SubmitResult) SubmitRegistrationResponse {
+	return SubmitRegistrationResponse{
+		Status:        res.Learner.Status,
+		LearnerID:     res.Learner.ID,
+		IdentityLevel: res.Learner.IdentityLevel,
+		Referral:      toReferralDTO(res.Referral, res.ReferralPartnerName),
 	}
 }
 

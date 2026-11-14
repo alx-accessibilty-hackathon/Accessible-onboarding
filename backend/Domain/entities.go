@@ -3,16 +3,59 @@ package domain
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 // Errors shared by every layer. Repositories return these instead of database errors,
-// and controllers turn them into HTTP status codes.
+// and controllers turn them into HTTP status codes (respondError in Delivery/Controllers).
 var (
-	ErrNotFound = errors.New("not found")
+	ErrNotFound          = errors.New("not found")              // 404 not_found
+	ErrUnauthorized      = errors.New("unauthorized")           // 401: no or bad credentials
+	ErrForbidden         = errors.New("forbidden")              // 403: signed in, but not allowed
+	ErrConsentRequired   = errors.New("consent required")       // 403 consent_required
+	ErrAlreadyExists     = errors.New("already exists")         // 409, e.g. applying to the same job twice
+	ErrAlreadySubmitted  = errors.New("registration submitted") // 409: a submitted registration can't change
+	ErrRateLimited       = errors.New("rate limited")           // 429
+	ErrSpeechUnavailable = errors.New("speech unavailable")     // 503: every speech provider failed
 )
+
+// FieldError is one problem with one field: Field is the JSON field or flow step ID,
+// Code a shared error code ("required", "phone_invalid", …) the frontend translates.
+type FieldError struct {
+	Field string
+	Code  string
+}
+
+// ValidationError means the input broke a rule (HTTP 422). It can hold several fields,
+// for example every required answer that is missing on submit.
+type ValidationError struct {
+	Fields []FieldError
+}
+
+func NewValidationError(field, code string) *ValidationError {
+	return &ValidationError{Fields: []FieldError{{Field: field, Code: code}}}
+}
+
+func (e *ValidationError) Error() string {
+	parts := make([]string, 0, len(e.Fields))
+	for _, f := range e.Fields {
+		parts = append(parts, f.Field+": "+f.Code)
+	}
+	return "validation failed: " + strings.Join(parts, ", ")
+}
+
+// ConflictError means another device saved a newer version of an answer (HTTP 409, R15).
+// Current is the saved answer, so the learner can choose which one to keep.
+type ConflictError struct {
+	Current *Answer
+}
+
+func (e *ConflictError) Error() string {
+	return "answer changed on another device"
+}
 
 // Shared values. Keep them in sync with the CHECK constraints in the migrations.
 const (
@@ -36,6 +79,21 @@ const (
 
 	JobStatusDraft     = "draft"
 	JobStatusPublished = "published"
+
+	JobSourceLocal = "local"
+
+	LocationRemote = "remote"
+
+	ApplicationStatusSubmitted = "submitted"
+
+	ReferralStatusRequested = "requested"
+
+	// IDRouteNone is the "I have no ID" answer: the learner is referred to a partner organisation (R7).
+	IDRouteNone          = "none"
+	IDRouteOtherDocument = "other_document"
+
+	// NeedOther is the "something else" need. Employers can't offer it and it never matches a job.
+	NeedOther = "other"
 )
 
 // ActorKind says who is calling the API.
@@ -58,6 +116,24 @@ type Actor struct {
 	EmployerID *uuid.UUID
 	Scopes     []string
 	ActingFor  *uuid.UUID // learner a partner staff member is helping (E1)
+}
+
+// IsAnonymous is true when no learner, staff or partner-server token was sent.
+func (a Actor) IsAnonymous() bool {
+	return a.Kind == "" || a.Kind == ActorAnonymous
+}
+
+// ActsFor reports whether the actor may read and change this learner's own data (Q7):
+// the learner themself, or partner staff who are helping them (E1).
+func (a Actor) ActsFor(learnerID uuid.UUID) bool {
+	switch a.Kind {
+	case ActorLearner:
+		return a.ID == learnerID
+	case ActorStaff:
+		return a.ActingFor != nil && *a.ActingFor == learnerID
+	default:
+		return false
+	}
 }
 
 type Partner struct {
@@ -129,6 +205,24 @@ type Answer struct {
 	InputMethod    string // typed | voice | choice | partner
 	Version        int
 	UpdatedAt      time.Time
+}
+
+// RegistrationView is what GET /registrations/:id shows: the registration, the learner's
+// display preferences and every saved answer. Support needs are never included, only
+// whether they were sent.
+type RegistrationView struct {
+	Registration     *Registration
+	Learner          *Learner
+	Answers          []*Answer
+	SupportSubmitted bool
+}
+
+// SubmitResult is the outcome of POST /registrations/:id/submit.
+type SubmitResult struct {
+	Learner             *Learner
+	Evidence            *IdentityEvidence // nil when an already-submitted registration is submitted again
+	Referral            *Referral         // set only when the learner has no ID and asked to be referred
+	ReferralPartnerName string
 }
 
 type IdentityEvidence struct {
@@ -203,6 +297,13 @@ type Job struct {
 	Status         string
 	CreatedAt      time.Time
 	PublishedAt    *time.Time
+	EmployerName   string // filled by the queries that join the employers table
+}
+
+// JobCursor marks the last job of a page in the public job list (newest first).
+type JobCursor struct {
+	PublishedAt time.Time
+	ID          uuid.UUID
 }
 
 type Application struct {

@@ -6,14 +6,65 @@ package sqlc
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
+	// Job applications (Dev A). UNIQUE (job_id, learner_id): applying twice fails with 23505.
+	// After editing, run `sqlc generate` (from backend/).
+	CreateApplication(ctx context.Context, arg CreateApplicationParams) (Application, error)
+	// ---- identity evidence and referrals ----
+	CreateIdentityEvidence(ctx context.Context, arg CreateIdentityEvidenceParams) (IdentityEvidence, error)
+	CreateJob(ctx context.Context, arg CreateJobParams) (CreateJobRow, error)
+	// Learners, registrations, answers, identity evidence and referrals (Dev A).
+	// Each query needs a "-- name: <GoMethodName> :one|:many|:exec|:execrows" line.
+	// After editing, run `sqlc generate` (from backend/).
+	// ---- learners ----
+	CreateLearner(ctx context.Context, arg CreateLearnerParams) (Learner, error)
+	CreateReferral(ctx context.Context, arg CreateReferralParams) (Referral, error)
+	// ---- registrations ----
+	CreateRegistration(ctx context.Context, arg CreateRegistrationParams) (Registration, error)
+	GetAnswer(ctx context.Context, arg GetAnswerParams) (Answer, error)
+	GetLatestReferralByLearner(ctx context.Context, learnerID uuid.UUID) (Referral, error)
+	GetLearner(ctx context.Context, id uuid.UUID) (Learner, error)
 	// Queries for partners. Each query needs a "-- name: <GoMethodName> :one|:many|:exec" line.
 	// After editing, run `sqlc generate` (from backend/).
 	GetPartnerByPublishableKey(ctx context.Context, publishableKey string) (GetPartnerByPublishableKeyRow, error)
+	GetPublishedJob(ctx context.Context, id uuid.UUID) (GetPublishedJobRow, error)
+	GetRegistration(ctx context.Context, id uuid.UUID) (Registration, error)
+	// For the support inbox (Should). Returns the encrypted payload; decrypt with the learner ID.
+	GetSupportRequestByLearner(ctx context.Context, learnerID uuid.UUID) (SupportRequest, error)
 	ListAllowedOrigins(ctx context.Context) ([]string, error)
+	// ---- answers ----
+	ListAnswers(ctx context.Context, registrationID uuid.UUID) ([]Answer, error)
+	ListJobsByEmployer(ctx context.Context, employerID *uuid.UUID) ([]ListJobsByEmployerRow, error)
+	// Jobs (Dev A). Public queries only ever return published jobs.
+	// After editing, run `sqlc generate` (from backend/).
+	// Newest first. The cursor is the (published_at, id) of the last job on the previous page;
+	// both are NULL for the first page.
+	ListPublishedJobs(ctx context.Context, arg ListPublishedJobsParams) ([]ListPublishedJobsRow, error)
 	ListReferralPartners(ctx context.Context) ([]ListReferralPartnersRow, error)
+	// Only a draft can be submitted. 0 rows affected means it was already submitted
+	// (the row lock also stops two submits running at the same time).
+	MarkRegistrationSubmitted(ctx context.Context, id uuid.UUID) (int64, error)
+	// Only the employer who owns the job can publish it. Publishing twice keeps the first date.
+	// No row returned: the job doesn't exist, belongs to another employer, or is closed.
+	PublishJob(ctx context.Context, arg PublishJobParams) (PublishJobRow, error)
+	// Saves an answer only if the client saw the latest version (R15, TECHNICAL_PLAN.md 5.2).
+	// base_version 0 means "nothing saved yet". No row returned means another device saved first.
+	SaveAnswerIfVersion(ctx context.Context, arg SaveAnswerIfVersionParams) (Answer, error)
+	SupportRequestExists(ctx context.Context, learnerID uuid.UUID) (bool, error)
+	// Only the values that were sent change (NULL keeps the current value).
+	UpdateLearnerPreferences(ctx context.Context, arg UpdateLearnerPreferencesParams) (int64, error)
+	// Copies the submitted answers into the learner record (submit, inside a transaction).
+	UpdateLearnerProfile(ctx context.Context, arg UpdateLearnerProfileParams) (Learner, error)
+	UpdateRegistrationProgress(ctx context.Context, arg UpdateRegistrationProgressParams) (int64, error)
+	// Support requests (Dev A). The needs are stored only as AES-GCM ciphertext.
+	// After editing, run `sqlc generate` (from backend/).
+	// One support request per learner: saving again replaces it.
+	UpsertSupportRequest(ctx context.Context, arg UpsertSupportRequestParams) (time.Time, error)
 }
 
 var _ Querier = (*Queries)(nil)

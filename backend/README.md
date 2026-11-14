@@ -60,6 +60,12 @@ go test ./...
 
 Use Go 1.24. If `go get` tries to download a newer toolchain, run it with `GOTOOLCHAIN=local`.
 
+**Database tests.** The repository tests and the end-to-end HTTP tests (`e2e_test.go`) run the real SQL against PostgreSQL. They are skipped unless `TEST_DATABASE_URL` is set. Each test creates its own schema, applies every migration and drops the schema afterwards, so any empty database works:
+
+```bash
+TEST_DATABASE_URL="postgres://bridge:bridge@localhost:5432/bridge?sslmode=disable" go test ./...
+```
+
 ## Database code with sqlc
 
 sqlc reads the migrations (the schema) and the queries in `Repository/queries/`, then writes type-safe Go into `Repository/sqlc/`. Repositories call that code; nothing else does.
@@ -117,4 +123,8 @@ goose -dir migrations postgres "$DATABASE_URL" up
 
 ## Status
 
-Skeleton only. Every handler answers `501 not_implemented`, and every middleware lets requests through. Interfaces are empty except `PartnerRepositoryI`, the worked sqlc example. The only migration so far is `00001_platform.sql` (partners, employers, staff, audit log). The endpoint list is in `TECHNICAL_PLAN_LITE.md`, and the remaining tables are in `TECHNICAL_PLAN.md` 5.5.
+**Built (Dev A):** registrations, answers, progress, submit, support request, public jobs, JobPosting JSON-LD, employer jobs and applications, with migrations `00002_registration.sql` and `00004_careers.sql`, the flow-file loader (`Infrastructure/flow_store.go`) and the demo jobs (`Repository/seed_jobs.go`). Their contract is in `../api/openapi.yaml`.
+
+**Handoff pieces built early for Dev B to keep or replace:** the domain errors and `respondError`, `SetActor`/`ActorFrom`, `SecurityService.Encrypt`/`Decrypt`, and `AuthUsecase.IssueLearnerSession` (a stub that returns `lt_dev`).
+
+**Still skeletons (Dev B):** every middleware lets requests through without setting the caller. The public job endpoints already work; the ones that need a caller (start a registration, everything with a learner or employer token) answer `401` until `PartnerKeyMiddleware`, `LearnerAuthMiddleware` and `StaffAuthMiddleware` call `SetActor`. `/config`, consents, auth, speech and the partner API answer `501`.
