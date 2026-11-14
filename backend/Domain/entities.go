@@ -2,7 +2,14 @@ package domain
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
+)
+
+// Errors shared by every layer. Repositories return these instead of database errors,
+// and controllers turn them into HTTP status codes.
+var (
+	ErrNotFound = errors.New("not found")
 )
 
 // Shared values. Keep them in sync with the CHECK constraints in the migrations.

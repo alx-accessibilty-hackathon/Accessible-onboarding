@@ -1,6 +1,9 @@
 package domain
 
-// Interfaces are empty on purpose: add methods as you implement each endpoint.
+import "context"
+
+// Interfaces are empty on purpose: add methods as you implement each endpoint
+// (PartnerRepositoryI shows the pattern).
 // Rule: use cases depend on these interfaces, never on Repository or Infrastructure types.
 
 // ---- Use cases (called by controllers) ----
@@ -17,7 +20,11 @@ type LearnerUsecaseI interface{}      // partner API learners (and later /me)
 
 // ---- Repositories (implemented in Repository/) ----
 
-type PartnerRepositoryI interface{}
+type PartnerRepositoryI interface {
+	GetByPublishableKey(ctx context.Context, key string) (*Partner, error) // ErrNotFound if unknown
+	ListReferralPartners(ctx context.Context) ([]*Partner, error)
+	ListAllowedOrigins(ctx context.Context) ([]string, error) // for the CORS middleware
+}
 type StaffRepositoryI interface{}
 type LearnerRepositoryI interface{}
 type RegistrationRepositoryI interface{} // registrations + answers
