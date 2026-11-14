@@ -1,8 +1,13 @@
+import type { RefObject } from 'react';
 import { Button } from '../components/Button';
 import { VisuallyHidden } from '../components/VisuallyHidden';
+import { resolveOptions, type OptionContext } from '../engine/options';
 import type { AnswerState, Flow, Step } from '../engine/types';
 import { t } from '../i18n/t';
 import { formatEthiopianPhoneDisplay } from '../lib/phone';
+import { ErrorSummary, type ErrorItem } from './ErrorSummary';
+
+const NON_INPUT = new Set(['info', 'consent', 'check_answers', 'done']);
 
 export interface CheckAnswersProps {
   step?: Step;
@@ -13,12 +18,22 @@ export interface CheckAnswersProps {
   onSubmit: () => void;
   onBack?: () => void;
   isSubmitting?: boolean;
+  /** The steps on the person's current path; only these are listed. */
+  path?: Step[];
+  /** Translated text of the submit button ("Send my answers"…). */
+  submitLabel?: string;
+  /** Problems found when sending (e.g. missing answers from the server). */
+  errors?: ErrorItem[];
+  errorFocusKey?: number;
+  headingRef?: RefObject<HTMLHeadingElement>;
+  optionContext?: OptionContext;
 }
 
 export function formatAnswerValue(
   step: Step,
   val: unknown,
   lang: string,
+  ctx: OptionContext = {},
 ): string {
   if (val === undefined || val === null || val === '') {
     return '—';
@@ -28,15 +43,16 @@ export function formatAnswerValue(
     return val ? t(lang, 'common.yes') : t(lang, 'common.no');
   }
 
+  const options = resolveOptions(step, ctx);
+  const labelOf = (item: unknown): string => {
+    const opt = options.find((o) => o.value === String(item));
+    if (!opt) return String(item);
+    return opt.literal ? opt.label : t(lang, opt.label);
+  };
+
   if (Array.isArray(val)) {
     if (val.length === 0) return '—';
-    return val
-      .map((item) => {
-        // Look up option label if available
-        const opt = step.options?.find((o) => o.value === item);
-        return opt ? t(lang, opt.label) : String(item);
-      })
-      .join(', ');
+    return val.map(labelOf).join(', ');
   }
 
   if (typeof val === 'object') {
@@ -55,9 +71,8 @@ export function formatAnswerValue(
     return formatEthiopianPhoneDisplay(String(val));
   }
 
-  if (step.type === 'single_choice' && step.options) {
-    const opt = step.options.find((o) => o.value === String(val));
-    return opt ? t(lang, opt.label) : String(val);
+  if (step.type === 'single_choice') {
+    return labelOf(val);
   }
 
   return String(val);
@@ -72,33 +87,33 @@ export function CheckAnswers({
   onSubmit,
   onBack,
   isSubmitting = false,
+  path,
+  submitLabel,
+  errors = [],
+  errorFocusKey,
+  headingRef,
+  optionContext,
 }: CheckAnswersProps) {
   const checkStep = step || flow.steps.find((s) => s.type === 'check_answers');
   const titleKey = checkStep?.title || `${flow.id}.check.title`;
-  // Filter steps that were answered or belong to input path
-  const answeredSteps = flow.steps.filter((step) => {
-    if (
-      step.type === 'info' ||
-      step.type === 'consent' ||
-      step.type === 'check_answers' ||
-      step.type === 'done'
-    ) {
-      return false;
-    }
-    return true;
-  });
+  // Only the questions on the person's path (a skipped branch is not listed).
+  const answeredSteps = (path ?? flow.steps).filter((s) => !NON_INPUT.has(s.type));
 
-  const hasPendingVoice = Object.values(answers).some((a) => !!a.pendingClipId);
+  const hasPendingVoice = answeredSteps.some((s) => !!answers[s.id]?.pendingClipId);
 
   return (
-    <section aria-labelledby="check-answers-heading" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-4)' }}>
-      <h1 id="check-answers-heading" tabIndex={-1} style={{ margin: 0 }}>
+    <section
+      aria-labelledby="check-answers-heading"
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-4)' }}
+    >
+      <ErrorSummary errors={errors} lang={lang} focusKey={errorFocusKey} />
+
+      <h1 id="check-answers-heading" tabIndex={-1} ref={headingRef} style={{ margin: 0 }}>
         {t(lang, titleKey)}
       </h1>
 
       {hasPendingVoice && (
         <div
-          role="alert"
           style={{
             padding: 'var(--bo-space-3)',
             backgroundColor: 'var(--bo-info-bg)',
@@ -106,11 +121,7 @@ export function CheckAnswers({
             borderRadius: 'var(--bo-radius)',
           }}
         >
-          <p style={{ margin: 0, fontWeight: 600 }}>
-            {lang === 'am'
-              ? 'የድምፅ ምላሽዎ በሂደት ላይ ነው። እባክዎ ከማጠናቀቅዎ በፊት ያረጋግጡ።'
-              : 'You have pending voice answers waiting for confirmation. Please review them before submitting.'}
-          </p>
+          <p style={{ margin: 0, fontWeight: 600 }}>{t(lang, 'check.voice_pending')}</p>
         </div>
       )}
 
@@ -122,21 +133,19 @@ export function CheckAnswers({
           borderTop: '1px solid var(--bo-border-subtle)',
         }}
       >
-        {answeredSteps.map((step) => {
-          const ans = answers[step.id];
+        {answeredSteps.map((s) => {
+          const ans = answers[s.id];
           const rawValue = ans ? ans.value : undefined;
           const isPending = !!ans?.pendingClipId;
           const displayVal = isPending
-            ? lang === 'am'
-              ? 'የድምፅ መልስ ይጠበቃል...'
-              : 'Voice answer waiting confirmation...'
-            : formatAnswerValue(step, rawValue, lang);
+            ? t(lang, 'check.voice_waiting')
+            : formatAnswerValue(s, rawValue, lang, optionContext);
 
-          const stepTitle = t(lang, step.title);
+          const stepTitle = t(lang, s.title);
 
           return (
             <div
-              key={step.id}
+              key={s.id}
               style={{
                 display: 'flex',
                 flexWrap: 'wrap',
@@ -161,7 +170,7 @@ export function CheckAnswers({
                   margin: 0,
                   flexGrow: 1,
                   color: isPending ? 'var(--bo-primary)' : 'var(--bo-text-muted)',
-                  fontStyle: isPending ? 'italic' : 'normal',
+                  overflowWrap: 'anywhere',
                 }}
               >
                 {displayVal}
@@ -170,7 +179,7 @@ export function CheckAnswers({
                 <button
                   type="button"
                   className="bo-link"
-                  onClick={() => onGoto(step.id)}
+                  onClick={() => onGoto(s.id)}
                   style={{
                     fontWeight: 700,
                     textDecoration: 'underline',
@@ -191,12 +200,9 @@ export function CheckAnswers({
           variant="primary"
           onClick={onSubmit}
           disabled={hasPendingVoice || isSubmitting}
+          aria-busy={isSubmitting || undefined}
         >
-          {isSubmitting
-            ? lang === 'am'
-              ? 'በመላክ ላይ...'
-              : 'Submitting...'
-            : t(lang, 'common.continue')}
+          {isSubmitting ? t(lang, 'common.sending') : (submitLabel ?? t(lang, 'common.continue'))}
         </Button>
 
         {onBack && (

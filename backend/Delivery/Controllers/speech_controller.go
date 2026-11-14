@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	domain "bridge/Domain"
+	infrastructure "bridge/Infrastructure"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -27,6 +28,9 @@ func (sc *SpeechController) TranscribeController(c *gin.Context) {
 		notImplemented(c)
 		return
 	}
+
+	// Refuse big uploads while reading them, not after they are stored (3 MB audio + form overhead).
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4<<20)
 
 	var req TranscribeRequest
 	if !bindForm(c, &req) {
@@ -73,10 +77,8 @@ func (sc *SpeechController) TranscribeController(c *gin.Context) {
 	}
 
 	var learnerID *uuid.UUID
-	if actorVal, ok := c.Get("actor"); ok {
-		if actor, ok := actorVal.(*domain.Actor); ok && actor.Kind == domain.ActorLearner {
-			learnerID = &actor.ID
-		}
+	if actor := infrastructure.ActorFrom(c); actor.Kind == domain.ActorLearner {
+		learnerID = &actor.ID
 	}
 
 	transcription, err := sc.SpeechUc.Transcribe(c.Request.Context(), audioBytes, req.Language, req.StepID, req.FieldType, learnerID)

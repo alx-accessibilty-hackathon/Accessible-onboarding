@@ -1,39 +1,114 @@
 package infrastructure
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
+
+	domain "bridge/Domain"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 const codeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789" // 31 characters: no 0/O, 1/I/L
 
 // SecurityService: random tokens and their hashes, short resume codes (keyed hash),
-// AES-GCM encryption for support requests, bcrypt for staff passwords.
+// AES-GCM encryption for support requests, bcrypt for staff passwords (to come).
 type SecurityService struct {
-	dataKey []byte // DATA_ENCRYPTION_KEY (32 bytes)
-	codeKey []byte // CODE_HASH_KEY (32 bytes)
+	dataKey []byte // DATA_ENCRYPTION_KEY decoded: 32 bytes (AES-256), nil if missing or invalid
+	codeKey []byte // CODE_HASH_KEY: 32 bytes (see InitSecurityService)
 }
 
+var _ domain.SecurityService = (*SecurityService)(nil)
+
+// ErrDataKeyMissing: DATA_ENCRYPTION_KEY isn't 32 bytes of base64, so nothing can be encrypted.
+// Support requests are then refused instead of being stored unencrypted.
+var ErrDataKeyMissing = errors.New("DATA_ENCRYPTION_KEY must be 32 random bytes in base64 (openssl rand -base64 32)")
+
 func InitSecurityService(dataKeyStr, codeKeyStr string) *SecurityService {
-	dataKey, err := base64.StdEncoding.DecodeString(dataKeyStr)
-	if err != nil || len(dataKey) != 32 {
-		dataKey = make([]byte, 32)
-		copy(dataKey, []byte(dataKeyStr))
-	}
+	// The code key falls back to the raw text, padded to 32 bytes, when it isn't 32 bytes of base64.
 	codeKey, err := base64.StdEncoding.DecodeString(codeKeyStr)
 	if err != nil || len(codeKey) != 32 {
 		codeKey = make([]byte, 32)
 		copy(codeKey, []byte(codeKeyStr))
 	}
-	return &SecurityService{
-		dataKey: dataKey,
+	s := &SecurityService{
+		// The data key has no fallback: a guessable key would make the encryption pointless.
+		dataKey: decodeKey(dataKeyStr),
 		codeKey: codeKey,
 	}
+	if s.dataKey == nil {
+		log.Print("warning: ", ErrDataKeyMissing, "; saving support requests will fail")
+	}
+	if codeKeyStr == "" {
+		log.Print("warning: CODE_HASH_KEY is empty; resume and verification codes use a zero key (dev only)")
+	}
+	return s
+}
+
+// HashPassword stores a staff password with bcrypt (salted and slow on purpose).
+func (s *SecurityService) HashPassword(password string) (string, error) {
+	h, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(h), err
+}
+
+// CheckPassword reports whether password matches a bcrypt hash.
+func (s *SecurityService) CheckPassword(hash, password string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+}
+
+// decodeKey returns the 32-byte key, or nil if the value isn't 32 bytes of base64.
+func decodeKey(b64 string) []byte {
+	key, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(key) != 32 {
+		return nil
+	}
+	return key
+}
+
+// Encrypt seals plaintext with AES-256-GCM and a fresh random nonce. The aad (for example the
+// learner ID) is authenticated but not stored: decrypting needs the same aad.
+func (s *SecurityService) Encrypt(plaintext []byte, aad string) (nonce, ciphertext []byte, err error) {
+	gcm, err := s.gcm()
+	if err != nil {
+		return nil, nil, err
+	}
+	nonce = make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, nil, err
+	}
+	return nonce, gcm.Seal(nil, nonce, plaintext, []byte(aad)), nil
+}
+
+// Decrypt opens what Encrypt sealed. It fails if the data, nonce or aad were changed.
+func (s *SecurityService) Decrypt(nonce, ciphertext []byte, aad string) ([]byte, error) {
+	gcm, err := s.gcm()
+	if err != nil {
+		return nil, err
+	}
+	if len(nonce) != gcm.NonceSize() {
+		return nil, errors.New("decrypt: wrong nonce size")
+	}
+	return gcm.Open(nil, nonce, ciphertext, []byte(aad))
+}
+
+func (s *SecurityService) gcm() (cipher.AEAD, error) {
+	if s.dataKey == nil {
+		return nil, ErrDataKeyMissing
+	}
+	block, err := aes.NewCipher(s.dataKey)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
 }
 
 // NewToken generates a prefixed random token (128 bits) and its SHA-256 hash.

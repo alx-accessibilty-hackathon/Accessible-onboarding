@@ -20,7 +20,9 @@ describe('offline/sync', () => {
     await enqueue(regId, 'full_name', 'Abebe', 'typed');
     await enqueue(regId, 'phone', '0912345678', 'typed');
 
-    const saveSpy = vi.spyOn(regApi, 'saveAnswer').mockResolvedValue({ version: 1 });
+    const saveSpy = vi
+      .spyOn(regApi, 'saveAnswer')
+      .mockResolvedValue({ version: 1 } as regApi.Answer);
     const onConflict = vi.fn();
 
     const result = await syncOutbox(cfg, regId, onConflict);
@@ -37,9 +39,7 @@ describe('offline/sync', () => {
   it('calls onConflict and removes item from outbox on HTTP 409 conflict', async () => {
     await enqueue(regId, 'full_name', 'Conflicted Answer', 'typed');
 
-    vi.spyOn(regApi, 'saveAnswer').mockRejectedValue(
-      new ApiError(409, 'answer_conflict'),
-    );
+    vi.spyOn(regApi, 'saveAnswer').mockRejectedValue(new ApiError(409, 'answer_conflict'));
     const onConflict = vi.fn();
 
     const result = await syncOutbox(cfg, regId, onConflict);
@@ -55,9 +55,7 @@ describe('offline/sync', () => {
   it('leaves item in queue if a network error occurs', async () => {
     await enqueue(regId, 'full_name', 'Offline Answer', 'typed');
 
-    vi.spyOn(regApi, 'saveAnswer').mockRejectedValue(
-      new ApiError(0, 'network'),
-    );
+    vi.spyOn(regApi, 'saveAnswer').mockRejectedValue(new ApiError(0, 'network'));
     const onConflict = vi.fn();
 
     const result = await syncOutbox(cfg, regId, onConflict);

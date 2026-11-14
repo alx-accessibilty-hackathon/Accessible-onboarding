@@ -38,27 +38,37 @@ describe('Workflow: Check-your-answers navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
 
     // Step 7: ID route
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Which of these do you have?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Which of these do you have?',
+    );
     const faydaRadio = screen.getByLabelText('Fayda (national ID)');
     fireEvent.click(faydaRadio);
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Step 8: Last 4 digits (optional)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('What are the last 4 numbers on it?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'What are the last 4 numbers on it?',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
 
     // Step 9: Support needs (optional)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('What would help you?');
-    const screenReaderCheck = screen.getByLabelText('I use a screen reader or need things read aloud');
+    const screenReaderCheck = screen.getByLabelText(
+      'I use a screen reader or need things read aloud',
+    );
     fireEvent.click(screenReaderCheck);
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Step 10: Support other (optional)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Is there anything else that would help?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Is there anything else that would help?',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
 
     // Step 11: Support share (optional)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Who can see what would help you?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Who can see what would help you?',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
 
     // Step 12: Check your answers!
@@ -80,7 +90,7 @@ describe('Workflow: Check-your-answers navigation', () => {
     expect(screen.getByText('Abebe Kebede Bikila')).toBeInTheDocument();
 
     // Final submit
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send my answers' }));
 
     // Done screen
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('You are signed up');
@@ -92,15 +102,21 @@ describe('Workflow: Job Application flow', () => {
     render(<FlowRunner flowId="job-application" lang="en" />);
 
     // Step 1: Contact confirm
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Are these contact details right?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Are these contact details right?',
+    );
     const yesRadio = screen.getByLabelText('Yes');
     fireEvent.click(yesRadio);
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Step 2: Motivation
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Why do you want this job?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Why do you want this job?',
+    );
     const motivationInput = screen.getByRole('textbox');
-    fireEvent.change(motivationInput, { target: { value: 'I have experience in accessible testing and want to contribute.' } });
+    fireEvent.change(motivationInput, {
+      target: { value: 'I have experience in accessible testing and want to contribute.' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Step 3: Start date
@@ -116,22 +132,26 @@ describe('Workflow: Job Application flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Step 4: Attach support
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Do you want to share what would help you with this employer?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Do you want to share what would help you with this employer?',
+    );
     const attachNo = screen.getByLabelText('No');
     fireEvent.click(attachNo);
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Step 5: Check application
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Check your application');
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send my application' }));
 
     // Step 6: Done
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Your application was sent');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Your application was sent',
+    );
   });
 });
 
 describe('Workflow: Employer Job Form', () => {
-  it('creates job, selects accommodations, reviews, and publishes with JobPosting JSON-LD', () => {
+  it('creates job, selects accommodations, reviews, and publishes', () => {
     render(<FlowRunner flowId="employer-job" lang="en" />);
 
     // Title
@@ -141,16 +161,22 @@ describe('Workflow: Employer Job Form', () => {
 
     // Description
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Describe the job');
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Develop and audit WCAG AA compliant user interfaces.' } });
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Develop and audit WCAG AA compliant user interfaces.' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Location type
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Where will the person work?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Where will the person work?',
+    );
     fireEvent.click(screen.getByLabelText('From home')); // remote skips location_text to work_hours
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Work hours (optional)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('What are the working hours?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'What are the working hours?',
+    );
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Flexible 40 hours' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -160,18 +186,18 @@ describe('Workflow: Employer Job Form', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Accommodations offered
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Which supports does this job offer?');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Which supports does this job offer?',
+    );
     fireEvent.click(screen.getByLabelText('Tools and documents work with screen readers'));
     fireEvent.click(screen.getByLabelText('Remote work'));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Check answers
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Check the job');
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish the job' }));
 
-    // Done screen with JobPosting JSON-LD
+    // Done screen. (The JobPosting JSON-LD box is added by the staff app after a real publish.)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('The job is published');
-    expect(screen.getByText(/JobPosting JSON-LD/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy JSON-LD' })).toBeInTheDocument();
   });
 });

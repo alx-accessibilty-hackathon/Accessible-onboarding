@@ -1,6 +1,6 @@
-import needsVocab from '@shared/vocab/needs.json';
 import type { RefObject } from 'react';
-import type { Option, Step } from '../engine/types';
+import { resolveOptions } from '../engine/options';
+import type { Step } from '../engine/types';
 import { t } from '../i18n/t';
 
 export interface MultiChoiceCardsProps {
@@ -26,22 +26,10 @@ export function MultiChoiceCards({
   const hintId = `${fieldsetId}-hint`;
   const errorId = `${fieldsetId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
-  let options: Option[] = step.options || [];
-
-  if (step.options_from === 'vocab:needs') {
-    options = needsVocab.items.map((item) => ({
-      value: item.code,
-      label: isEmployer ? item.employer : item.learner,
-      icon: item.icon,
-    }));
-  }
+  // Employers never get "other": a job can only offer supports from the shared list.
+  const options = resolveOptions(step, { audience: isEmployer ? 'employer' : 'learner' });
 
   const selectedValues = Array.isArray(value) ? value : [];
 
@@ -87,7 +75,6 @@ export function MultiChoiceCards({
             fontWeight: 600,
             fontSize: '0.95em',
           }}
-          role="alert"
         >
           <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
           {t(lang, `errors.${error}`)}
@@ -120,9 +107,7 @@ export function MultiChoiceCards({
                 border: isSelected
                   ? '3px solid var(--bo-primary)'
                   : '2px solid var(--bo-border-strong)',
-                backgroundColor: isSelected
-                  ? 'var(--bo-selected-bg)'
-                  : 'var(--bo-bg)',
+                backgroundColor: isSelected ? 'var(--bo-selected-bg)' : 'var(--bo-bg)',
                 transition: 'border-color 0.15s, background-color 0.15s',
               }}
             >

@@ -8,10 +8,7 @@ export interface ProgressState {
   total: number;
 }
 
-export function computePath(
-  flow: Flow,
-  answers: Record<string, AnswerState | unknown>,
-): Step[] {
+export function computePath(flow: Flow, answers: Record<string, AnswerState | unknown>): Step[] {
   const path: Step[] = [];
   const visited = new Set<string>();
 
@@ -54,7 +51,9 @@ export function computeProgress(
     // Find where in the general path currentStep is
     const idxInPath = path.findIndex((s) => s.id === currentId);
     // Count how many input steps occur before this in path
-    const precedingInputs = path.slice(0, idxInPath).filter((s) => !NON_INPUT_TYPES.has(s.type)).length;
+    const precedingInputs = path
+      .slice(0, idxInPath)
+      .filter((s) => !NON_INPUT_TYPES.has(s.type)).length;
     return { n: Math.min(precedingInputs + 1, total), total };
   }
 

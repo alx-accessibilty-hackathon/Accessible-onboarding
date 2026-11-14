@@ -13,7 +13,8 @@ export interface Job {
   accommodations: string[];
   summary?: string;
   description?: string;
-  published_at?: string;
+  status?: string; // draft | published | closed
+  published_at?: string | null;
 }
 
 export interface MatchedJob {

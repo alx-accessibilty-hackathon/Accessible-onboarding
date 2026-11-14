@@ -1,22 +1,31 @@
-// Speech-to-text API (FB-6 / FE-B). Sends audio as FormData.
+// Speech-to-text API (FB-6 / FE-B). Sends audio as FormData (speech_dto.go).
 
 import { apiFetch, type ApiConfig } from './client';
 
+export interface Transcription {
+  transcript: string;
+  confidence: number; // 0..1, or -1 when the provider gives none
+  provider: string;
+}
+
 /**
- * Transcribe an audio blob via the backend STT endpoint.
- * The blob is sent as multipart/form-data so `apiFetch` skips the
- * Content-Type header and lets the browser set the boundary.
+ * Transcribe an audio clip via POST /speech/transcriptions (learner token needed).
+ * apiFetch skips the Content-Type header for FormData so the browser sets the boundary.
+ * 503 speech_unavailable when no provider can do it right now.
  */
 export async function transcribe(
   cfg: ApiConfig,
   audioBlob: Blob,
-  lang: string,
-): Promise<{ text: string; confidence: number }> {
+  opts: { language: string; stepId?: string; fieldType?: string },
+): Promise<Transcription> {
   const form = new FormData();
-  form.append('audio', audioBlob, 'recording.webm');
-  form.append('lang', lang);
+  const ext = audioBlob.type.includes('mp4') ? 'm4a' : 'webm';
+  form.append('audio', audioBlob, `recording.${ext}`);
+  form.append('language', opts.language);
+  if (opts.stepId) form.append('step_id', opts.stepId);
+  if (opts.fieldType) form.append('field_type', opts.fieldType);
 
-  return apiFetch<{ text: string; confidence: number }>(cfg, '/speech/transcribe', {
+  return apiFetch<Transcription>(cfg, '/speech/transcriptions', {
     method: 'POST',
     body: form,
     // Give transcription a longer timeout than the default 15 s

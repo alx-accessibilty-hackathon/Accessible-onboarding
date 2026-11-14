@@ -53,12 +53,32 @@ backend/
 ## Run
 
 ```bash
-cp .env.example .env          # fill in DATABASE_URL and the keys
-go run .                      # http://localhost:8080/health
+cp .env.example .env          # set DATABASE_URL, DATA_ENCRYPTION_KEY, CODE_HASH_KEY (openssl rand -base64 32)
+go run . migrate              # apply every migration (embedded in the binary)
+go run . seed --if-empty      # demo partners, staff accounts and 6 jobs; prints the keys and accounts
+go run .                      # the API on http://localhost:8080 (health: /health, docs: /api/docs)
 go test ./...
 ```
 
+Demo data from `seed`:
+- **Partner keys:** `pk_demo_savanna`, `pk_demo_jobboard` (platforms) and `pk_demo_aaapd` (AAAPD, the referral organisation). Browsers may use them from `http://localhost:5173`, `:4173`, `:8080` and `:8081`. In development, add more origins (a phone on your Wi-Fi) with `EXTRA_ALLOWED_ORIGINS`.
+- **Staff accounts** (password from `SEED_STAFF_PASSWORD`, or a random one that is printed):
+  - `employer@example.org` (employer, Example Co)
+  - `staff@aaapd.example`, `staff@savanna.example` (partner staff)
+  - `support@example.org`, `admin@example.org`
+- **OAuth client:** `savanna-demo`; the secret is `SEED_CLIENT_SECRET` or printed.
+- **Jobs:** 6 published demo jobs.
+- **Simulated SMS inbox** (`APP_ENV=dev`): `GET /api/v1/dev/messages`.
+
+**Everything with Docker** (from the repository root): copy `.env.example` to `.env`, fill in the keys, run `docker compose up --build`, then open http://localhost:8081. The API container runs `migrate`, `seed --if-empty` and `serve`.
+
 Use Go 1.24. If `go get` tries to download a newer toolchain, run it with `GOTOOLCHAIN=local`.
+
+**Database tests.** The repository tests and the end-to-end HTTP tests (`e2e_test.go`) run the real SQL against PostgreSQL. They are skipped unless `TEST_DATABASE_URL` is set. Each test creates its own schema, applies every migration and drops the schema afterwards, so any empty database works:
+
+```bash
+TEST_DATABASE_URL="postgres://bridge:bridge@localhost:5432/bridge?sslmode=disable" go test ./...
+```
 
 ## Database code with sqlc
 
@@ -93,12 +113,7 @@ return tx.Commit(ctx)
 
 ## Migrations
 
-The files follow goose's format. To apply them to your local database:
-
-```bash
-go install github.com/pressly/goose/v3/cmd/goose@latest   # once
-goose -dir migrations postgres "$DATABASE_URL" up
-```
+The files follow goose's format and are embedded in the binary. `go run . migrate` applies them (goose as a library). Never edit a merged migration; add a new one.
 
 ## Adding an endpoint
 
@@ -117,4 +132,26 @@ goose -dir migrations postgres "$DATABASE_URL" up
 
 ## Status
 
-Skeleton only. Every handler answers `501 not_implemented`, and every middleware lets requests through. Interfaces are empty except `PartnerRepositoryI`, the worked sqlc example. The only migration so far is `00001_platform.sql` (partners, employers, staff, audit log). The endpoint list is in `TECHNICAL_PLAN_LITE.md`, and the remaining tables are in `TECHNICAL_PLAN.md` 5.5.
+**Sign-in works end to end:**
+- the partner key and allowed origin (`PartnerKeyMiddleware`)
+- learner tokens (`lt_`, from `POST /registrations` or resume verify; 30 days, sliding)
+- staff tokens (`st_`, `POST /auth/staff/login`, 12 hours) with roles
+- partner-server tokens (`pt_`, OAuth client credentials, 1 hour) with scopes
+
+Only SHA-256 hashes of tokens are stored. Staff passwords use bcrypt.
+
+**Built:**
+- **Registrations:** answers, progress, submit, the support request (encrypted) and consents
+- **Continue on another device:** resume links, lookup and verify
+- **Jobs:** public jobs, JobPosting JSON-LD, employer jobs and applications
+- **Platform:** `/config`, speech-to-text (mock, Azure, local), the partner API (list and detail) and the partner-staff consent code
+- **Running it:** `migrate` and `seed`, the dev SMS inbox, and Docker
+
+**Not built yet (Shoulds):**
+- learner phone-code sign-in
+- `/me` (see, download, delete)
+- the other partner-staff routes (start a registration for a learner, confirm consent, attest, referral queue)
+- the support inbox
+- employer applications view
+- JobPosting import and feed
+- the Telegram bot replies

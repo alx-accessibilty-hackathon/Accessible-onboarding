@@ -188,7 +188,10 @@ export function normalizePhone(text: string, lang: string): string {
   const digitClusters = converted.match(/\d+/g);
   if (digitClusters && digitClusters.length > 0) {
     const lastCluster = digitClusters[digitClusters.length - 1];
-    if (lastCluster.length === 10 && (lastCluster.startsWith('09') || lastCluster.startsWith('07'))) {
+    if (
+      lastCluster.length === 10 &&
+      (lastCluster.startsWith('09') || lastCluster.startsWith('07'))
+    ) {
       return `${lastCluster.slice(0, 4)} ${lastCluster.slice(4, 7)} ${lastCluster.slice(7)}`;
     }
     return lastCluster;

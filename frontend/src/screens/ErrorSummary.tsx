@@ -4,23 +4,38 @@ import { t } from '../i18n/t';
 export interface ErrorItem {
   fieldId: string;
   message: string;
+  /** Instead of focusing the field: e.g. go to the step from Check your answers. */
+  onSelect?: () => void;
 }
 
 export interface ErrorSummaryProps {
   errors: ErrorItem[];
   lang: string;
+  /** Change it (e.g. a counter of failed Continues) to move focus to the summary again. */
+  focusKey?: number | string;
 }
 
-export function ErrorSummary({ errors, lang }: ErrorSummaryProps) {
+const FOCUSABLE = 'input:not([type="hidden"]), select, textarea, button';
+
+// Focus the field itself; a fieldset (choices, date) can't take focus, so its first input does.
+function focusField(root: ShadowRoot | Document, id: string): void {
+  const el = root.getElementById(id) as HTMLElement | null;
+  if (!el) return;
+  const target = el.matches(FOCUSABLE) ? el : el.querySelector<HTMLElement>(FOCUSABLE);
+  (target ?? el).focus();
+}
+
+export function ErrorSummary({ errors, lang, focusKey }: ErrorSummaryProps) {
   const summaryRef = useRef<HTMLDivElement>(null);
+  const key = `${focusKey ?? ''}|${errors.map((e) => `${e.fieldId}:${e.message}`).join(',')}`;
+  const hasErrors = errors.length > 0;
 
+  // Only when the errors (or the attempt) change, so a re-render never pulls focus back here.
   useEffect(() => {
-    if (errors.length > 0) {
-      summaryRef.current?.focus();
-    }
-  }, [errors]);
+    if (hasErrors) summaryRef.current?.focus();
+  }, [key, hasErrors]);
 
-  if (errors.length === 0) return null;
+  if (!hasErrors) return null;
 
   return (
     <div
@@ -63,13 +78,19 @@ export function ErrorSummary({ errors, lang }: ErrorSummaryProps) {
                 color: 'var(--bo-error)',
                 fontWeight: 700,
                 textDecoration: 'underline',
+                display: 'inline-block',
+                minHeight: 'var(--bo-target)',
+                paddingBlock: 'var(--bo-space-2)',
               }}
               onClick={(ev) => {
-                ev.preventDefault();
-                // Move focus inside ShadowRoot or standard document
+                ev.preventDefault(); // don't change the host page address (W3)
+                if (e.onSelect) {
+                  e.onSelect();
+                  return;
+                }
+                // Move focus inside the shadow root or the standard document
                 const root = ev.currentTarget.getRootNode() as ShadowRoot | Document;
-                const el = root.getElementById(e.fieldId) as HTMLElement | null;
-                el?.focus();
+                focusField(root, e.fieldId);
               }}
             >
               {e.message}

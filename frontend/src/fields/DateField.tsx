@@ -20,16 +20,8 @@ export interface DateFieldProps {
   headingRef?: RefObject<HTMLHeadingElement>;
 }
 
-export function DateField({
-  step,
-  lang,
-  value,
-  onChange,
-  error,
-  headingRef,
-}: DateFieldProps) {
-  const defaultCal =
-    step.calendar_default?.[lang] || (lang === 'am' ? 'ethiopian' : 'gregorian');
+export function DateField({ step, lang, value, onChange, error, headingRef }: DateFieldProps) {
+  const defaultCal = step.calendar_default?.[lang] || (lang === 'am' ? 'ethiopian' : 'gregorian');
 
   const [calendar, setCalendar] = useState<'ethiopian' | 'gregorian'>(
     value?.calendar || defaultCal,
@@ -38,19 +30,19 @@ export function DateField({
   // Initial internal state from value
   const initialYear =
     calendar === 'ethiopian'
-      ? value?.ethiopian?.year ?? ''
+      ? (value?.ethiopian?.year ?? '')
       : value?.iso
         ? new Date(value.iso).getUTCFullYear()
         : '';
   const initialMonth =
     calendar === 'ethiopian'
-      ? value?.ethiopian?.month ?? ''
+      ? (value?.ethiopian?.month ?? '')
       : value?.iso
         ? new Date(value.iso).getUTCMonth() + 1
         : '';
   const initialDay =
     calendar === 'ethiopian'
-      ? value?.ethiopian?.day ?? ''
+      ? (value?.ethiopian?.day ?? '')
       : value?.iso
         ? new Date(value.iso).getUTCDate()
         : '';
@@ -63,12 +55,7 @@ export function DateField({
   const hintId = `${fieldsetId}-hint`;
   const errorId = `${fieldsetId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   const updateDate = (
     c: 'ethiopian' | 'gregorian',
@@ -167,24 +154,26 @@ export function DateField({
       )}
 
       {/* Calendar Switch */}
-      <div style={{ display: 'flex', gap: 'var(--bo-space-2)', marginTop: '4px' }}>
+      <div
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--bo-space-2)', marginTop: '4px' }}
+      >
         <button
           type="button"
           onClick={() => handleCalendarToggle('ethiopian')}
           aria-pressed={calendar === 'ethiopian'}
           className={calendar === 'ethiopian' ? 'bo-btn bo-btn-primary' : 'bo-btn bo-btn-secondary'}
-          style={{ padding: '0.4em 0.8em', minHeight: '40px', fontSize: '0.9em' }}
+          style={{ padding: '0.4em 0.8em', fontSize: '0.9em' }}
         >
-          {lang === 'am' ? 'የኢትዮጵያ ዘመን አቆጣጠር' : 'Ethiopian calendar'}
+          {t(lang, 'date.ethiopian')}
         </button>
         <button
           type="button"
           onClick={() => handleCalendarToggle('gregorian')}
           aria-pressed={calendar === 'gregorian'}
           className={calendar === 'gregorian' ? 'bo-btn bo-btn-primary' : 'bo-btn bo-btn-secondary'}
-          style={{ padding: '0.4em 0.8em', minHeight: '40px', fontSize: '0.9em' }}
+          style={{ padding: '0.4em 0.8em', fontSize: '0.9em' }}
         >
-          {lang === 'am' ? 'የፈረንጆች ዘመን አቆጣጠር' : 'Gregorian calendar'}
+          {t(lang, 'date.gregorian')}
         </button>
       </div>
 
@@ -197,7 +186,6 @@ export function DateField({
             fontWeight: 600,
             fontSize: '0.95em',
           }}
-          role="alert"
         >
           <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
           {t(lang, `errors.${error}`)}
@@ -220,7 +208,7 @@ export function DateField({
             htmlFor={`${fieldsetId}-day`}
             style={{ fontSize: '0.9em', fontWeight: 600, color: 'var(--bo-text)' }}
           >
-            {lang === 'am' ? 'ቀን' : 'Day'}
+            {t(lang, 'date.day')}
           </label>
           <input
             id={`${fieldsetId}-day`}
@@ -254,7 +242,7 @@ export function DateField({
             htmlFor={`${fieldsetId}-month`}
             style={{ fontSize: '0.9em', fontWeight: 600, color: 'var(--bo-text)' }}
           >
-            {lang === 'am' ? 'ወር' : 'Month'}
+            {t(lang, 'date.month')}
           </label>
           <select
             id={`${fieldsetId}-month`}
@@ -276,7 +264,7 @@ export function DateField({
               color: 'var(--bo-text)',
             }}
           >
-            <option value="">{lang === 'am' ? '-- ምረጥ --' : '-- Select month --'}</option>
+            <option value="">{t(lang, 'date.select_month')}</option>
             {monthsList.map((m) => (
               <option key={m.id} value={m.id}>
                 {lang === 'am' ? `${m.id}. ${m.nameAm}` : `${m.id} - ${m.nameEn}`}
@@ -291,7 +279,7 @@ export function DateField({
             htmlFor={`${fieldsetId}-year`}
             style={{ fontSize: '0.9em', fontWeight: 600, color: 'var(--bo-text)' }}
           >
-            {lang === 'am' ? 'ዓመት' : 'Year'}
+            {t(lang, 'date.year')}
           </label>
           <input
             id={`${fieldsetId}-year`}

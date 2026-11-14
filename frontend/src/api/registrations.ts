@@ -1,4 +1,5 @@
 // Registration API (FB-3 / FE-B). All calls go through apiFetch.
+// Field names follow backend/Delivery/Controllers/registration_dto.go exactly.
 
 import { apiFetch, type ApiConfig } from './client';
 
@@ -6,60 +7,98 @@ import { apiFetch, type ApiConfig } from './client';
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
+export type InputMethod = 'typed' | 'voice' | 'choice' | 'partner';
+
+export interface SessionInfo {
+  token: string;
+  expires_at: string;
+}
+
+export interface CreateRegistrationResponse {
+  registration_id: string;
+  learner_id: string;
+  status: string;
+  current_step: string;
+  session: SessionInfo;
+}
+
+/** One saved answer, as the server returns it (cleaned, with its version). */
+export interface Answer {
+  question_id: string;
+  value: unknown;
+  input_method: InputMethod;
+  version: number;
+  updated_at: string;
+}
+
 export interface Registration {
-  id: string;
-  flowId: string;
-  currentStep: string;
-  status: 'in_progress' | 'submitted';
-  answers: Record<string, { value: unknown; version: number }>;
-  createdAt: string;
-  updatedAt: string;
+  registration_id: string;
+  status: 'draft' | 'submitted' | string;
+  current_step: string;
+  language: string;
+  simple_mode: boolean;
+  answers: Record<string, Answer>;
+  support_request: { submitted: boolean };
+  updated_at: string;
 }
 
 export interface SupportRequestData {
-  subject: string;
-  body: string;
-  contactMethod?: string;
+  needs: string[];
+  other_text: string;
+  share_with: { courses: boolean; employers: boolean };
 }
+
+export interface SubmitResponse {
+  status: string; // "registered"
+  learner_id: string;
+  identity_level: string;
+  referral?: { id: string; partner_name: string; status: string };
+}
+
+export interface ResumeLink {
+  url: string;
+  code: string;
+  expires_at: string;
+}
+
+export type ConsentKind =
+  'data_processing' | 'cloud_speech' | 'sms' | 'telegram' | 'partner_access';
+export type ConsentMethod = 'tap' | 'sms_code' | 'spoken' | 'partner_witnessed';
+
+const reg = (id: string) => `/registrations/${encodeURIComponent(id)}`;
 
 /* ------------------------------------------------------------------ */
 /*  API functions                                                      */
 /* ------------------------------------------------------------------ */
 
-/** Start a new registration for the given flow. Returns a short-lived token. */
+/** Start a new registration. Returns the learner session token. */
 export async function createRegistration(
   cfg: ApiConfig,
-  flowId: string,
-): Promise<{ id: string; token: string }> {
-  return apiFetch<{ id: string; token: string }>(cfg, '/registrations', {
+  body: { flow_id: string; language: string; simple_mode: boolean; flow_version?: number },
+): Promise<CreateRegistrationResponse> {
+  return apiFetch<CreateRegistrationResponse>(cfg, '/registrations', {
     method: 'POST',
-    body: JSON.stringify({ flowId }),
+    body: JSON.stringify(body),
   });
 }
 
-/** Fetch a registration by id. */
-export async function getRegistration(
-  cfg: ApiConfig,
-  id: string,
-): Promise<Registration> {
-  return apiFetch<Registration>(cfg, `/registrations/${encodeURIComponent(id)}`);
+/** Fetch a registration (with every saved answer) by id. */
+export async function getRegistration(cfg: ApiConfig, id: string): Promise<Registration> {
+  return apiFetch<Registration>(cfg, reg(id));
 }
 
-/** Update registration metadata (e.g. currentStep). */
+/** Update progress or preferences. Only the fields sent change. */
 export async function patchRegistration(
   cfg: ApiConfig,
   id: string,
-  data: { currentStep?: string },
+  data: { current_step?: string; language?: string; simple_mode?: boolean },
 ): Promise<void> {
-  await apiFetch<undefined>(cfg, `/registrations/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  });
+  await apiFetch<undefined>(cfg, reg(id), { method: 'PATCH', body: JSON.stringify(data) });
 }
 
 /**
- * Save (or update) one answer. Returns the new server version so the caller
- * can pass it as base_version on the next write (optimistic-lock pattern).
+ * Save (or update) one answer of a `storage: "answer"` step. Returns the saved answer with the
+ * cleaned value and the new version, which is the base_version of the next write.
  */
 export async function saveAnswer(
   cfg: ApiConfig,
@@ -67,60 +106,56 @@ export async function saveAnswer(
   stepId: string,
   value: unknown,
   inputMethod: string,
-  baseVersion?: number,
-): Promise<{ version: number }> {
-  return apiFetch<{ version: number }>(
-    cfg,
-    `/registrations/${encodeURIComponent(regId)}/answers/${encodeURIComponent(stepId)}`,
-    {
-      method: 'PUT',
-      body: JSON.stringify({ value, inputMethod, baseVersion }),
-    },
-  );
+  baseVersion = 0,
+): Promise<Answer> {
+  return apiFetch<Answer>(cfg, `${reg(regId)}/answers/${encodeURIComponent(stepId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value, input_method: inputMethod, base_version: baseVersion }),
+  });
 }
 
-/** Submit a support / help-request on behalf of the learner. */
+/** Save the private support request (the `storage: "support"` steps). */
 export async function putSupportRequest(
   cfg: ApiConfig,
   regId: string,
   data: SupportRequestData,
-): Promise<void> {
-  await apiFetch<undefined>(
-    cfg,
-    `/registrations/${encodeURIComponent(regId)}/support-request`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    },
-  );
+): Promise<{ status: string; updated_at: string }> {
+  return apiFetch(cfg, `${reg(regId)}/support-request`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 }
 
 /** Record a consent decision. */
 export async function postConsent(
   cfg: ApiConfig,
   regId: string,
-  kind: string,
+  kind: ConsentKind,
   granted: boolean,
-  method: string,
+  method: ConsentMethod = 'tap',
 ): Promise<void> {
-  await apiFetch<undefined>(
-    cfg,
-    `/registrations/${encodeURIComponent(regId)}/consents`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ kind, granted, method }),
-    },
-  );
+  await apiFetch<unknown>(cfg, `${reg(regId)}/consents`, {
+    method: 'POST',
+    body: JSON.stringify({ kind, granted, method }),
+  });
 }
 
-/** Mark the registration as submitted (no turning back). */
-export async function submit(
+/** Finish the sign-up. 422 lists the missing required steps in errors[].field. */
+export async function submit(cfg: ApiConfig, regId: string): Promise<SubmitResponse> {
+  return apiFetch<SubmitResponse>(cfg, `${reg(regId)}/submit`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** "Continue on another device": a link and a short code (Should). */
+export async function createResumeLink(
   cfg: ApiConfig,
   regId: string,
-): Promise<void> {
-  await apiFetch<undefined>(
-    cfg,
-    `/registrations/${encodeURIComponent(regId)}/submit`,
-    { method: 'POST' },
-  );
+  body: { send_via?: 'sms' | 'telegram' | 'none'; phone?: string } = { send_via: 'none' },
+): Promise<ResumeLink> {
+  return apiFetch<ResumeLink>(cfg, `${reg(regId)}/resume-links`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }

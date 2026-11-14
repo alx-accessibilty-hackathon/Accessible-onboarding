@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { staffLogin, staffMe, type StaffUser } from '../api/auth';
+import { ApiError, errorCode } from '../api/client';
 import { Banner } from '../components/Banner';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -11,6 +12,7 @@ export interface LoginProps {
   onSuccess: (token: string, user: StaffUser) => void;
 }
 
+// ST-1: email and password (paste allowed). Errors come from the API, nothing is invented.
 export function Login({ apiOrigin = '', lang = 'en', onSuccess }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,42 +22,41 @@ export function Login({ apiOrigin = '', lang = 'en', onSuccess }: LoginProps) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!email.trim() || !password) {
+      setError(t(lang, 'staff.missing_fields'));
+      return;
+    }
     setLoading(true);
 
     try {
-      const { token } = await staffLogin(apiOrigin, email, password);
-      let user: StaffUser;
-      try {
-        user = await staffMe(apiOrigin, token);
-      } catch {
-        // Fallback user if staffMe not yet implemented
-        user = {
-          id: 'staff_1',
-          email,
-          name: email.split('@')[0],
-          role: 'employer',
-        };
-      }
+      const { token } = await staffLogin(apiOrigin, email.trim(), password);
+      const user = await staffMe(apiOrigin, token);
       onSuccess(token, user);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'login_failed';
-      setError(t(lang, `errors.${msg}`));
+      if (err instanceof ApiError && err.status === 401) {
+        setError(t(lang, 'staff.login_failed'));
+      } else if (err instanceof ApiError && err.status === 422) {
+        setError(t(lang, 'staff.missing_fields'));
+      } else {
+        setError(t(lang, `errors.${errorCode(err)}`));
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Card className="bo-staff-login-card" style={{ maxWidth: '28em', margin: 'var(--bo-space-5) auto' }}>
+    <Card
+      className="bo-staff-login-card"
+      style={{ maxWidth: '28em', margin: 'var(--bo-space-5) auto' }}
+    >
       <h1 style={{ marginBottom: 'var(--bo-space-4)', fontSize: '1.4em' }}>
         {t(lang, 'staff.login_title')}
       </h1>
 
       {error && (
         <div style={{ marginBottom: 'var(--bo-space-4)' }}>
-          <Banner variant="error" className="bo-mb-4">
-            {error}
-          </Banner>
+          <Banner variant="error">{error}</Banner>
         </div>
       )}
 
@@ -99,8 +100,13 @@ export function Login({ apiOrigin = '', lang = 'en', onSuccess }: LoginProps) {
         </div>
 
         <div className="bo-actions">
-          <Button variant="primary" type="submit" disabled={loading}>
-            {loading ? '...' : t(lang, 'staff.signin_button')}
+          <Button
+            variant="primary"
+            type="submit"
+            disabled={loading}
+            aria-busy={loading || undefined}
+          >
+            {loading ? t(lang, 'common.sending') : t(lang, 'staff.signin_button')}
           </Button>
         </div>
       </form>

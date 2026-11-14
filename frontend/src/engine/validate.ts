@@ -15,7 +15,12 @@ export function isValueEmpty(val: unknown): boolean {
   return false;
 }
 
-export function validateRule(rule: Rule, value: unknown): string | null {
+// A date of birth must be in the past; other dates (e.g. "When can you start?") may be ahead.
+function mustBePast(step?: Step): boolean {
+  return !step || step.id === 'dob' || (step.autocomplete ?? '').startsWith('bday');
+}
+
+export function validateRule(rule: Rule, value: unknown, step?: Step): string | null {
   if (isValueEmpty(value)) return null; // non-empty rules only apply if value is present
 
   const strVal = typeof value === 'string' ? value : String(value ?? '');
@@ -59,7 +64,7 @@ export function validateRule(rule: Rule, value: unknown): string | null {
       break;
     }
     case 'date_valid': {
-      if (!validateDateValue(value)) {
+      if (!validateDateValue(value, !mustBePast(step))) {
         return rule.error || 'date_invalid';
       }
       break;
@@ -69,7 +74,7 @@ export function validateRule(rule: Rule, value: unknown): string | null {
   return null;
 }
 
-export function validateDateValue(val: unknown): boolean {
+export function validateDateValue(val: unknown, allowFuture = false): boolean {
   if (!val || typeof val !== 'object') return false;
   const dateObj = val as {
     calendar?: string;
@@ -85,13 +90,14 @@ export function validateDateValue(val: unknown): boolean {
   const parsed = new Date(dateObj.iso);
   if (isNaN(parsed.getTime())) return false;
 
-  // Must be in the past
+  // Must be in the past (dates of birth), or at most 10 years ahead (other dates)
   const now = new Date();
-  if (parsed > now) return false;
+  if (!allowFuture && parsed > now) return false;
 
   // Year check: reasonable human age (e.g., between 1900 and current year)
   const gYear = parsed.getUTCFullYear();
-  if (gYear < 1900 || gYear > now.getUTCFullYear()) return false;
+  const maxYear = now.getUTCFullYear() + (allowFuture ? 10 : 0);
+  if (gYear < 1900 || gYear > maxYear) return false;
 
   if (dateObj.calendar === 'ethiopian' && dateObj.ethiopian) {
     const { year, month, day } = dateObj.ethiopian;
@@ -115,7 +121,7 @@ export function validateStep(step: Step, value: unknown): string | null {
   // Validate rules if defined
   if (step.validate && step.validate.length > 0) {
     for (const rule of step.validate) {
-      const error = validateRule(rule, value);
+      const error = validateRule(rule, value, step);
       if (error) return error;
     }
   }

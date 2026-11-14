@@ -13,9 +13,10 @@ import (
 )
 
 type mockPartnerRepo struct {
-	partnerFn          func(ctx context.Context, key string) (*domain.Partner, error)
-	referralPartnersFn func(ctx context.Context) ([]*domain.Partner, error)
-	allowedOriginsFn   func(ctx context.Context) ([]string, error)
+	domain.PartnerRepositoryI // methods these tests don't use
+	partnerFn                 func(ctx context.Context, key string) (*domain.Partner, error)
+	referralPartnersFn        func(ctx context.Context) ([]*domain.Partner, error)
+	allowedOriginsFn          func(ctx context.Context) ([]string, error)
 }
 
 func (m *mockPartnerRepo) GetByPublishableKey(ctx context.Context, key string) (*domain.Partner, error) {

@@ -1,8 +1,8 @@
-// Outbox: queue un-sent answers when offline (FB-7).
-// Keeps only the *latest* value per step so the queue stays tiny.
-// Stored in IndexedDB via widgetStore().
+// Outbox: queue un-sent answers (FB-7).
+// Keeps only the *latest* value per step so the queue stays tiny, with the base_version it
+// was written against. Stored in IndexedDB via widgetStore().
 
-import { get, set } from 'idb-keyval';
+import { del, get, set } from 'idb-keyval';
 import { widgetStore } from './db';
 
 /* ------------------------------------------------------------------ */
@@ -14,6 +14,7 @@ export interface OutboxEntry {
   value: unknown;
   inputMethod: string;
   queuedAt: number; // Date.now()
+  baseVersion?: number; // server version this value replaces (0 = nothing saved yet)
 }
 
 // Internal shape: one record per registration, keyed by stepId.
@@ -48,9 +49,11 @@ export async function enqueue(
   stepId: string,
   value: unknown,
   inputMethod: string,
+  baseVersion?: number,
 ): Promise<void> {
   const map = await load(regId);
-  map[stepId] = { stepId, value, inputMethod, queuedAt: Date.now() };
+  const queuedAt = Math.max(Date.now(), (map[stepId]?.queuedAt ?? 0) + 1);
+  map[stepId] = { stepId, value, inputMethod, queuedAt, baseVersion };
   await save(regId, map);
 }
 
@@ -60,14 +63,31 @@ export async function dequeueAll(regId: string): Promise<OutboxEntry[]> {
   return Object.values(map);
 }
 
-/** Remove a single step from the outbox after it has been synced. */
+/**
+ * Remove a single step from the outbox after it has been synced. With `queuedAt`, only that
+ * exact entry is removed: a newer value queued meanwhile stays. Returns whether it was removed.
+ */
 export async function clearSynced(
   regId: string,
   stepId: string,
-): Promise<void> {
+  queuedAt?: number,
+): Promise<boolean> {
   const map = await load(regId);
+  const entry = map[stepId];
+  if (!entry) return false;
+  if (queuedAt !== undefined && entry.queuedAt !== queuedAt) return false;
   delete map[stepId];
   await save(regId, map);
+  return true;
+}
+
+/** Move every queued answer from one key to another (answers given before the registration existed). */
+export async function moveOutbox(fromRegId: string, toRegId: string): Promise<void> {
+  const from = await load(fromRegId);
+  if (Object.keys(from).length === 0) return;
+  const to = await load(toRegId);
+  await save(toRegId, { ...from, ...to });
+  await del(outboxKey(fromRegId), widgetStore());
 }
 
 /** How many answers are waiting to be sent? */

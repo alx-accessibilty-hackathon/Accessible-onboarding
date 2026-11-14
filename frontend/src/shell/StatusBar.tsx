@@ -7,11 +7,17 @@ import { useOnline } from '../offline/useOnline';
 
 export interface StatusBarProps {
   lang: string;
+  /** The registration whose answers are saved. Without one, only answers kept on this phone
+   * before the registration exists (outbox "local") are shown. */
   registrationId?: string;
   className?: string;
+  /** Change it to re-check the outbox now (e.g. right after an answer was queued or synced). */
+  refreshKey?: number;
 }
 
-export function StatusBar({ lang, registrationId, className }: StatusBarProps) {
+export const LOCAL_OUTBOX = 'local';
+
+export function StatusBar({ lang, registrationId, className, refreshKey }: StatusBarProps) {
   const online = useOnline();
   const [pending, setPending] = useState(0);
   const prevStatusRef = useRef<string>('');
@@ -20,12 +26,10 @@ export function StatusBar({ lang, registrationId, className }: StatusBarProps) {
     let active = true;
 
     async function checkPending() {
-      if (!registrationId) {
-        setPending(0);
-        return;
-      }
       try {
-        const count = await pendingCount(registrationId);
+        const count =
+          (registrationId ? await pendingCount(registrationId) : 0) +
+          (await pendingCount(LOCAL_OUTBOX));
         if (active) setPending(count);
       } catch {
         // ignore storage errors
@@ -38,7 +42,7 @@ export function StatusBar({ lang, registrationId, className }: StatusBarProps) {
       active = false;
       clearInterval(interval);
     };
-  }, [registrationId]);
+  }, [registrationId, refreshKey]);
 
   let statusText: string;
   let iconName: string;
@@ -52,21 +56,26 @@ export function StatusBar({ lang, registrationId, className }: StatusBarProps) {
     statusText = t(lang, 'status.saved_local');
     iconName = 'info';
     statusColor = 'var(--bo-navy)';
-  } else {
+  } else if (registrationId) {
     statusText = t(lang, 'status.saved_account');
     iconName = 'check_circle';
     statusColor = 'var(--bo-success)';
+  } else {
+    statusText = ''; // nothing saved yet
+    iconName = 'info';
+    statusColor = 'var(--bo-text-muted)';
   }
 
   // Announce status change to screen readers via the single live region (W1)
   useEffect(() => {
-    if (prevStatusRef.current && prevStatusRef.current !== statusText) {
+    if (prevStatusRef.current && statusText && prevStatusRef.current !== statusText) {
       announce(statusText);
     }
     prevStatusRef.current = statusText;
   }, [statusText]);
 
   const cls = className ? `bo-status-bar ${className}` : 'bo-status-bar';
+  if (!statusText) return null;
 
   return (
     <div

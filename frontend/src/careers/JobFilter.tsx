@@ -68,7 +68,7 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
                 padding: 'var(--bo-space-2) var(--bo-space-3)',
                 borderRadius: 'var(--bo-radius)',
                 cursor: 'pointer',
-                minHeight: '44px',
+                minHeight: 'var(--bo-target)',
                 border: isChecked
                   ? '2px solid var(--bo-primary)'
                   : '1px solid var(--bo-border-strong)',
@@ -88,7 +88,13 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
                   flexShrink: 0,
                 }}
               />
-              <span style={{ fontSize: '0.9em', color: 'var(--bo-text)', fontWeight: isChecked ? 600 : 400 }}>
+              <span
+                style={{
+                  fontSize: '0.9em',
+                  color: 'var(--bo-text)',
+                  fontWeight: isChecked ? 600 : 400,
+                }}
+              >
                 {labelText}
               </span>
             </label>
@@ -97,7 +103,9 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
       </div>
 
       {selectedNeeds.length > 0 && (
-        <div style={{ marginTop: 'var(--bo-space-3)', display: 'flex', justifyContent: 'flex-end' }}>
+        <div
+          style={{ marginTop: 'var(--bo-space-3)', display: 'flex', justifyContent: 'flex-end' }}
+        >
           <button
             type="button"
             className="bo-link"

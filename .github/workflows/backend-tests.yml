@@ -3,10 +3,11 @@ name: Backend Tests
 on:
   push:
     branches: ["main"]
-    paths: ["backend/**", ".github/workflows/backend-tests.yml"]
+    # shared/: the API loads and checks the flow files and the needs list at start-up
+    paths: ["backend/**", "shared/**", ".github/workflows/backend-tests.yml"]
   pull_request:
     branches: ["main"]
-    paths: ["backend/**", ".github/workflows/backend-tests.yml"]
+    paths: ["backend/**", "shared/**", ".github/workflows/backend-tests.yml"]
 
 jobs:
   test:

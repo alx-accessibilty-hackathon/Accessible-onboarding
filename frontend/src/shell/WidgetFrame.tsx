@@ -1,41 +1,39 @@
 import { useState, type ReactNode } from 'react';
 import { LiveRegion } from '../a11y/LiveRegion';
+import type { ApiConfig } from '../api/client';
 import { Button } from '../components/Button';
 import { Icon } from '../components/Icon';
 import { useLanguage } from '../i18n/LanguageContext';
-import { HelpPanel } from './HelpPanel';
+import { HelpPanel, type HelpContacts } from './HelpPanel';
 import { SavePanel } from './SavePanel';
 import { StatusBar } from './StatusBar';
 
 export interface WidgetFrameProps {
   children: ReactNode;
-  registrationId?: string;
-  apiOrigin?: string;
-  partnerKey?: string;
-  onResetSession?: () => void;
+  /** Sign-up in progress: shows "Save and finish later" and the save status. */
+  saving?: {
+    registrationId?: string;
+    api?: ApiConfig | null; // with the learner token
+    refreshKey?: number;
+    onForget?: () => void;
+  } | null;
+  help?: HelpContacts | null;
 }
 
-// The same frame on every screen (WCAG 3.2.3 / 3.2.6).
-export function WidgetFrame({
-  children,
-  registrationId,
-  apiOrigin,
-  partnerKey,
-  onResetSession,
-}: WidgetFrameProps) {
+// The same frame on every screen (WCAG 3.2.3 / 3.2.6). It lives inside the host page, so it
+// uses no landmarks of its own (no header/main/footer): one labelled section for the widget.
+export function WidgetFrame({ children, saving, help }: WidgetFrameProps) {
   const { lang, setLang, simple, toggleSimple, t } = useLanguage();
 
   const [saveOpen, setSaveOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const toggleLanguage = () => {
-    setLang(lang === 'en' ? 'am' : 'en');
-  };
+  const otherLang = lang === 'en' ? 'am' : 'en';
 
   return (
-    <div className="bo-frame">
-      {/* Top Header: same place on every screen */}
-      <header
+    <section className="bo-frame" aria-label={t('frame.label')}>
+      {/* Top bar: same place on every screen */}
+      <div
         className="bo-header"
         style={{
           display: 'flex',
@@ -45,13 +43,19 @@ export function WidgetFrame({
           paddingBottom: 'var(--bo-space-3)',
         }}
       >
-        <div style={{ display: 'flex', gap: 'var(--bo-space-2)', alignItems: 'center' }}>
-          {/* Language switch */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--bo-space-2)',
+            alignItems: 'center',
+          }}
+        >
+          {/* Language switch: the other language, named in its own script */}
           <Button
             variant="secondary"
-            onClick={toggleLanguage}
+            onClick={() => setLang(otherLang)}
             style={{
-              minHeight: 'var(--bo-target)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: 'var(--bo-space-1)',
@@ -59,7 +63,7 @@ export function WidgetFrame({
             }}
           >
             <Icon name="language" />
-            <span>{lang === 'en' ? 'አማርኛ' : 'English'}</span>
+            <span lang={otherLang}>{otherLang === 'am' ? 'አማርኛ' : 'English'}</span>
           </Button>
 
           {/* Simple mode switch */}
@@ -68,7 +72,6 @@ export function WidgetFrame({
             onClick={toggleSimple}
             aria-pressed={simple}
             style={{
-              minHeight: 'var(--bo-target)',
               padding: '0.4em 0.8em',
               background: simple ? 'var(--bo-selected-bg)' : undefined,
               borderColor: simple ? 'var(--bo-primary)' : undefined,
@@ -83,7 +86,6 @@ export function WidgetFrame({
           variant="secondary"
           onClick={() => setHelpOpen(true)}
           style={{
-            minHeight: 'var(--bo-target)',
             display: 'inline-flex',
             alignItems: 'center',
             gap: 'var(--bo-space-1)',
@@ -93,56 +95,50 @@ export function WidgetFrame({
           <Icon name="help" />
           <span>{t('header.help')}</span>
         </Button>
-      </header>
+      </div>
 
-      {/* Main content slot (flows and screens) */}
-      <main id="bo-main-content">
-        {children}
-      </main>
+      {/* Content (flows and screens) */}
+      <div id="bo-main-content">{children}</div>
 
-      {/* Footer controls: Save and finish later + Status Bar */}
-      <footer
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--bo-space-2)',
-          borderTop: '1px solid var(--bo-border-subtle)',
-          paddingTop: 'var(--bo-space-3)',
-          marginTop: 'var(--bo-space-4)',
-        }}
-      >
-        <div>
-          <button
-            type="button"
-            className="bo-link"
-            onClick={() => setSaveOpen(true)}
-          >
-            {t('common.save_later')}
-          </button>
+      {/* Save and finish later + status bar */}
+      {saving && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--bo-space-2)',
+            borderTop: '1px solid var(--bo-border-subtle)',
+            paddingTop: 'var(--bo-space-3)',
+          }}
+        >
+          <div>
+            <button type="button" className="bo-link" onClick={() => setSaveOpen(true)}>
+              {t('common.save_later')}
+            </button>
+          </div>
+
+          <StatusBar
+            lang={lang}
+            registrationId={saving.registrationId}
+            refreshKey={saving.refreshKey}
+          />
         </div>
+      )}
 
-        <StatusBar lang={lang} registrationId={registrationId} />
-      </footer>
-
-      {/* Modals inside shadow root */}
+      {/* Dialogs inside the shadow root */}
       <SavePanel
         open={saveOpen}
         lang={lang}
         onClose={() => setSaveOpen(false)}
-        onResetSession={onResetSession}
+        api={saving?.api}
+        registrationId={saving?.registrationId}
+        onForget={saving?.onForget}
       />
 
-      <HelpPanel
-        open={helpOpen}
-        lang={lang}
-        onClose={() => setHelpOpen(false)}
-        apiOrigin={apiOrigin}
-        partnerKey={partnerKey}
-        registrationId={registrationId}
-      />
+      <HelpPanel open={helpOpen} lang={lang} onClose={() => setHelpOpen(false)} help={help} />
 
       {/* One always-mounted Live Region (W1) */}
       <LiveRegion />
-    </div>
+    </section>
   );
 }

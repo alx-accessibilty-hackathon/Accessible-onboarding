@@ -11,24 +11,12 @@ export interface FieldProps<T = string> {
   headingRef?: RefObject<HTMLHeadingElement>;
 }
 
-export function TextField({
-  step,
-  lang,
-  value,
-  onChange,
-  error,
-  headingRef,
-}: FieldProps<string>) {
+export function TextField({ step, lang, value, onChange, error, headingRef }: FieldProps<string>) {
   const inputId = `q-${step.id}`;
   const hintId = `${inputId}-hint`;
   const errorId = `${inputId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   const titleText = t(lang, step.title);
 
@@ -55,7 +43,6 @@ export function TextField({
             fontWeight: 600,
             fontSize: '0.95em',
           }}
-          role="alert"
         >
           <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
           {t(lang, `errors.${error}`)}
@@ -78,9 +65,7 @@ export function TextField({
           fontFamily: 'inherit',
           padding: '0.5em 0.75em',
           borderRadius: 'var(--bo-radius)',
-          border: error
-            ? '2px solid var(--bo-error)'
-            : '2px solid var(--bo-border-strong)',
+          border: error ? '2px solid var(--bo-error)' : '2px solid var(--bo-border-strong)',
           backgroundColor: 'var(--bo-bg)',
           color: 'var(--bo-text)',
         }}

@@ -1,4 +1,5 @@
 import { nextStepId } from './next';
+import { computePath } from './progress';
 import type { AnswerState, EngineAction, EngineState, Flow } from './types';
 import { validateStep } from './validate';
 
@@ -63,6 +64,24 @@ export function engineReducer(state: EngineState, action: EngineAction): EngineS
 
       // If returning to Check your answers
       if (state.returnTo) {
+        // A changed answer can open a new branch (e.g. phone after "Phone call or SMS"):
+        // ask its unanswered questions first, then go back to Check your answers.
+        const branchId = nextStepId(state.flow, state.currentId, state.answers);
+        const branchStep = branchId ? state.flow.steps.find((s) => s.id === branchId) : undefined;
+        if (
+          branchStep &&
+          branchStep.id !== state.returnTo &&
+          !['info', 'consent', 'check_answers', 'done'].includes(branchStep.type) &&
+          state.answers[branchStep.id] === undefined
+        ) {
+          return {
+            ...state,
+            currentId: branchStep.id,
+            history: [...state.history, state.currentId],
+            errors: newErrors,
+            userNavigated: true,
+          };
+        }
         return {
           ...state,
           currentId: state.returnTo,
@@ -122,14 +141,21 @@ export function engineReducer(state: EngineState, action: EngineAction): EngineS
     }
 
     case 'RESTORE': {
-      const targetStep = action.currentStep && state.flow.steps.some((s) => s.id === action.currentStep)
-        ? action.currentStep
-        : state.currentId;
+      const targetStep =
+        action.currentStep && state.flow.steps.some((s) => s.id === action.currentStep)
+          ? action.currentStep
+          : state.currentId;
+
+      // Back after a reload walks the path the saved answers lead to.
+      const pathIds = computePath(state.flow, action.answers).map((s) => s.id);
+      const idx = pathIds.indexOf(targetStep);
 
       return {
         ...state,
         answers: { ...action.answers },
         currentId: targetStep,
+        history: idx > 0 ? pathIds.slice(0, idx) : [],
+        returnTo: undefined,
         errors: {},
       };
     }
@@ -153,13 +179,15 @@ export function engineReducer(state: EngineState, action: EngineAction): EngineS
 
     case 'SYNCED': {
       const existing = state.answers[action.stepId];
-      if (!existing) return state;
+      if (!existing && action.value === undefined) return state;
       return {
         ...state,
         answers: {
           ...state.answers,
           [action.stepId]: {
-            ...existing,
+            value: action.value !== undefined ? action.value : existing?.value,
+            inputMethod: action.inputMethod ?? existing?.inputMethod ?? 'typed',
+            pendingClipId: existing?.pendingClipId,
             version: action.version,
             synced: true,
           },

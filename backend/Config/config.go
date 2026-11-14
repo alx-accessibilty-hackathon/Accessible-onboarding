@@ -17,7 +17,8 @@ type Config struct {
 	AppEnv       string // APP_ENV: dev | production (default dev)
 	DatabaseURL  string // DATABASE_URL (required)
 	FlowsDir     string // FLOWS_DIR: shared flow files (default ../shared/flows)
-	PublicWebURL string // PUBLIC_WEB_URL: used to build resume links
+	NeedsFile    string // NEEDS_FILE: needs vocabulary (default ../shared/vocab/needs.json)
+	PublicWebURL string // PUBLIC_WEB_URL: the site's address, for resume links and JobPosting JSON-LD links
 
 	DataEncryptionKey string // DATA_ENCRYPTION_KEY: base64, 32 bytes (support requests)
 	CodeHashKey       string // CODE_HASH_KEY: base64, 32 bytes (resume codes)
@@ -30,7 +31,12 @@ type Config struct {
 
 	SMSProvider string // SMS_PROVIDER: console | afromessage | africastalking | twilio
 
-	DevAllowedOriginSuffix string // DEV_ALLOWED_ORIGIN_SUFFIX: e.g. .trycloudflare.com (dev only)
+	DevAllowedOriginSuffix string   // DEV_ALLOWED_ORIGIN_SUFFIX: e.g. .trycloudflare.com (dev only)
+	ExtraAllowedOrigins    []string // EXTRA_ALLOWED_ORIGINS: e.g. a phone on the LAN, http://192.168.1.20:5173 (dev only)
+	TelegramWebhookSecret  string   // TELEGRAM_WEBHOOK_SECRET: checked on POST /telegram/webhook
+
+	SeedStaffPassword string // SEED_STAFF_PASSWORD: password of the demo staff accounts (`seed`)
+	SeedClientSecret  string // SEED_CLIENT_SECRET: OAuth secret of the demo partner savanna-demo (`seed`)
 }
 
 // Load reads .env (if present, for local runs) and the environment.
@@ -43,6 +49,7 @@ func Load() (Config, error) {
 		AppEnv:                 getEnv("APP_ENV", "dev"),
 		DatabaseURL:            os.Getenv("DATABASE_URL"),
 		FlowsDir:               getEnv("FLOWS_DIR", "../shared/flows"),
+		NeedsFile:              getEnv("NEEDS_FILE", "../shared/vocab/needs.json"),
 		PublicWebURL:           getEnv("PUBLIC_WEB_URL", "http://localhost:5173"),
 		DataEncryptionKey:      os.Getenv("DATA_ENCRYPTION_KEY"),
 		CodeHashKey:            os.Getenv("CODE_HASH_KEY"),
@@ -53,6 +60,10 @@ func Load() (Config, error) {
 		LocalSTTURL:            os.Getenv("LOCAL_STT_URL"),
 		SMSProvider:            getEnv("SMS_PROVIDER", "console"),
 		DevAllowedOriginSuffix: os.Getenv("DEV_ALLOWED_ORIGIN_SUFFIX"),
+		ExtraAllowedOrigins:    splitList(os.Getenv("EXTRA_ALLOWED_ORIGINS")),
+		TelegramWebhookSecret:  os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
+		SeedStaffPassword:      os.Getenv("SEED_STAFF_PASSWORD"),
+		SeedClientSecret:       os.Getenv("SEED_CLIENT_SECRET"),
 	}
 
 	if cfg.DatabaseURL == "" {

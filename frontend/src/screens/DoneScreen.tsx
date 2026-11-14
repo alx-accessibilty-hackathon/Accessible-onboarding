@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useState, type ReactNode, type RefObject } from 'react';
 import { Button } from '../components/Button';
 import type { Flow, Step } from '../engine/types';
 import { t } from '../i18n/t';
@@ -10,8 +10,11 @@ export interface DoneScreenProps {
   headingRef?: RefObject<HTMLHeadingElement>;
   jobPostingJsonLd?: object | null;
   referralOrg?: string | null;
+  /** What happens next, links and buttons that belong to this flow. */
+  children?: ReactNode;
 }
 
+// Focus is moved to the heading by FlowRunner, and only when the person got here themselves.
 export function DoneScreen({
   step,
   flow,
@@ -19,13 +22,9 @@ export function DoneScreen({
   headingRef,
   jobPostingJsonLd,
   referralOrg,
+  children,
 }: DoneScreenProps) {
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    // Focus the heading on arrival
-    headingRef?.current?.focus();
-  }, [headingRef]);
 
   const handleCopy = async () => {
     if (!jobPostingJsonLd) return;
@@ -34,12 +33,11 @@ export function DoneScreen({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
+      // Clipboard blocked: the code stays selectable in the box below.
     }
   };
 
   const titleKey = step.title || `${flow.id}.done.title`;
-  const hintKey = step.hint || `${flow.id}.done.hint`;
 
   return (
     <section
@@ -63,11 +61,12 @@ export function DoneScreen({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
+            flexShrink: 0,
             width: '48px',
             height: '48px',
             borderRadius: '50%',
             backgroundColor: 'var(--bo-success)',
-            color: '#fff',
+            color: 'var(--bo-on-primary)',
             fontSize: '1.5em',
             fontWeight: 'bold',
           }}
@@ -79,9 +78,11 @@ export function DoneScreen({
         </h1>
       </div>
 
-      <p className="bo-hint" style={{ fontSize: '1.1em', margin: 0 }}>
-        {t(lang, hintKey)}
-      </p>
+      {step.hint && (
+        <p className="bo-hint" style={{ fontSize: '1.1em', margin: 0 }}>
+          {t(lang, step.hint)}
+        </p>
+      )}
 
       {referralOrg && (
         <div
@@ -93,17 +94,17 @@ export function DoneScreen({
           }}
         >
           <h2 style={{ margin: '0 0 var(--bo-space-2) 0', fontSize: '1.1em' }}>
-            {lang === 'am' ? 'የሪፈራል ሁኔታ' : 'Referral Status'}
+            {t(lang, 'done.referral_title')}
           </h2>
           <p style={{ margin: 0, color: 'var(--bo-text)' }}>
-            {lang === 'am'
-              ? `${referralOrg} ድርጅት በቅርቡ ያነጋግርዎታል።`
-              : `Your referral has been sent to ${referralOrg}. They will reach out to you shortly to assist with your onboarding.`}
+            {t(lang, 'done.referral_body', { org: referralOrg })}
           </p>
         </div>
       )}
 
-      {/* If employer flow: show JobPosting JSON-LD */}
+      {children}
+
+      {/* Employer flow: the JobPosting JSON-LD search engines read */}
       {jobPostingJsonLd && (
         <div
           style={{
@@ -116,23 +117,15 @@ export function DoneScreen({
           <div
             style={{
               display: 'flex',
+              flexWrap: 'wrap',
               justifyContent: 'space-between',
               alignItems: 'center',
+              gap: 'var(--bo-space-2)',
             }}
           >
             <h2 style={{ margin: 0, fontSize: '1.1em' }}>JobPosting JSON-LD</h2>
-            <Button
-              variant="secondary"
-              onClick={handleCopy}
-              style={{ minHeight: '40px', padding: '0.4em 0.8em' }}
-            >
-              {copied
-                ? lang === 'am'
-                  ? 'ተቀድቷል!'
-                  : 'Copied!'
-                : lang === 'am'
-                  ? 'ኮድ ቅዳ'
-                  : 'Copy JSON-LD'}
+            <Button variant="secondary" onClick={handleCopy}>
+              {copied ? t(lang, 'done.copied') : t(lang, 'done.copy_jsonld')}
             </Button>
           </div>
           <pre
@@ -142,13 +135,15 @@ export function DoneScreen({
             tabIndex={0}
             style={{
               padding: 'var(--bo-space-3)',
-              backgroundColor: '#1b1f24',
-              color: '#f5f7fa',
+              backgroundColor: 'var(--bo-surface)',
+              color: 'var(--bo-text)',
+              border: '1px solid var(--bo-border-strong)',
               borderRadius: 'var(--bo-radius)',
               overflowX: 'auto',
               maxHeight: '300px',
               fontSize: '0.85em',
               fontFamily: 'monospace',
+              margin: 0,
             }}
           >
             {JSON.stringify(jobPostingJsonLd, null, 2)}

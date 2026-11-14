@@ -1,4 +1,5 @@
 import needsVocab from '@shared/vocab/needs.json';
+import type { RefObject } from 'react';
 import { Button } from '../components/Button';
 import { t } from '../i18n/t';
 import type { Job } from './match';
@@ -8,13 +9,16 @@ export interface JobDetailProps {
   lang: string;
   onBack: () => void;
   onApply: (jobId: string) => void;
+  headingRef?: RefObject<HTMLHeadingElement>;
 }
 
-export function JobDetail({ job, lang, onBack, onApply }: JobDetailProps) {
-  const accommodationLabels = job.accommodations.map((code) => {
-    const item = needsVocab.items.find((n) => n.code === code);
-    return item ? t(lang, item.employer) : code;
-  });
+export function JobDetail({ job, lang, onBack, onApply, headingRef }: JobDetailProps) {
+  const accommodationLabels = (job.accommodations ?? [])
+    .filter((c) => c !== 'other')
+    .map((code) => {
+      const item = needsVocab.items.find((n) => n.code === code);
+      return item ? t(lang, item.employer) : code;
+    });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-4)' }}>
@@ -29,7 +33,7 @@ export function JobDetail({ job, lang, onBack, onApply }: JobDetailProps) {
         </button>
       </div>
 
-      <h1 tabIndex={-1} style={{ margin: 0 }}>
+      <h1 tabIndex={-1} ref={headingRef} style={{ margin: 0 }}>
         {job.title}
       </h1>
 
@@ -54,7 +58,9 @@ export function JobDetail({ job, lang, onBack, onApply }: JobDetailProps) {
           <span style={{ fontSize: '0.85em', color: 'var(--bo-text-muted)', display: 'block' }}>
             {lang === 'am' ? 'ቦታ' : 'Location'}
           </span>
-          <strong>{job.location_text || job.location_type}</strong>
+          <strong>
+            {job.location_text || t(lang, `employer.location_type.${job.location_type}`)}
+          </strong>
         </div>
 
         {job.work_hours && (
@@ -70,7 +76,7 @@ export function JobDetail({ job, lang, onBack, onApply }: JobDetailProps) {
           <span style={{ fontSize: '0.85em', color: 'var(--bo-text-muted)', display: 'block' }}>
             {lang === 'am' ? 'የቅጥር ሁኔታ' : 'Employment type'}
           </span>
-          <strong>{job.employment_type}</strong>
+          <strong>{t(lang, `employer.employment_type.${job.employment_type}`)}</strong>
         </div>
       </div>
 
@@ -78,7 +84,7 @@ export function JobDetail({ job, lang, onBack, onApply }: JobDetailProps) {
         <h2 style={{ fontSize: '1.2em', margin: '0 0 var(--bo-space-2) 0' }}>
           {lang === 'am' ? 'የስራው ማብራሪያ' : 'Job Description'}
         </h2>
-        <div style={{ lineHeight: 1.6, color: 'var(--bo-text)' }}>
+        <div style={{ lineHeight: 1.6, color: 'var(--bo-text)', whiteSpace: 'pre-line' }}>
           {job.description || job.summary}
         </div>
       </div>

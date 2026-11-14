@@ -17,23 +17,17 @@ export interface ApplicationResponse {
   created_at: string;
 }
 
+/**
+ * Apply for a published job with the learner token.
+ * 403 forbidden = not registered yet; 409 already_exists = applied before.
+ */
 export async function submitApplication(
   cfg: ApiConfig,
   jobId: string,
   payload: ApplicationSubmissionPayload,
 ): Promise<ApplicationResponse> {
-  try {
-    return await apiFetch<ApplicationResponse>(cfg, `/jobs/${jobId}/applications`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    // Development fallback
-    return {
-      id: `app-${Date.now()}`,
-      job_id: jobId,
-      status: 'submitted',
-      created_at: new Date().toISOString(),
-    };
-  }
+  return apiFetch<ApplicationResponse>(cfg, `/jobs/${encodeURIComponent(jobId)}/applications`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }

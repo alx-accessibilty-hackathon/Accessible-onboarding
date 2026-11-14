@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,14 +14,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// RegistrationUsecase: start a registration (issues a learner token), get it,
-// save progress, save answers (version check), submit, and handle cross-device resume.
+// RegistrationUsecase: start a registration (issues a learner token), get it, save progress,
+// save answers (version check) and submit (this file, Dev A); continue on another device,
+// consent codes and Telegram (registration_resume.go, Dev B).
 type RegistrationUsecase struct {
 	LearnerRepo      domain.LearnerRepositoryI
 	RegistrationRepo domain.RegistrationRepositoryI
-	SessionRepo      domain.SessionRepositoryI
+	SupportRepo      domain.SupportRepositoryI // only to say whether support needs were sent
+	PartnerRepo      domain.PartnerRepositoryI // referral partners (the "I have no ID" route)
+	Sessions         domain.SessionIssuer      // learner token for a new sign-up (the auth use case)
+	Flows            domain.FlowStore
+	SessionRepo      domain.SessionRepositoryI // resume tokens, verification codes, outbox
 	Security         domain.SecurityService
 	Messages         domain.MessageService
+	PublicURL        string // PUBLIC_WEB_URL, for resume links (set in main.go)
 }
 
 var _ domain.RegistrationUsecaseI = (*RegistrationUsecase)(nil)
@@ -28,307 +35,379 @@ var _ domain.RegistrationUsecaseI = (*RegistrationUsecase)(nil)
 func NewRegistrationUsecase(
 	lrp domain.LearnerRepositoryI,
 	rrp domain.RegistrationRepositoryI,
-	srp domain.SessionRepositoryI,
+	supportRepo domain.SupportRepositoryI,
+	prp domain.PartnerRepositoryI,
+	sessions domain.SessionIssuer,
+	flows domain.FlowStore,
+	sessionRepo domain.SessionRepositoryI,
 	sec domain.SecurityService,
 	msg domain.MessageService,
 ) *RegistrationUsecase {
 	return &RegistrationUsecase{
 		LearnerRepo:      lrp,
 		RegistrationRepo: rrp,
-		SessionRepo:      srp,
+		SupportRepo:      supportRepo,
+		PartnerRepo:      prp,
+		Sessions:         sessions,
+		Flows:            flows,
+		SessionRepo:      sessionRepo,
 		Security:         sec,
 		Messages:         msg,
 	}
 }
 
-func (u *RegistrationUsecase) ResumeLookup(ctx context.Context, codeOrToken string) (*domain.ResumeLookupResult, error) {
-	trimmed := strings.TrimSpace(codeOrToken)
-	if trimmed == "" {
-		return nil, domain.ErrInvalidInput
+// Flows a registration can use. Partner-specific sign-up flows (I5, Should) are added here.
+var registrationFlows = map[string]bool{domain.FlowSignup: true}
+
+var inputMethods = map[string]bool{"typed": true, "voice": true, "choice": true, "partner": true}
+
+// A language code such as "am", "en" or "om-ET".
+var languageCode = regexp.MustCompile(`^[a-z]{2,3}(-[a-z0-9]{2,8})?$`)
+
+func cleanLanguage(lang string) (string, error) {
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	if !languageCode.MatchString(lang) {
+		return "", domain.NewValidationError("language", codeInvalid)
+	}
+	return lang, nil
+}
+
+// Start creates a draft learner and registration for the partner whose key was used, and
+// gives the device a learner token so it can save answers (R16).
+func (uc *RegistrationUsecase) Start(ctx context.Context, actor domain.Actor, flowID string, flowVersion int, language string, simple bool) (*domain.Registration, string, time.Time, error) {
+	fail := func(err error) (*domain.Registration, string, time.Time, error) { return nil, "", time.Time{}, err }
+
+	if actor.PartnerID == uuid.Nil {
+		return fail(domain.ErrUnauthorized) // set by the partner key middleware
+	}
+	if !registrationFlows[flowID] {
+		return fail(domain.NewValidationError("flow_id", codeInvalidChoice))
+	}
+	flow, ok := uc.Flows.Flow(flowID, flowVersion)
+	if !ok {
+		return fail(domain.NewValidationError("flow_version", codeInvalidChoice))
+	}
+	lang, err := cleanLanguage(language)
+	if err != nil {
+		return fail(err)
 	}
 
-	tokenRecord, err := u.findResumeToken(ctx, trimmed)
+	learner, reg, err := uc.RegistrationRepo.Start(ctx,
+		&domain.Learner{PartnerID: actor.PartnerID, Language: lang, SimpleMode: simple},
+		&domain.Registration{FlowID: flow.ID, FlowVersion: flow.Version, CurrentStep: flow.Start},
+	)
+	if err != nil {
+		return fail(err)
+	}
+	token, expiresAt, err := uc.Sessions.IssueLearnerSession(ctx, learner.ID, actor.PartnerID)
+	if err != nil {
+		return fail(err)
+	}
+	return reg, token, expiresAt, nil
+}
+
+// Get returns the registration with every saved answer, so a learner can continue where
+// they stopped (or on another device). Support needs are never returned, only whether they
+// were sent.
+func (uc *RegistrationUsecase) Get(ctx context.Context, actor domain.Actor, id uuid.UUID) (*domain.RegistrationView, error) {
+	reg, err := loadOwnedRegistration(ctx, uc.RegistrationRepo, actor, id)
 	if err != nil {
 		return nil, err
 	}
-
-	if tokenRecord.UsedAt != nil || time.Now().After(tokenRecord.ExpiresAt) {
-		return nil, domain.ErrResumeExpired
-	}
-
-	if tokenRecord.FailedAttempts >= 5 {
-		return nil, domain.ErrTooManyAttempts
-	}
-
-	reg, err := u.RegistrationRepo.GetRegistrationByID(ctx, tokenRecord.RegistrationID)
+	learner, err := uc.LearnerRepo.GetByID(ctx, reg.LearnerID)
 	if err != nil {
-		return nil, domain.ErrNotFound
+		return nil, err
 	}
-
-	check := "dob"
-	learner, _ := u.LearnerRepo.GetByID(ctx, reg.LearnerID)
-	if learner != nil {
-		if learner.DOB != nil {
-			check = "dob"
-		} else if learner.PhoneE164 != "" {
-			check = "phone"
-		} else {
-			if ans, _ := u.RegistrationRepo.GetAnswer(ctx, reg.ID, "dob"); ans != nil && len(ans.Value) > 0 {
-				check = "dob"
-			} else if ans, _ := u.RegistrationRepo.GetAnswer(ctx, reg.ID, "phone"); ans != nil && len(ans.Value) > 0 {
-				check = "phone"
-			}
-		}
+	answers, err := uc.RegistrationRepo.ListAnswersByRegistrationID(ctx, reg.ID)
+	if err != nil {
+		return nil, err
 	}
-
-	return &domain.ResumeLookupResult{
-		RegistrationID: reg.ID,
-		Check:          check,
-	}, nil
+	supportSent, err := uc.SupportRepo.Exists(ctx, reg.LearnerID)
+	if err != nil {
+		return nil, err
+	}
+	return &domain.RegistrationView{Registration: reg, Learner: learner, Answers: answers, SupportSubmitted: supportSent}, nil
 }
 
-func (u *RegistrationUsecase) ResumeVerify(ctx context.Context, codeOrToken string, dob *domain.ResumeDOB, phoneLast4 string) (*domain.ResumeVerifyResult, int, error) {
-	trimmed := strings.TrimSpace(codeOrToken)
-	if trimmed == "" {
-		return nil, 0, domain.ErrInvalidInput
-	}
-
-	tokenRecord, err := u.findResumeToken(ctx, trimmed)
+// UpdateProgress saves where the learner is in the flow and their display preferences.
+// Only the values that were sent change.
+func (uc *RegistrationUsecase) UpdateProgress(ctx context.Context, actor domain.Actor, id uuid.UUID, currentStep, language *string, simple *bool) error {
+	reg, err := loadOwnedRegistration(ctx, uc.RegistrationRepo, actor, id)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
 
-	if tokenRecord.UsedAt != nil || time.Now().After(tokenRecord.ExpiresAt) {
-		return nil, 0, domain.ErrResumeExpired
-	}
-
-	if tokenRecord.FailedAttempts >= 5 {
-		return nil, 0, domain.ErrTooManyAttempts
-	}
-
-	reg, err := u.RegistrationRepo.GetRegistrationByID(ctx, tokenRecord.RegistrationID)
-	if err != nil {
-		return nil, 0, domain.ErrNotFound
-	}
-
-	learner, _ := u.LearnerRepo.GetByID(ctx, reg.LearnerID)
-
-	matched := false
-	if dob != nil && dob.Year > 0 {
-		if learner != nil && learner.DOB != nil {
-			if learner.DOB.Year() == dob.Year && int(learner.DOB.Month()) == dob.Month && learner.DOB.Day() == dob.Day {
-				matched = true
-			}
+	if currentStep != nil {
+		flow, err := uc.flowOf(reg)
+		if err != nil {
+			return err
 		}
-		if !matched {
-			if ans, _ := u.RegistrationRepo.GetAnswer(ctx, reg.ID, "dob"); ans != nil {
-				matched = checkDOBAnswerMatch(ans.Value, dob)
-			}
+		if _, ok := flow.Step(*currentStep); !ok {
+			return domain.NewValidationError("current_step", "unknown_step")
 		}
 	}
-
-	if !matched && phoneLast4 != "" {
-		phoneLast4 = strings.TrimSpace(phoneLast4)
-		if learner != nil && learner.PhoneE164 != "" {
-			clean := strings.ReplaceAll(learner.PhoneE164, " ", "")
-			if strings.HasSuffix(clean, phoneLast4) {
-				matched = true
-			}
+	if language != nil {
+		lang, err := cleanLanguage(*language)
+		if err != nil {
+			return err
 		}
-		if !matched {
-			if ans, _ := u.RegistrationRepo.GetAnswer(ctx, reg.ID, "phone"); ans != nil {
-				var phoneStr string
-				if err := json.Unmarshal(ans.Value, &phoneStr); err == nil {
-					clean := strings.ReplaceAll(phoneStr, " ", "")
-					if strings.HasSuffix(clean, phoneLast4) {
-						matched = true
-					}
-				}
-			}
+		language = &lang
+	}
+
+	if currentStep != nil {
+		if err := uc.RegistrationRepo.UpdateProgress(ctx, reg.ID, *currentStep); err != nil {
+			return err
 		}
 	}
-
-	if !matched {
-		updated, _ := u.SessionRepo.IncrementResumeTokenFailedAttempts(ctx, tokenRecord.ID)
-		attempts := tokenRecord.FailedAttempts + 1
-		if updated != nil {
-			attempts = updated.FailedAttempts
-		}
-		attemptsLeft := 5 - attempts
-		if attemptsLeft < 0 {
-			attemptsLeft = 0
-		}
-		return nil, attemptsLeft, domain.ErrResumeCheckFailed
+	if language != nil || simple != nil {
+		return uc.LearnerRepo.UpdatePreferences(ctx, reg.LearnerID, language, simple)
 	}
-
-	_ = u.SessionRepo.MarkResumeTokenUsed(ctx, tokenRecord.ID)
-
-	sessionToken, hash, err := u.Security.NewToken("lt_")
-	if err != nil {
-		return nil, 0, err
-	}
-	expiresAt := time.Now().Add(30 * 24 * time.Hour)
-
-	authSession := &domain.AuthSession{
-		SubjectType: "learner",
-		SubjectID:   reg.LearnerID,
-		TokenHash:   hash,
-		ExpiresAt:   expiresAt,
-	}
-	if _, err := u.SessionRepo.CreateAuthSession(ctx, authSession); err != nil {
-		return nil, 0, err
-	}
-
-	return &domain.ResumeVerifyResult{
-		RegistrationID: reg.ID,
-		SessionToken:   sessionToken,
-		ExpiresAt:      expiresAt,
-	}, 5, nil
-}
-
-func (u *RegistrationUsecase) SendConsentCode(ctx context.Context, registrationID uuid.UUID, phone string) (string, error) {
-	reg, err := u.RegistrationRepo.GetRegistrationByID(ctx, registrationID)
-	if err != nil {
-		return "", err
-	}
-
-	phone = strings.TrimSpace(phone)
-	if phone == "" {
-		learner, _ := u.LearnerRepo.GetByID(ctx, reg.LearnerID)
-		if learner != nil && learner.PhoneE164 != "" {
-			phone = learner.PhoneE164
-		} else if ans, _ := u.RegistrationRepo.GetAnswer(ctx, reg.ID, "phone"); ans != nil {
-			var p string
-			_ = json.Unmarshal(ans.Value, &p)
-			phone = strings.TrimSpace(p)
-		}
-	}
-
-	if phone == "" {
-		return "", errors.New("no phone number available for consent code")
-	}
-
-	code, hash, err := u.Security.NewVerificationCode()
-	if err != nil {
-		return "", err
-	}
-
-	expiresAt := time.Now().Add(10 * time.Minute)
-	if _, err := u.SessionRepo.CreateVerificationCode(ctx, phone, "consent", hash, &reg.LearnerID, expiresAt); err != nil {
-		return "", err
-	}
-
-	body := fmt.Sprintf("Bridge: your consent verification code is %s. Valid for 10 minutes.", code)
-	provider := "console"
-	outbox := &domain.OutboxMessage{
-		Channel:   "sms",
-		Recipient: phone,
-		Body:      body,
-		Status:    "queued",
-		Provider:  &provider,
-	}
-	_, _ = u.SessionRepo.CreateOutboxMessage(ctx, outbox)
-
-	if u.Messages != nil {
-		_ = u.Messages.SendMessage(ctx, &domain.Message{
-			Channel:   "sms",
-			Recipient: phone,
-			Body:      body,
-		})
-	}
-
-	return phone, nil
-}
-
-func (u *RegistrationUsecase) HandleTelegramWebhook(ctx context.Context, update *domain.TelegramUpdate) error {
-	if update == nil || update.Message == nil {
-		return nil
-	}
-
-	text := strings.TrimSpace(update.Message.Text)
-	if !strings.HasPrefix(text, "/start") {
-		return nil
-	}
-
-	parts := strings.Fields(text)
-	chatIDStr := fmt.Sprintf("%d", update.Message.Chat.ID)
-	replyBody := "Welcome to Bridge! Visit our portal to register or verify your onboarding session."
-
-	if len(parts) > 1 {
-		payload := parts[1]
-		tokenRecord, _ := u.findResumeToken(ctx, payload)
-		if tokenRecord != nil && tokenRecord.UsedAt == nil && time.Now().Before(tokenRecord.ExpiresAt) {
-			replyBody = "Welcome back to Bridge! Continue your sign-up by verifying your date of birth or last 4 phone digits."
-		}
-	}
-
-	provider := "telegram"
-	outbox := &domain.OutboxMessage{
-		Channel:   "telegram",
-		Recipient: chatIDStr,
-		Body:      replyBody,
-		Status:    "queued",
-		Provider:  &provider,
-	}
-	_, _ = u.SessionRepo.CreateOutboxMessage(ctx, outbox)
-
-	if u.Messages != nil {
-		_ = u.Messages.SendMessage(ctx, &domain.Message{
-			Channel:   "telegram",
-			Recipient: chatIDStr,
-			Body:      replyBody,
-		})
-	}
-
 	return nil
 }
 
-func (u *RegistrationUsecase) findResumeToken(ctx context.Context, input string) (*domain.ResumeToken, error) {
-	if strings.HasPrefix(input, "r_") || strings.HasPrefix(input, "k_") || len(input) > 10 {
-		tokenHash := u.Security.HashToken(input)
-		rec, err := u.SessionRepo.GetResumeTokenByTokenHash(ctx, tokenHash)
-		if err == nil && rec != nil {
-			return rec, nil
-		}
+// SaveAnswer checks one answer against its step in the flow file, cleans it (for example
+// the phone number becomes +2519…) and saves it with the version check: if another device
+// saved a newer version since baseVersion, nothing is saved and *ConflictError comes back
+// with the saved answer (R15).
+func (uc *RegistrationUsecase) SaveAnswer(ctx context.Context, actor domain.Actor, regID uuid.UUID, questionID string, value json.RawMessage, inputMethod string, baseVersion int) (*domain.Answer, error) {
+	reg, err := loadOwnedRegistration(ctx, uc.RegistrationRepo, actor, regID)
+	if err != nil {
+		return nil, err
+	}
+	if reg.Status != domain.RegistrationStatusDraft {
+		return nil, domain.ErrAlreadySubmitted
+	}
+	flow, err := uc.flowOf(reg)
+	if err != nil {
+		return nil, err
+	}
+	step, ok := flow.Step(questionID)
+	if !ok || step.Storage != domain.StorageAnswer {
+		// Support needs have their own encrypted endpoint; consent screens stay on the device.
+		return nil, domain.NewValidationError("question_id", "unknown_question")
+	}
+	if !inputMethods[inputMethod] {
+		return nil, domain.NewValidationError("input_method", codeInvalidChoice)
+	}
+	if baseVersion < 0 {
+		return nil, domain.NewValidationError("base_version", codeInvalid)
 	}
 
-	norm := u.Security.NormalizeCode(input)
-	codeHash := u.Security.HashCode(norm)
-	rec, err := u.SessionRepo.GetResumeTokenByCodeHash(ctx, codeHash)
-	if err == nil && rec != nil {
-		return rec, nil
+	isOption, err := uc.optionChecker(ctx, step)
+	if err != nil {
+		return nil, err
 	}
-
-	tokenHash := u.Security.HashToken(input)
-	rec, err = u.SessionRepo.GetResumeTokenByTokenHash(ctx, tokenHash)
-	if err == nil && rec != nil {
-		return rec, nil
+	clean, err := validateAnswer(step, value, isOption)
+	if err != nil {
+		return nil, err
 	}
-
-	return nil, domain.ErrNotFound
+	return uc.RegistrationRepo.SaveAnswerIfVersion(ctx, &domain.Answer{
+		RegistrationID: reg.ID,
+		QuestionID:     step.ID,
+		Value:          clean,
+		InputMethod:    inputMethod,
+	}, baseVersion)
 }
 
-func checkDOBAnswerMatch(data []byte, expected *domain.ResumeDOB) bool {
-	var obj struct {
-		Calendar string `json:"calendar"`
-		Year     int    `json:"year"`
-		Month    int    `json:"month"`
-		Day      int    `json:"day"`
+// Submit finishes the sign-up (R5, R7, R17):
+//  1. walk the flow with the saved answers, and list every required answer that is missing
+//  2. copy name, contact, phone and date of birth into the learner record
+//  3. record how the learner can prove who they are (identity evidence, self-declared)
+//  4. if they have no ID, refer them to the partner organisation they chose
+//
+// Steps 2–4 and "status = submitted" happen in one database transaction.
+// Submitting again returns the same result instead of an error (a retry on a bad network).
+func (uc *RegistrationUsecase) Submit(ctx context.Context, actor domain.Actor, regID uuid.UUID) (*domain.SubmitResult, error) {
+	reg, err := loadOwnedRegistration(ctx, uc.RegistrationRepo, actor, regID)
+	if err != nil {
+		return nil, err
 	}
-	if err := json.Unmarshal(data, &obj); err == nil {
-		if obj.Year == expected.Year && obj.Month == expected.Month && obj.Day == expected.Day {
-			return true
-		}
+	if reg.Status == domain.RegistrationStatusSubmitted {
+		return uc.submittedResult(ctx, reg)
+	}
+	flow, err := uc.flowOf(reg)
+	if err != nil {
+		return nil, err
+	}
+	saved, err := uc.RegistrationRepo.ListAnswersByRegistrationID(ctx, reg.ID)
+	if err != nil {
+		return nil, err
+	}
+	all := make(map[string]json.RawMessage, len(saved))
+	for _, a := range saved {
+		all[a.QuestionID] = a.Value
 	}
 
-	var str string
-	if err := json.Unmarshal(data, &str); err == nil {
-		if parsed, err := time.Parse("2006-01-02", str); err == nil {
-			if parsed.Year() == expected.Year && int(parsed.Month()) == expected.Month && parsed.Day() == expected.Day {
-				return true
+	// Only answers on the learner's path count; required ones must be there.
+	answers := make(map[string]json.RawMessage, len(saved))
+	var missing []domain.FieldError
+	for _, step := range flow.Path(all) {
+		if step.Storage != domain.StorageAnswer {
+			continue
+		}
+		v, ok := all[step.ID]
+		if empty, _ := emptyValue(v); !ok || empty {
+			if step.Required {
+				missing = append(missing, domain.FieldError{Field: step.ID, Code: codeRequired})
 			}
+			continue
 		}
+		answers[step.ID] = v
+	}
+	if len(missing) > 0 {
+		return nil, &domain.ValidationError{Fields: missing}
 	}
 
-	return false
+	profile, evidence, referral, err := buildSignupRecords(reg.LearnerID, answers)
+	if err != nil {
+		return nil, err
+	}
+	result, err := uc.RegistrationRepo.SubmitTx(ctx, reg.ID, profile, evidence, referral)
+	if errors.Is(err, domain.ErrAlreadySubmitted) {
+		return uc.submittedResult(ctx, reg) // another submit finished first
+	}
+	if err != nil {
+		return nil, err
+	}
+	if result.Referral != nil {
+		if result.ReferralPartnerName, err = uc.referralPartnerName(ctx, result.Referral.PartnerID); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
+// buildSignupRecords turns the sign-up answers (step IDs of shared/flows/signup.json) into
+// the learner profile, the identity evidence and, for the "I have no ID" route, a referral.
+func buildSignupRecords(learnerID uuid.UUID, answers map[string]json.RawMessage) (*domain.Learner, *domain.IdentityEvidence, *domain.Referral, error) {
+	profile := &domain.Learner{
+		ID:            learnerID,
+		FullName:      answerString(answers["full_name"]),
+		PreferredName: answerString(answers["preferred_name"]),
+		ContactMethod: answerString(answers["contact_method"]),
+		PhoneE164:     answerString(answers["phone"]), // only on the path for phone or Telegram contact
+	}
+	profile.DOB, profile.DOBCalendar = answerDate(answers["dob"])
+
+	route := answerString(answers["id_route"])
+	if route == "" {
+		return nil, nil, nil, domain.NewValidationError("id_route", codeRequired)
+	}
+	evidence := &domain.IdentityEvidence{
+		LearnerID: learnerID,
+		Route:     route,
+		DocType:   answerString(answers["id_doc_type"]), // only on the path for "other document"
+		Last4:     answerString(answers["id_last4"]),
+		Level:     domain.IdentitySelfDeclared, // partner staff can raise it later (E1)
+	}
+
+	var referral *domain.Referral
+	if route == domain.IDRouteNone {
+		partnerID, err := uuid.Parse(answerString(answers["referral_partner"]))
+		if err != nil {
+			return nil, nil, nil, domain.NewValidationError("referral_partner", codeInvalidChoice)
+		}
+		referral = &domain.Referral{
+			LearnerID:         learnerID,
+			PartnerID:         partnerID,
+			ContactPreference: answerString(answers["referral_contact"]),
+			Status:            domain.ReferralStatusRequested,
+		}
+	}
+	return profile, evidence, referral, nil
+}
+
+// submittedResult rebuilds the submit answer for a registration that is already submitted.
+func (uc *RegistrationUsecase) submittedResult(ctx context.Context, reg *domain.Registration) (*domain.SubmitResult, error) {
+	learner, err := uc.LearnerRepo.GetByID(ctx, reg.LearnerID)
+	if err != nil {
+		return nil, err
+	}
+	result := &domain.SubmitResult{Learner: learner}
+	referral, err := uc.LearnerRepo.GetLatestReferral(ctx, learner.ID)
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		return result, nil
+	case err != nil:
+		return nil, err
+	}
+	result.Referral = referral
+	if result.ReferralPartnerName, err = uc.referralPartnerName(ctx, referral.PartnerID); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (uc *RegistrationUsecase) referralPartnerName(ctx context.Context, id uuid.UUID) (string, error) {
+	partners, err := uc.PartnerRepo.ListReferralPartners(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, p := range partners {
+		if p.ID == id {
+			return p.Name, nil
+		}
+	}
+	return "", nil
+}
+
+// optionChecker says which values a choice step accepts: its own options, the needs
+// vocabulary, or the IDs of the referral partners from GET /config.
+func (uc *RegistrationUsecase) optionChecker(ctx context.Context, step *domain.FlowStep) (func(string) bool, error) {
+	if step.Type != domain.StepSingleChoice && step.Type != domain.StepMultiChoice {
+		return nil, nil
+	}
+	switch step.OptionsFrom {
+	case domain.OptionsFromNeeds:
+		return uc.Flows.IsNeedCode, nil
+	case domain.OptionsFromReferralPartners:
+		partners, err := uc.PartnerRepo.ListReferralPartners(ctx)
+		if err != nil {
+			return nil, err
+		}
+		ids := make(map[uuid.UUID]bool, len(partners))
+		for _, p := range partners {
+			ids[p.ID] = true
+		}
+		return func(v string) bool {
+			id, err := uuid.Parse(v)
+			return err == nil && ids[id]
+		}, nil
+	default:
+		return isOneOf(step.Options), nil
+	}
+}
+
+func (uc *RegistrationUsecase) flowOf(reg *domain.Registration) (*domain.Flow, error) {
+	flow, ok := uc.Flows.Flow(reg.FlowID, reg.FlowVersion)
+	if !ok {
+		return nil, fmt.Errorf("flow %q version %d is not loaded (check FLOWS_DIR)", reg.FlowID, reg.FlowVersion)
+	}
+	return flow, nil
+}
+
+// ---- shared by the registration and support use cases ----
+
+// loadOwnedRegistration loads a registration the actor may use (Q7): no token is 401,
+// someone else's registration is 403.
+func loadOwnedRegistration(ctx context.Context, repo domain.RegistrationRepositoryI, actor domain.Actor, id uuid.UUID) (*domain.Registration, error) {
+	if actor.IsAnonymous() {
+		return nil, domain.ErrUnauthorized
+	}
+	reg, err := repo.GetRegistrationByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !actor.ActsFor(reg.LearnerID) {
+		return nil, domain.ErrForbidden
+	}
+	return reg, nil
+}
+
+func isOneOf(values []string) func(string) bool {
+	set := make(map[string]bool, len(values))
+	for _, v := range values {
+		set[v] = true
+	}
+	return func(v string) bool { return set[v] }
 }

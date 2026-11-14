@@ -55,7 +55,7 @@ func (q *Queries) CreateConsent(ctx context.Context, arg CreateConsentParams) (C
 const getConsentByLearnerAndKind = `-- name: GetConsentByLearnerAndKind :one
 SELECT id, learner_id, kind, granted, method, partner_id, staff_id, created_at, revoked_at
 FROM consents
-WHERE learner_id = $1 AND kind = $2 AND revoked_at IS NULL
+WHERE learner_id = $1 AND kind = $2
 ORDER BY created_at DESC
 LIMIT 1
 `
@@ -65,6 +65,8 @@ type GetConsentByLearnerAndKindParams struct {
 	Kind      string
 }
 
+// The latest consent of this kind, revoked or not: the caller checks granted and revoked_at.
+// (Filtering revoked rows first would bring back an older consent after a revoke.)
 func (q *Queries) GetConsentByLearnerAndKind(ctx context.Context, arg GetConsentByLearnerAndKindParams) (Consent, error) {
 	row := q.db.QueryRow(ctx, getConsentByLearnerAndKind, arg.LearnerID, arg.Kind)
 	var i Consent

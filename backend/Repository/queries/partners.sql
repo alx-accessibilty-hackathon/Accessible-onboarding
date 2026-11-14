@@ -16,3 +16,14 @@ ORDER BY name;
 SELECT DISTINCT unnest(allowed_origins)::text AS origin
 FROM partners
 ORDER BY origin;
+
+-- name: GetPartnerByID :one
+SELECT id, slug, name, kind, publishable_key, allowed_origins, client_id, config, created_at
+FROM partners
+WHERE id = $1;
+
+-- For OAuth client credentials: the partner and the SHA-256 hash of its client secret.
+-- name: GetPartnerByClientID :one
+SELECT id, slug, name, kind, publishable_key, allowed_origins, client_id, client_secret_hash, config, created_at
+FROM partners
+WHERE client_id = $1;

@@ -1,10 +1,10 @@
 package controllers
 
 import (
-	"errors"
 	"net/http"
 
 	domain "bridge/Domain"
+	infrastructure "bridge/Infrastructure"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -20,8 +20,32 @@ func NewLearnerController(uc domain.LearnerUsecaseI) *LearnerController {
 	}
 }
 
-// GET /api/v1/partner-api/learners
-func (lc *LearnerController) ListPartnerLearnersController(c *gin.Context) { notImplemented(c) }
+// partnerOf returns the calling partner server's ID, or nil if the caller isn't one.
+func partnerOf(c *gin.Context) *uuid.UUID {
+	actor := infrastructure.ActorFrom(c)
+	if actor.Kind != domain.ActorPartnerServer || actor.PartnerID == uuid.Nil {
+		return nil
+	}
+	return &actor.PartnerID
+}
+
+// GET /api/v1/partner-api/learners?updated_since=…&limit=…
+func (lc *LearnerController) ListPartnerLearnersController(c *gin.Context) {
+	if lc.LearnerUc == nil {
+		notImplemented(c)
+		return
+	}
+	var q ListPartnerLearnersQuery
+	if !bindQuery(c, &q) {
+		return
+	}
+	learners, err := lc.LearnerUc.ListPartnerLearners(c.Request.Context(), partnerOf(c), q.UpdatedSince, q.Limit)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, ListResponse[LearnerDTO]{Items: toLearnerDTOs(learners), NextCursor: nil})
+}
 
 // GET /api/v1/partner-api/learners/:id
 func (lc *LearnerController) GetPartnerLearnerController(c *gin.Context) {
@@ -29,37 +53,14 @@ func (lc *LearnerController) GetPartnerLearnerController(c *gin.Context) {
 		notImplemented(c)
 		return
 	}
-
 	learnerID, ok := uuidParam(c, "id")
 	if !ok {
 		return
 	}
-
-	var partnerID *uuid.UUID
-	if actorVal, exists := c.Get("actor"); exists {
-		if actor, ok := actorVal.(*domain.Actor); ok && actor.PartnerID != uuid.Nil {
-			partnerID = &actor.PartnerID
-		}
-	}
-
-	learner, err := lc.LearnerUc.GetPartnerLearner(c.Request.Context(), partnerID, learnerID)
+	learner, err := lc.LearnerUc.GetPartnerLearner(c.Request.Context(), partnerOf(c), learnerID)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.AbortWithStatusJSON(http.StatusNotFound, ErrorResponse{
-				Status: http.StatusNotFound,
-				Code:   "not_found",
-				Title:  "Learner not found",
-			})
-			return
-		}
-
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse{
-			Status: http.StatusInternalServerError,
-			Code:   "internal_error",
-			Title:  "Failed to get learner",
-		})
+		respondError(c, err)
 		return
 	}
-
 	c.JSON(http.StatusOK, toLearnerDTO(learner))
 }

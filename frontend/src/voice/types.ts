@@ -6,5 +6,6 @@ export interface VoiceInputProps {
   step: Step; // tells the clean-up rules the field type
   lang: string; // 'am' | 'en'
   onConfirm: (value: unknown) => void; // the person pressed Keep on the "We heard" card
-  onPending: (clipId: string) => void; // offline: clip saved on the phone, waiting for text
+  onPending: (clipId: string) => void; // recorded clip saved on the phone, waiting for text
+  onSpeechConsent?: (granted: boolean) => void; // SH-6 answer, recorded with POST …/consents
 }

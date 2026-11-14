@@ -11,24 +11,12 @@ export interface DigitsFieldProps {
   headingRef?: RefObject<HTMLHeadingElement>;
 }
 
-export function DigitsField({
-  step,
-  lang,
-  value,
-  onChange,
-  error,
-  headingRef,
-}: DigitsFieldProps) {
+export function DigitsField({ step, lang, value, onChange, error, headingRef }: DigitsFieldProps) {
   const inputId = `q-${step.id}`;
   const hintId = `${inputId}-hint`;
   const errorId = `${inputId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   const digitRule = step.validate?.find((r) => r.rule === 'digits');
   const maxDigits = digitRule?.value ? Number(digitRule.value) : 4;
@@ -56,7 +44,6 @@ export function DigitsField({
             fontWeight: 600,
             fontSize: '0.95em',
           }}
-          role="alert"
         >
           <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
           {t(lang, `errors.${error}`)}
@@ -87,9 +74,7 @@ export function DigitsField({
           fontFamily: 'monospace, sans-serif',
           padding: '0.5em 0.75em',
           borderRadius: 'var(--bo-radius)',
-          border: error
-            ? '2px solid var(--bo-error)'
-            : '2px solid var(--bo-border-strong)',
+          border: error ? '2px solid var(--bo-error)' : '2px solid var(--bo-border-strong)',
           backgroundColor: 'var(--bo-bg)',
           color: 'var(--bo-text)',
         }}

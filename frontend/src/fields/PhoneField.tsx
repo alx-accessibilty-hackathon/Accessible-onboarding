@@ -11,24 +11,12 @@ export interface PhoneFieldProps {
   headingRef?: RefObject<HTMLHeadingElement>;
 }
 
-export function PhoneField({
-  step,
-  lang,
-  value,
-  onChange,
-  error,
-  headingRef,
-}: PhoneFieldProps) {
+export function PhoneField({ step, lang, value, onChange, error, headingRef }: PhoneFieldProps) {
   const inputId = `q-${step.id}`;
   const hintId = `${inputId}-hint`;
   const errorId = `${inputId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-3)' }}>
@@ -53,7 +41,6 @@ export function PhoneField({
             fontWeight: 600,
             fontSize: '0.95em',
           }}
-          role="alert"
         >
           <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
           {t(lang, `errors.${error}`)}
@@ -77,9 +64,7 @@ export function PhoneField({
           fontFamily: 'inherit',
           padding: '0.5em 0.75em',
           borderRadius: 'var(--bo-radius)',
-          border: error
-            ? '2px solid var(--bo-error)'
-            : '2px solid var(--bo-border-strong)',
+          border: error ? '2px solid var(--bo-error)' : '2px solid var(--bo-border-strong)',
           backgroundColor: 'var(--bo-bg)',
           color: 'var(--bo-text)',
         }}

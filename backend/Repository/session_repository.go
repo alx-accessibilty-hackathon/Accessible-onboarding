@@ -30,11 +30,15 @@ func NewSessionRepo(db *pgxpool.Pool) *SessionRepository {
 }
 
 func (r *SessionRepository) CreateAuthSession(ctx context.Context, session *domain.AuthSession) (*domain.AuthSession, error) {
+	scopes := session.Scopes
+	if scopes == nil {
+		scopes = []string{} // the column is NOT NULL; a nil slice would be sent as NULL
+	}
 	row, err := r.Q.CreateAuthSession(ctx, sqlc.CreateAuthSessionParams{
 		SubjectType: session.SubjectType,
 		SubjectID:   session.SubjectID,
 		TokenHash:   session.TokenHash,
-		Scopes:      session.Scopes,
+		Scopes:      scopes,
 		ActingFor:   session.ActingFor,
 		ExpiresAt:   session.ExpiresAt,
 	})
@@ -57,6 +61,10 @@ func (r *SessionRepository) GetAuthSessionByTokenHash(ctx context.Context, token
 
 func (r *SessionRepository) RevokeAuthSession(ctx context.Context, id uuid.UUID) error {
 	return r.Q.RevokeAuthSession(ctx, id)
+}
+
+func (r *SessionRepository) TouchAuthSession(ctx context.Context, id uuid.UUID, newExpiry *time.Time) error {
+	return r.Q.TouchAuthSession(ctx, sqlc.TouchAuthSessionParams{ID: id, NewExpiresAt: newExpiry})
 }
 
 func (r *SessionRepository) CreateResumeToken(ctx context.Context, registrationID uuid.UUID, tokenHash, codeHash []byte, expiresAt time.Time) (*domain.ResumeToken, error) {
@@ -214,4 +222,19 @@ func toDomainVerificationCode(v *sqlc.VerificationCode) *domain.VerificationCode
 		UsedAt:         v.UsedAt,
 		CreatedAt:      v.CreatedAt,
 	}
+}
+
+func (r *SessionRepository) ListOutboxMessages(ctx context.Context) ([]*domain.OutboxMessage, error) {
+	rows, err := r.Q.ListQueuedOutboxMessages(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*domain.OutboxMessage, 0, len(rows))
+	for _, m := range rows {
+		out = append(out, &domain.OutboxMessage{
+			ID: m.ID, Channel: m.Channel, Recipient: m.Recipient, Body: m.Body, Status: m.Status,
+			Provider: m.Provider, Error: m.Error, CreatedAt: m.CreatedAt, SentAt: m.SentAt,
+		})
+	}
+	return out, nil
 }

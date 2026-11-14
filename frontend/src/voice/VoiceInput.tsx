@@ -14,8 +14,9 @@ import { useWebSpeech } from './useWebSpeech';
 
 type VoiceState = 'idle' | 'listening' | 'recording' | 'review';
 
-export function VoiceInput({ step, lang, onConfirm, onPending }: VoiceInputProps) {
+export function VoiceInput({ step, lang, onConfirm, onPending, onSpeechConsent }: VoiceInputProps) {
   const online = useOnline();
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const webSpeech = useWebSpeech();
   const recorder = useRecorder();
 
@@ -23,7 +24,9 @@ export function VoiceInput({ step, lang, onConfirm, onPending }: VoiceInputProps
   const [consentOpen, setConsentOpen] = useState(false);
   const [micHelpOpen, setMicHelpOpen] = useState(false);
   const [hasConsent, setHasConsent] = useState(() => {
-    return typeof localStorage !== 'undefined' && localStorage.getItem('bo:speech_consent') === 'true';
+    return (
+      typeof localStorage !== 'undefined' && localStorage.getItem('bo:speech_consent') === 'true'
+    );
   });
 
   const [rawText, setRawText] = useState('');
@@ -98,14 +101,16 @@ export function VoiceInput({ step, lang, onConfirm, onPending }: VoiceInputProps
       localStorage.setItem('bo:speech_consent', 'true');
     }
     setConsentOpen(false);
+    onSpeechConsent?.(true);
     startWebSpeech();
-  }, [startWebSpeech]);
+  }, [startWebSpeech, onSpeechConsent]);
 
   const handleConsentDecline = useCallback(() => {
     setConsentOpen(false);
+    onSpeechConsent?.(false);
     // User declined Google Speech: use on-device recorder fallback
     startRecordingMode();
-  }, [startRecordingMode]);
+  }, [startRecordingMode, onSpeechConsent]);
 
   const handleStopListening = useCallback(() => {
     webSpeech.stop();
@@ -126,7 +131,8 @@ export function VoiceInput({ step, lang, onConfirm, onPending }: VoiceInputProps
     setState('idle');
     setRawText('');
     setNormalized('');
-    announce(t(lang, 'common.change'));
+    const shown = Array.isArray(normalized) ? normalized.join(', ') : normalized;
+    announce(`${t(lang, 'voice.filled')} ${shown}`);
   }, [normalized, onConfirm, lang]);
 
   const handleSayAgain = useCallback(() => {
@@ -140,8 +146,9 @@ export function VoiceInput({ step, lang, onConfirm, onPending }: VoiceInputProps
     setState('idle');
     setRawText('');
     setNormalized('');
-    // Return focus to input if possible
-    const root = document.activeElement?.getRootNode();
+    // Return focus to the input. Look it up from our own node: inside the widget the
+    // shadow root is the root, and document.activeElement would only be the host element.
+    const root = wrapperRef.current?.getRootNode();
     if (root instanceof ShadowRoot || root instanceof Document) {
       const input = root.getElementById(`q-${step.id}`) as HTMLElement | null;
       input?.focus();
@@ -163,9 +170,20 @@ export function VoiceInput({ step, lang, onConfirm, onPending }: VoiceInputProps
   const fieldLabel = step.title ? t(lang, step.title) : step.id;
 
   return (
-    <div className="bo-voice-input-wrapper" style={{ margin: 'var(--bo-space-3) 0' }}>
+    <div
+      ref={wrapperRef}
+      className="bo-voice-input-wrapper"
+      style={{ margin: 'var(--bo-space-3) 0' }}
+    >
       {state === 'idle' && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--bo-space-2)', alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--bo-space-2)',
+            alignItems: 'center',
+          }}
+        >
           <Button
             variant="secondary"
             onClick={handleStartVoice}
@@ -268,11 +286,7 @@ export function VoiceInput({ step, lang, onConfirm, onPending }: VoiceInputProps
         onDecline={handleConsentDecline}
       />
 
-      <MicHelp
-        open={micHelpOpen}
-        lang={lang}
-        onClose={() => setMicHelpOpen(false)}
-      />
+      <MicHelp open={micHelpOpen} lang={lang} onClose={() => setMicHelpOpen(false)} />
     </div>
   );
 }

@@ -33,11 +33,15 @@ describe('api/client & session', () => {
   });
 
   it('parses error responses and returns ApiError with status and code', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      new Response(JSON.stringify({ code: 'phone_invalid', errors: [{ field: 'phone', code: 'invalid' }] }), {
-        status: 422,
-        headers: { 'Content-Type': 'application/problem+json' },
-      }),
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({ code: 'phone_invalid', errors: [{ field: 'phone', code: 'invalid' }] }),
+          {
+            status: 422,
+            headers: { 'Content-Type': 'application/problem+json' },
+          },
+        ),
     );
 
     const cfg = { origin: '', partnerKey: 'pk_demo' };

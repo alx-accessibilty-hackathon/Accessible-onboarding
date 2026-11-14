@@ -1,5 +1,5 @@
-import { apiFetch, type ApiConfig } from './client';
 import type { Job } from '../careers/match';
+import { apiFetch, type ApiConfig } from './client';
 
 export interface CreateEmployerJobPayload {
   title: string;
@@ -8,7 +8,7 @@ export interface CreateEmployerJobPayload {
   location_text?: string;
   work_hours?: string;
   employment_type: string;
-  accommodations: string[];
+  accommodations: string[]; // needs codes, never "other"
 }
 
 export interface PublishJobResponse {
@@ -17,45 +17,40 @@ export interface PublishJobResponse {
   jsonld_url: string;
 }
 
+/** The signed-in employer's jobs (drafts and published). Staff token in cfg.token. */
 export async function fetchEmployerJobs(cfg: ApiConfig): Promise<Job[]> {
-  try {
-    const res = await apiFetch<{ items: Job[] }>(cfg, '/employer/jobs');
-    return res.items || [];
-  } catch {
-    return [];
-  }
+  const res = await apiFetch<{ items: Job[]; next_cursor: string | null }>(cfg, '/employer/jobs');
+  return res.items ?? [];
 }
 
+/** Create a draft job. */
 export async function createEmployerJob(
   cfg: ApiConfig,
   payload: CreateEmployerJobPayload,
-): Promise<{ id: string; status: string }> {
-  try {
-    return await apiFetch<{ id: string; status: string }>(cfg, '/employer/jobs', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    return {
-      id: `emp-job-${Date.now()}`,
-      status: 'draft',
-    };
-  }
+): Promise<Job> {
+  return apiFetch<Job>(cfg, '/employer/jobs', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
+/** Publish a draft job. */
 export async function publishEmployerJob(
   cfg: ApiConfig,
   jobId: string,
 ): Promise<PublishJobResponse> {
-  try {
-    return await apiFetch<PublishJobResponse>(cfg, `/employer/jobs/${jobId}/publish`, {
-      method: 'POST',
-    });
-  } catch {
-    return {
-      id: jobId,
-      status: 'published',
-      jsonld_url: `${cfg.origin}/api/v1/jobs/${jobId}/jobposting.jsonld`,
-    };
-  }
+  return apiFetch<PublishJobResponse>(cfg, `/employer/jobs/${encodeURIComponent(jobId)}/publish`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * The public JobPosting JSON-LD of a published job. Read through our own API origin (the
+ * jsonld_url from publish may point at the public host, which this page can't always reach).
+ */
+export async function fetchJobPostingJsonLd(origin: string, jobId: string): Promise<object> {
+  return apiFetch<object>(
+    { origin, partnerKey: '' },
+    `/jobs/${encodeURIComponent(jobId)}/jobposting.jsonld`,
+  );
 }

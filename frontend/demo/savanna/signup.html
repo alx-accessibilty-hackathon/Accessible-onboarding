@@ -21,20 +21,17 @@
     </header>
 
     <main class="savanna-container">
-      <div class="savanna-card" style="max-width: 640px; margin: 0 auto;">
+      <div class="savanna-card" style="max-width: 640px; margin: 0 auto">
         <!-- Embedded Bridge Onboarding Widget -->
-        <bridge-onboarding partner="pk_savanna_hub" flow="signup"></bridge-onboarding>
+        <bridge-onboarding partner="pk_demo_savanna" flow="signup"></bridge-onboarding>
       </div>
     </main>
 
     <script type="module" src="/src/widget/element.tsx"></script>
     <script>
+      // No automatic redirect: the learner reads the Done screen at their own pace (no time limits).
       document.addEventListener('bridge-onboarding:completed', (e) => {
         console.log('[Savanna Host] Registration completed!', e.detail);
-        // Automatically redirect to learner home in 3 seconds
-        setTimeout(() => {
-          window.location.href = './home.html';
-        }, 3000);
       });
     </script>
   </body>

@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
-import type { Option, Step } from '../engine/types';
+import { resolveOptions, type ReferralPartner } from '../engine/options';
+import type { Step } from '../engine/types';
 import { t } from '../i18n/t';
 
 export interface ChoiceCardsProps {
@@ -9,7 +10,7 @@ export interface ChoiceCardsProps {
   onChange: (value: string) => void;
   error?: string;
   headingRef?: RefObject<HTMLHeadingElement>;
-  configReferrals?: Array<{ id: string; name: string }>;
+  referralPartners?: ReferralPartner[];
 }
 
 export function ChoiceCards({
@@ -19,28 +20,15 @@ export function ChoiceCards({
   onChange,
   error,
   headingRef,
-  configReferrals = [{ id: 'aaapd', name: 'AAAPD' }],
+  referralPartners = [],
 }: ChoiceCardsProps) {
   const fieldsetId = `q-${step.id}`;
   const hintId = `${fieldsetId}-hint`;
   const errorId = `${fieldsetId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
-  let options: Option[] = step.options || [];
-
-  if (step.options_from === 'config:referral_partners') {
-    options = configReferrals.map((p) => ({
-      value: p.id,
-      label: p.name,
-      icon: 'handshake',
-    }));
-  }
+  const options = resolveOptions(step, { referralPartners });
 
   return (
     <fieldset
@@ -76,10 +64,15 @@ export function ChoiceCards({
             fontWeight: 600,
             fontSize: '0.95em',
           }}
-          role="alert"
         >
           <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
           {t(lang, `errors.${error}`)}
+        </p>
+      )}
+
+      {options.length === 0 && (
+        <p className="bo-hint" style={{ margin: 0 }}>
+          {t(lang, 'errors.options_unavailable')}
         </p>
       )}
 
@@ -95,10 +88,7 @@ export function ChoiceCards({
       >
         {options.map((opt) => {
           const isSelected = String(value) === opt.value;
-          const labelText =
-            step.options_from === 'config:referral_partners'
-              ? opt.label
-              : t(lang, opt.label);
+          const labelText = opt.literal ? opt.label : t(lang, opt.label);
 
           return (
             <label
@@ -114,9 +104,7 @@ export function ChoiceCards({
                 border: isSelected
                   ? '3px solid var(--bo-primary)'
                   : '2px solid var(--bo-border-strong)',
-                backgroundColor: isSelected
-                  ? 'var(--bo-selected-bg)'
-                  : 'var(--bo-bg)',
+                backgroundColor: isSelected ? 'var(--bo-selected-bg)' : 'var(--bo-bg)',
                 transition: 'border-color 0.15s, background-color 0.15s',
               }}
             >

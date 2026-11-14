@@ -91,3 +91,22 @@ func (q *Queries) RevokeAuthSession(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, revokeAuthSession, id)
 	return err
 }
+
+const touchAuthSession = `-- name: TouchAuthSession :exec
+UPDATE auth_sessions
+SET last_used_at = now(),
+    expires_at   = COALESCE($1::timestamptz, expires_at)
+WHERE id = $2
+`
+
+type TouchAuthSessionParams struct {
+	NewExpiresAt *time.Time
+	ID           uuid.UUID
+}
+
+// Records that the session was used. Learner sessions also slide their expiry (30 days from now);
+// pass NULL to keep the expiry (staff and partner-server sessions).
+func (q *Queries) TouchAuthSession(ctx context.Context, arg TouchAuthSessionParams) error {
+	_, err := q.db.Exec(ctx, touchAuthSession, arg.NewExpiresAt, arg.ID)
+	return err
+}
