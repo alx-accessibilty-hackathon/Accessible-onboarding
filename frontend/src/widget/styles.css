@@ -166,3 +166,301 @@
     transition: none !important;
   }
 }
+
+/* =============================================
+   Card
+   ============================================= */
+
+.bo-card {
+  background: var(--bo-surface);
+  border: 1px solid var(--bo-border-subtle);
+  border-radius: var(--bo-radius);
+  padding: var(--bo-space-5);
+}
+
+/* =============================================
+   Icon (Material Symbols)
+   ============================================= */
+
+.bo-icon {
+  font-size: 1.25em;
+  vertical-align: middle;
+  user-select: none;
+}
+
+/* =============================================
+   Link Button (<a> styled as button)
+   ============================================= */
+
+.bo-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  gap: var(--bo-space-2);
+}
+
+/* =============================================
+   Banner
+   ============================================= */
+
+.bo-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--bo-space-3);
+  padding: var(--bo-space-3) var(--bo-space-4);
+  border-radius: var(--bo-radius);
+  border: 2px solid transparent;
+  font-size: 0.9em;
+}
+
+.bo-banner-icon {
+  flex-shrink: 0;
+  font-size: 1.35em;
+  line-height: 1;
+  margin-top: 0.1em;
+}
+
+.bo-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.bo-banner-dismiss {
+  flex-shrink: 0;
+  min-height: var(--bo-target);
+  min-width: var(--bo-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+  border-radius: var(--bo-radius);
+}
+
+.bo-banner-error {
+  background: var(--bo-error-bg);
+  border-color: var(--bo-error);
+  color: var(--bo-error);
+}
+
+.bo-banner-info {
+  background: var(--bo-info-bg);
+  border-color: var(--bo-navy);
+  color: var(--bo-navy);
+}
+
+.bo-banner-success {
+  background: #e6f4ee;
+  border-color: var(--bo-success);
+  color: var(--bo-success);
+}
+
+/* =============================================
+   Dialog (native <dialog>)
+   ============================================= */
+
+.bo-dialog {
+  border: 0;
+  border-radius: var(--bo-radius);
+  padding: 0;
+  max-width: min(90vw, 32em);
+  width: 100%;
+  background: var(--bo-bg);
+  color: var(--bo-text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.bo-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.bo-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--bo-space-4) var(--bo-space-5);
+  border-bottom: 1px solid var(--bo-border-subtle);
+}
+
+.bo-dialog-title {
+  font-size: 1.15em;
+  margin: 0;
+}
+
+.bo-dialog-close {
+  min-height: var(--bo-target);
+  min-width: var(--bo-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  color: var(--bo-text);
+  border-radius: var(--bo-radius);
+}
+
+.bo-dialog-body {
+  padding: var(--bo-space-5);
+}
+
+/* =============================================
+   Form inputs
+   ============================================= */
+
+.bo-input {
+  display: block;
+  width: 100%;
+  min-height: var(--bo-target);
+  padding: var(--bo-space-2) var(--bo-space-3);
+  font: inherit;
+  color: var(--bo-text);
+  background: var(--bo-bg);
+  border: 2px solid var(--bo-border-strong);
+  border-radius: var(--bo-radius);
+}
+
+.bo-input::placeholder {
+  color: var(--bo-text-muted);
+}
+
+.bo-input:focus-visible {
+  outline: 3px solid var(--bo-focus);
+  outline-offset: 2px;
+}
+
+.bo-input[aria-invalid='true'] {
+  border-color: var(--bo-error);
+}
+
+.bo-textarea {
+  display: block;
+  width: 100%;
+  min-height: calc(var(--bo-target) * 2);
+  padding: var(--bo-space-2) var(--bo-space-3);
+  font: inherit;
+  color: var(--bo-text);
+  background: var(--bo-bg);
+  border: 2px solid var(--bo-border-strong);
+  border-radius: var(--bo-radius);
+  resize: vertical;
+}
+
+.bo-textarea:focus-visible {
+  outline: 3px solid var(--bo-focus);
+  outline-offset: 2px;
+}
+
+.bo-textarea[aria-invalid='true'] {
+  border-color: var(--bo-error);
+}
+
+/* Checkbox + Radio: large hit area */
+
+.bo-checkbox,
+.bo-radio {
+  display: flex;
+  align-items: center;
+  gap: var(--bo-space-3);
+  min-height: var(--bo-target);
+  padding: var(--bo-space-2) 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--bo-text);
+}
+
+.bo-checkbox input[type='checkbox'],
+.bo-radio input[type='radio'] {
+  width: 1.25em;
+  height: 1.25em;
+  flex-shrink: 0;
+  accent-color: var(--bo-primary);
+  cursor: pointer;
+}
+
+/* =============================================
+   Button states: loading + disabled
+   ============================================= */
+
+.bo-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bo-btn-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.bo-btn-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1.25em;
+  height: 1.25em;
+  border: 3px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: bo-spin 0.6s linear infinite;
+}
+
+@keyframes bo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =============================================
+   Accessibility media queries
+   ============================================= */
+
+@media (prefers-contrast: more) {
+  .bo-card {
+    border-width: 2px;
+    border-color: var(--bo-border-strong);
+  }
+
+  .bo-banner {
+    border-width: 3px;
+  }
+
+  .bo-dialog {
+    border: 2px solid var(--bo-border-strong);
+  }
+
+  .bo-input,
+  .bo-textarea {
+    border-width: 3px;
+  }
+
+  .bo-btn {
+    border-width: 3px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .bo-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.85);
+  }
+
+  .bo-banner-error {
+    background: #f9d6d2;
+  }
+
+  .bo-banner-info {
+    background: #d4dfe8;
+  }
+
+  .bo-banner-success {
+    background: #c8e8d8;
+  }
+}

@@ -8,8 +8,20 @@ const packs: Record<string, Record<string, string>> = { en, am };
 const RTL_LANGUAGES = ['ar'];
 
 export function t(lang: string, key: string, params: Record<string, string | number> = {}): string {
-  const own = packs[lang]?.[key];
-  const raw = own && !own.startsWith('TODO-') ? own : (packs.en[key] ?? key);
+  const pack = packs[lang];
+  const own = pack?.[key];
+
+  let raw: string;
+  if (own && !own.startsWith('TODO-')) {
+    raw = own;
+  } else {
+    // Missing or unfinished translation: fallback to English
+    if (lang !== 'en' && typeof console !== 'undefined' && typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+      console.warn(`[i18n] Missing translation for key "${key}" in language "${lang}", falling back to English.`);
+    }
+    raw = packs.en[key] ?? key;
+  }
+
   return raw.replace(/\{(\w+)\}/g, (_, name: string) =>
     params[name] !== undefined ? String(params[name]) : `{${name}}`,
   );
