@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Errors shared by every layer. Repositories return these instead of database errors,
@@ -50,16 +52,16 @@ const (
 // use cases use it for permission checks (Q7 in the requirements).
 type Actor struct {
 	Kind       ActorKind
-	ID         string // learner, staff or partner id
-	PartnerID  string // partner whose key or token was used
-	Role       string // staff role
-	EmployerID *string
+	ID         uuid.UUID // learner, staff or partner id
+	PartnerID  uuid.UUID // partner whose key or token was used
+	Role       string    // staff role
+	EmployerID *uuid.UUID
 	Scopes     []string
-	ActingFor  *string // learner a partner staff member is helping (E1)
+	ActingFor  *uuid.UUID // learner a partner staff member is helping (E1)
 }
 
 type Partner struct {
-	ID             string
+	ID             uuid.UUID
 	Slug           string
 	Name           string
 	Kind           string
@@ -71,26 +73,26 @@ type Partner struct {
 }
 
 type Employer struct {
-	ID        string
+	ID        uuid.UUID
 	Name      string
 	CreatedAt time.Time
 }
 
 type StaffUser struct {
-	ID               string
+	ID               uuid.UUID
 	Email            string
 	PasswordHash     string
 	DisplayName      string
 	Role             string
-	PartnerID        *string
-	EmployerID       *string
+	PartnerID        *uuid.UUID
+	EmployerID       *uuid.UUID
 	DailyAttestLimit int
 	CreatedAt        time.Time
 }
 
 type Learner struct {
-	ID            string
-	PartnerID     string
+	ID            uuid.UUID
+	PartnerID     uuid.UUID
 	Status        string
 	FullName      string
 	PreferredName string
@@ -108,21 +110,21 @@ type Learner struct {
 }
 
 type Registration struct {
-	ID            string
-	LearnerID     string
-	FlowID        string
+	ID            uuid.UUID
+	LearnerID     uuid.UUID
+	FlowID        string // flow file id, e.g. "signup" (not a UUID)
 	FlowVersion   int
 	Status        string
 	CurrentStep   string
-	ActingStaffID *string
+	ActingStaffID *uuid.UUID
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	SubmittedAt   *time.Time
 }
 
 type Answer struct {
-	RegistrationID string
-	QuestionID     string
+	RegistrationID uuid.UUID
+	QuestionID     string // step id from the flow file, e.g. "phone" (not a UUID)
 	Value          json.RawMessage
 	InputMethod    string // typed | voice | choice | partner
 	Version        int
@@ -130,21 +132,21 @@ type Answer struct {
 }
 
 type IdentityEvidence struct {
-	ID         string
-	LearnerID  string
+	ID         uuid.UUID
+	LearnerID  uuid.UUID
 	Route      string // fayda | kebele_id | refugee_id | unhcr_proof | other_document | none
 	DocType    string
 	Last4      string
 	Level      string
-	AttestedBy *string
+	AttestedBy *uuid.UUID
 	AttestedAt *time.Time
 	CreatedAt  time.Time
 }
 
 type Referral struct {
-	ID                string
-	LearnerID         string
-	PartnerID         string
+	ID                uuid.UUID
+	LearnerID         uuid.UUID
+	PartnerID         uuid.UUID
 	ContactPreference string
 	Status            string
 	CreatedAt         time.Time
@@ -153,8 +155,8 @@ type Referral struct {
 
 // SupportRequest is plain here; it is encrypted before it is stored.
 type SupportRequest struct {
-	ID             string
-	LearnerID      string
+	ID             uuid.UUID
+	LearnerID      uuid.UUID
 	Needs          []string
 	OtherText      string
 	ShareCourses   bool
@@ -164,33 +166,33 @@ type SupportRequest struct {
 }
 
 type Consent struct {
-	ID        string
-	LearnerID string
+	ID        uuid.UUID
+	LearnerID uuid.UUID
 	Kind      string // data_processing | cloud_speech | sms | telegram | partner_access
 	Granted   bool
 	Method    string // tap | sms_code | spoken | partner_witnessed
-	PartnerID *string
-	StaffID   *string
+	PartnerID *uuid.UUID
+	StaffID   *uuid.UUID
 	CreatedAt time.Time
 	RevokedAt *time.Time
 }
 
 // AuthSession stores only the hash of a token, never the token itself.
 type AuthSession struct {
-	ID          string
-	SubjectType string // learner | staff | partner_server
-	SubjectID   string
+	ID          uuid.UUID
+	SubjectType string    // learner | staff | partner_server
+	SubjectID   uuid.UUID // learner, staff or partner id
 	TokenHash   []byte
 	Scopes      []string
-	ActingFor   *string
+	ActingFor   *uuid.UUID
 	ExpiresAt   time.Time
 	RevokedAt   *time.Time
 }
 
 type Job struct {
-	ID             string
-	EmployerID     *string
-	Source         string // local | imported
+	ID             uuid.UUID
+	EmployerID     *uuid.UUID // nil for imported jobs
+	Source         string     // local | imported
 	Title          string
 	Description    string
 	LocationType   string // onsite | remote | hybrid
@@ -204,9 +206,9 @@ type Job struct {
 }
 
 type Application struct {
-	ID            string
-	JobID         string
-	LearnerID     string
+	ID            uuid.UUID
+	JobID         uuid.UUID
+	LearnerID     uuid.UUID
 	Answers       json.RawMessage
 	AttachSupport bool
 	Status        string
