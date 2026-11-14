@@ -26,12 +26,7 @@ export function MultiChoiceCards({
   const hintId = `${fieldsetId}-hint`;
   const errorId = `${fieldsetId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   // Employers never get "other": a job can only offer supports from the shared list.
   const options = resolveOptions(step, { audience: isEmployer ? 'employer' : 'learner' });
@@ -112,9 +107,7 @@ export function MultiChoiceCards({
                 border: isSelected
                   ? '3px solid var(--bo-primary)'
                   : '2px solid var(--bo-border-strong)',
-                backgroundColor: isSelected
-                  ? 'var(--bo-selected-bg)'
-                  : 'var(--bo-bg)',
+                backgroundColor: isSelected ? 'var(--bo-selected-bg)' : 'var(--bo-bg)',
                 transition: 'border-color 0.15s, background-color 0.15s',
               }}
             >

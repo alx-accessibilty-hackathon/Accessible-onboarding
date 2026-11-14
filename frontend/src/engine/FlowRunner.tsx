@@ -1,7 +1,15 @@
 import employerJob from '@shared/flows/employer-job.json';
 import jobApplication from '@shared/flows/job-application.json';
 import signup from '@shared/flows/signup.json';
-import { useEffect, useMemo, useReducer, useRef, useState, type Dispatch, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+} from 'react';
 import { announce } from '../a11y/announce';
 import { focusHeading } from '../a11y/focus';
 import { rememberHostTitle, restoreHostTitle, setStepTitle } from '../a11y/title';
@@ -36,20 +44,13 @@ export function useFlowEngine(flowId: string): Engine {
   return useReducer(engineReducer, flow, createInitialState);
 }
 
-export type SubmitOutcome =
-  | { ok: true }
-  | { ok: false; code: string; fields?: FieldError[] };
+export type SubmitOutcome = { ok: true } | { ok: false; code: string; fields?: FieldError[] };
 
 /** What the host of the flow does with it (save, submit…). All optional: without them the
  * flow runs on its own in memory, which is what the unit tests use. */
 export interface FlowHooks {
   /** The person left a step with Continue or Skip (after it passed validation). */
-  onLeaveStep?: (
-    step: Step,
-    value: unknown,
-    inputMethod: InputMethod,
-    state: EngineState,
-  ) => void;
+  onLeaveStep?: (step: Step, value: unknown, inputMethod: InputMethod, state: EngineState) => void;
   /** A new step is on screen. */
   onStepChange?: (step: Step, progress: ProgressState, state: EngineState) => void;
   /** Send from Check your answers. On ok the flow moves on to Done. */
@@ -254,11 +255,7 @@ function FlowRunnerInner({
           }}
         >
           {showBack ? (
-            <button
-              type="button"
-              className="bo-link"
-              onClick={() => dispatch({ type: 'BACK' })}
-            >
+            <button type="button" className="bo-link" onClick={() => dispatch({ type: 'BACK' })}>
               <span aria-hidden="true">← </span>
               {t(lang, 'common.back')}
             </button>
@@ -285,7 +282,10 @@ function FlowRunnerInner({
             headingRef={headingRef}
             optionContext={optionContext}
             isSubmitting={submitting}
-            submitLabel={t(lang, submitLabelKey ?? DEFAULT_SUBMIT_KEYS[flow.id] ?? 'common.continue')}
+            submitLabel={t(
+              lang,
+              submitLabelKey ?? DEFAULT_SUBMIT_KEYS[flow.id] ?? 'common.continue',
+            )}
             errors={submitErrors.map((f): ErrorItem => {
               const target = state.flow.steps.find((s) => s.id === f.field);
               return {

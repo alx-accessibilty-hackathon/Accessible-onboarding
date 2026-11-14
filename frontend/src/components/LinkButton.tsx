@@ -13,12 +13,7 @@ const classes: Record<Variant, string> = {
 };
 
 /** An `<a>` element styled like a button. */
-export function LinkButton({
-  variant = 'primary',
-  className,
-  children,
-  ...rest
-}: LinkButtonProps) {
+export function LinkButton({ variant = 'primary', className, children, ...rest }: LinkButtonProps) {
   const cls = className
     ? `${classes[variant]} bo-link-btn ${className}`
     : `${classes[variant]} bo-link-btn`;

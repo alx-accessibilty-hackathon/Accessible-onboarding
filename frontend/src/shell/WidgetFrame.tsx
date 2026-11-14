@@ -43,7 +43,14 @@ export function WidgetFrame({ children, saving, help }: WidgetFrameProps) {
           paddingBottom: 'var(--bo-space-3)',
         }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--bo-space-2)', alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--bo-space-2)',
+            alignItems: 'center',
+          }}
+        >
           {/* Language switch: the other language, named in its own script */}
           <Button
             variant="secondary"

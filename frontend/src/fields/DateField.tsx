@@ -20,16 +20,8 @@ export interface DateFieldProps {
   headingRef?: RefObject<HTMLHeadingElement>;
 }
 
-export function DateField({
-  step,
-  lang,
-  value,
-  onChange,
-  error,
-  headingRef,
-}: DateFieldProps) {
-  const defaultCal =
-    step.calendar_default?.[lang] || (lang === 'am' ? 'ethiopian' : 'gregorian');
+export function DateField({ step, lang, value, onChange, error, headingRef }: DateFieldProps) {
+  const defaultCal = step.calendar_default?.[lang] || (lang === 'am' ? 'ethiopian' : 'gregorian');
 
   const [calendar, setCalendar] = useState<'ethiopian' | 'gregorian'>(
     value?.calendar || defaultCal,
@@ -38,19 +30,19 @@ export function DateField({
   // Initial internal state from value
   const initialYear =
     calendar === 'ethiopian'
-      ? value?.ethiopian?.year ?? ''
+      ? (value?.ethiopian?.year ?? '')
       : value?.iso
         ? new Date(value.iso).getUTCFullYear()
         : '';
   const initialMonth =
     calendar === 'ethiopian'
-      ? value?.ethiopian?.month ?? ''
+      ? (value?.ethiopian?.month ?? '')
       : value?.iso
         ? new Date(value.iso).getUTCMonth() + 1
         : '';
   const initialDay =
     calendar === 'ethiopian'
-      ? value?.ethiopian?.day ?? ''
+      ? (value?.ethiopian?.day ?? '')
       : value?.iso
         ? new Date(value.iso).getUTCDate()
         : '';
@@ -63,12 +55,7 @@ export function DateField({
   const hintId = `${fieldsetId}-hint`;
   const errorId = `${fieldsetId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   const updateDate = (
     c: 'ethiopian' | 'gregorian',
@@ -167,7 +154,9 @@ export function DateField({
       )}
 
       {/* Calendar Switch */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--bo-space-2)', marginTop: '4px' }}>
+      <div
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--bo-space-2)', marginTop: '4px' }}
+      >
         <button
           type="button"
           onClick={() => handleCalendarToggle('ethiopian')}

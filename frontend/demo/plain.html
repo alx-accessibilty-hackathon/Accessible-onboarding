@@ -17,12 +17,18 @@
         padding: 20px;
         background: #f0f0f0;
       }
-      button, input, select, textarea {
+      button,
+      input,
+      select,
+      textarea {
         background-color: yellow !important;
         border: 4px dashed magenta !important;
         color: purple !important;
       }
-      h1, h2, h3, p {
+      h1,
+      h2,
+      h3,
+      p {
         text-transform: uppercase !important;
         color: darkgreen !important;
       }
@@ -32,7 +38,8 @@
         margin-bottom: 24px;
         border: 2px solid red;
       }
-      #event-log, #event-log * {
+      #event-log,
+      #event-log * {
         background: #222222;
         color: #ffffff !important;
         font-family: monospace !important;
@@ -57,12 +64,18 @@
   <body>
     <div id="host-notice">
       <h2>Hostile Host Page Notice</h2>
-      <p>This host page applies aggressive global styles (* { color: red !important; font-size: 10px !important }).</p>
-      <p>Notice that the &lt;bridge-onboarding&gt; widget below is completely isolated by its Shadow DOM and retains its proper Apple-inspired design tokens, typography, and button states.</p>
+      <p>
+        This host page applies aggressive global styles (* { color: red !important; font-size: 10px
+        !important }).
+      </p>
+      <p>
+        Notice that the &lt;bridge-onboarding&gt; widget below is completely isolated by its Shadow
+        DOM and retains its proper Apple-inspired design tokens, typography, and button states.
+      </p>
     </div>
 
     <!-- The embeddable Bridge Onboarding Web Component -->
-    <bridge-onboarding partner="pk_demo_partner" flow="signup"></bridge-onboarding>
+    <bridge-onboarding partner="pk_demo_jobboard" flow="signup"></bridge-onboarding>
 
     <div id="event-log">
       <strong>Host Event Log (Dispatched via bubbles + composed CustomEvents):</strong>

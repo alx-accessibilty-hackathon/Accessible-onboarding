@@ -88,7 +88,13 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
                   flexShrink: 0,
                 }}
               />
-              <span style={{ fontSize: '0.9em', color: 'var(--bo-text)', fontWeight: isChecked ? 600 : 400 }}>
+              <span
+                style={{
+                  fontSize: '0.9em',
+                  color: 'var(--bo-text)',
+                  fontWeight: isChecked ? 600 : 400,
+                }}
+              >
                 {labelText}
               </span>
             </label>
@@ -97,7 +103,9 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
       </div>
 
       {selectedNeeds.length > 0 && (
-        <div style={{ marginTop: 'var(--bo-space-3)', display: 'flex', justifyContent: 'flex-end' }}>
+        <div
+          style={{ marginTop: 'var(--bo-space-3)', display: 'flex', justifyContent: 'flex-end' }}
+        >
           <button
             type="button"
             className="bo-link"

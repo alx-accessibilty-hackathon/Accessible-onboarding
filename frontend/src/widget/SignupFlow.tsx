@@ -19,7 +19,12 @@ import {
   submit,
   type Answer,
 } from '../api/registrations';
-import { FlowRunner, useFlowEngine, type FlowHooks, type SubmitOutcome } from '../engine/FlowRunner';
+import {
+  FlowRunner,
+  useFlowEngine,
+  type FlowHooks,
+  type SubmitOutcome,
+} from '../engine/FlowRunner';
 import { nextStepId } from '../engine/next';
 import type { AnswerState, Step } from '../engine/types';
 import { isValueEmpty } from '../engine/validate';
@@ -243,7 +248,6 @@ export function SignupFlow({
     const left = await pendingCount(s.registrationId).catch(() => 0);
     const ok = left === 0 && !metaRef.current.consentPending && !metaRef.current.supportDirty;
     return ok ? { ok } : { ok, code: code ?? 'network' };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ensureSession, learnerApi, dispatch, persistSnapshot]);
 
   // One flush at a time; a request during a flush runs once more afterwards.
@@ -500,7 +504,6 @@ export function SignupFlow({
         );
       },
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [flush, ensureSession, learnerApi, persistSnapshot, setSession],
   );
 

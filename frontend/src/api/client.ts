@@ -35,7 +35,11 @@ export function apiUrl(origin: string, path: string): string {
   return `${origin.replace(/\/+$/, '')}/api/v1${path}`;
 }
 
-export async function apiFetch<T>(cfg: ApiConfig, path: string, init: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(
+  cfg: ApiConfig,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const headers = new Headers(init.headers);
   if (cfg.partnerKey) headers.set('X-Partner-Key', cfg.partnerKey);
   if (cfg.token) headers.set('Authorization', `Bearer ${cfg.token}`);

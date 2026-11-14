@@ -20,7 +20,11 @@ export async function transcribeClip(
   const blob = await get<Blob>(clipId, widgetStore()).catch(() => undefined);
   if (!blob) return { code: 'speech_unavailable' };
   try {
-    const res = await transcribe(cfg, blob, { language: lang, stepId: step.id, fieldType: step.type });
+    const res = await transcribe(cfg, blob, {
+      language: lang,
+      stepId: step.id,
+      fieldType: step.type,
+    });
     void del(clipId, widgetStore()).catch(() => {});
     const clean = normalizeVoiceInput(res.transcript, step, lang);
     const text = Array.isArray(clean) ? clean.join(', ') : clean;

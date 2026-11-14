@@ -10,28 +10,26 @@ export interface JobCardProps {
   onViewDetails: (jobId: string) => void;
 }
 
-export function JobCard({
-  matched,
-  lang,
-  onApply,
-  onViewDetails,
-}: JobCardProps) {
+export function JobCard({ matched, lang, onApply, onViewDetails }: JobCardProps) {
   const { job, matchedCount, totalSelected, isFullMatch } = matched;
 
   // Lookup accommodation employer labels
-  const accommodationLabels = (job.accommodations ?? []).filter((c) => c !== 'other').map((code) => {
-    const item = needsVocab.items.find((n) => n.code === code);
-    return item ? t(lang, item.employer) : code;
-  });
+  const accommodationLabels = (job.accommodations ?? [])
+    .filter((c) => c !== 'other')
+    .map((code) => {
+      const item = needsVocab.items.find((n) => n.code === code);
+      return item ? t(lang, item.employer) : code;
+    });
 
   return (
     <article
       style={{
         padding: 'var(--bo-space-4)',
         borderRadius: 'var(--bo-radius)',
-        border: isFullMatch && totalSelected > 0
-          ? '2px solid var(--bo-primary)'
-          : '1px solid var(--bo-border-subtle)',
+        border:
+          isFullMatch && totalSelected > 0
+            ? '2px solid var(--bo-primary)'
+            : '1px solid var(--bo-border-subtle)',
         backgroundColor: 'var(--bo-bg)',
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         display: 'flex',
@@ -39,11 +37,17 @@ export function JobCard({
         gap: 'var(--bo-space-3)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--bo-space-2)' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: 'var(--bo-space-2)',
+        }}
+      >
         <div>
-          <h2 style={{ margin: '0 0 var(--bo-space-1) 0', fontSize: '1.25em' }}>
-            {job.title}
-          </h2>
+          <h2 style={{ margin: '0 0 var(--bo-space-1) 0', fontSize: '1.25em' }}>{job.title}</h2>
           <p style={{ margin: 0, fontWeight: 600, color: 'var(--bo-text-muted)' }}>
             {job.employer?.name} •{' '}
             {job.location_text || t(lang, `employer.location_type.${job.location_type}`)}

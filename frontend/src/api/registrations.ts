@@ -61,7 +61,8 @@ export interface ResumeLink {
   expires_at: string;
 }
 
-export type ConsentKind = 'data_processing' | 'cloud_speech' | 'sms' | 'telegram' | 'partner_access';
+export type ConsentKind =
+  'data_processing' | 'cloud_speech' | 'sms' | 'telegram' | 'partner_access';
 export type ConsentMethod = 'tap' | 'sms_code' | 'spoken' | 'partner_witnessed';
 
 const reg = (id: string) => `/registrations/${encodeURIComponent(id)}`;

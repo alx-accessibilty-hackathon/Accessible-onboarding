@@ -95,9 +95,23 @@ export function SavePanel({ open, lang, onClose, api, registrationId, onForget }
               </div>
             )}
             {link ? (
-              <dl style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-2)' }}>
+              <dl
+                style={{
+                  margin: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--bo-space-2)',
+                }}
+              >
                 <dt style={{ fontWeight: 700 }}>{t(lang, 'save_panel.code')}</dt>
-                <dd style={{ margin: 0, fontSize: '1.5em', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+                <dd
+                  style={{
+                    margin: 0,
+                    fontSize: '1.5em',
+                    fontFamily: 'monospace',
+                    letterSpacing: '0.1em',
+                  }}
+                >
                   {link.code}
                 </dd>
                 <dt style={{ fontWeight: 700 }}>{t(lang, 'save_panel.link')}</dt>
@@ -112,7 +126,11 @@ export function SavePanel({ open, lang, onClose, api, registrationId, onForget }
                 </dd>
               </dl>
             ) : (
-              <Button variant="secondary" onClick={() => void handleGetLink()} disabled={linkLoading}>
+              <Button
+                variant="secondary"
+                onClick={() => void handleGetLink()}
+                disabled={linkLoading}
+              >
                 {t(lang, linkLoading ? 'common.sending' : 'save_panel.get_link')}
               </Button>
             )}
@@ -143,7 +161,13 @@ export function SavePanel({ open, lang, onClose, api, registrationId, onForget }
                 borderRadius: 'var(--bo-radius)',
               }}
             >
-              <p style={{ margin: '0 0 var(--bo-space-3) 0', fontWeight: 600, color: 'var(--bo-error)' }}>
+              <p
+                style={{
+                  margin: '0 0 var(--bo-space-3) 0',
+                  fontWeight: 600,
+                  color: 'var(--bo-error)',
+                }}
+              >
                 {t(lang, 'save_panel.forget_confirm')}
               </p>
               <div className="bo-actions">

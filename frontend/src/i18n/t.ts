@@ -16,10 +16,21 @@ export function t(lang: string, key: string, params: Record<string, string | num
     raw = own;
   } else {
     // Missing or unfinished translation: fallback to English
-    if (lang !== 'en' && typeof console !== 'undefined' && typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
-      console.warn(`[i18n] Missing translation for key "${key}" in language "${lang}", falling back to English.`);
+    if (
+      lang !== 'en' &&
+      typeof console !== 'undefined' &&
+      typeof process !== 'undefined' &&
+      process.env?.NODE_ENV !== 'production'
+    ) {
+      console.warn(
+        `[i18n] Missing translation for key "${key}" in language "${lang}", falling back to English.`,
+      );
     }
     raw = packs.en[key] ?? key;
+    // An API error code we have no words for: say something useful, never the raw code.
+    if (raw === key && key.startsWith('errors.') && key !== 'errors.internal_error') {
+      return t(lang, 'errors.internal_error');
+    }
   }
 
   return raw.replace(/\{(\w+)\}/g, (_, name: string) =>

@@ -51,14 +51,20 @@ function Demo() {
             <Icon name="search" label="Search" />
             <Icon name="person" label="Person" />
           </div>
-          <p className="bo-hint">Decorative icon (aria-hidden): <Icon name="star" /></p>
+          <p className="bo-hint">
+            Decorative icon (aria-hidden): <Icon name="star" />
+          </p>
         </Section>
 
         {/* LinkButton */}
         <Section title="LinkButton">
           <div style={{ display: 'flex', gap: '1em', flexWrap: 'wrap' }}>
-            <LinkButton href="#primary" variant="primary">Primary link</LinkButton>
-            <LinkButton href="#secondary" variant="secondary">Secondary link</LinkButton>
+            <LinkButton href="#primary" variant="primary">
+              Primary link
+            </LinkButton>
+            <LinkButton href="#secondary" variant="secondary">
+              Secondary link
+            </LinkButton>
           </div>
         </Section>
 
@@ -104,8 +110,8 @@ function Demo() {
           </Button>
           <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} title="Example Dialog">
             <p style={{ margin: '0 0 1em' }}>
-              This dialog uses the native <code>&lt;dialog&gt;</code> element. It traps focus, handles
-              Escape, and returns focus to the opener on close.
+              This dialog uses the native <code>&lt;dialog&gt;</code> element. It traps focus,
+              handles Escape, and returns focus to the opener on close.
             </p>
             <Button variant="primary" onClick={() => setDialogOpen(false)}>
               Close
@@ -117,13 +123,21 @@ function Demo() {
         <Section title="Button States">
           <div style={{ display: 'flex', gap: '1em', flexWrap: 'wrap' }}>
             <Button variant="primary">Normal</Button>
-            <Button variant="primary" disabled>Disabled</Button>
-            <Button variant="primary" className="bo-btn-loading" aria-busy="true">Loading</Button>
+            <Button variant="primary" disabled>
+              Disabled
+            </Button>
+            <Button variant="primary" className="bo-btn-loading" aria-busy="true">
+              Loading
+            </Button>
           </div>
           <div style={{ display: 'flex', gap: '1em', flexWrap: 'wrap' }}>
             <Button variant="secondary">Normal</Button>
-            <Button variant="secondary" disabled>Disabled</Button>
-            <Button variant="secondary" className="bo-btn-loading" aria-busy="true">Loading</Button>
+            <Button variant="secondary" disabled>
+              Disabled
+            </Button>
+            <Button variant="secondary" className="bo-btn-loading" aria-busy="true">
+              Loading
+            </Button>
           </div>
         </Section>
 

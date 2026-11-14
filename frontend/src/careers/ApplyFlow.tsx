@@ -106,6 +106,8 @@ export function ApplyFlow({
 
   const hooks = useMemo<FlowHooks>(
     () => ({
+      onStepChange: (step, progress) =>
+        emit('step-changed', { step: step.id, index: progress.n, total: progress.total }),
       onSubmit: async (state, path): Promise<SubmitOutcome> => {
         if (!session) return { ok: false, code: 'apply_not_registered' };
         const answers: Record<string, ApplicationAnswerItem> = {};

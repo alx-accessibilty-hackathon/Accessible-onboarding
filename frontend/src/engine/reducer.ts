@@ -141,9 +141,10 @@ export function engineReducer(state: EngineState, action: EngineAction): EngineS
     }
 
     case 'RESTORE': {
-      const targetStep = action.currentStep && state.flow.steps.some((s) => s.id === action.currentStep)
-        ? action.currentStep
-        : state.currentId;
+      const targetStep =
+        action.currentStep && state.flow.steps.some((s) => s.id === action.currentStep)
+          ? action.currentStep
+          : state.currentId;
 
       // Back after a reload walks the path the saved answers lead to.
       const pathIds = computePath(state.flow, action.answers).map((s) => s.id);

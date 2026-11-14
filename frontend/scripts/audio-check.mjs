@@ -20,10 +20,16 @@ const keys = Object.keys(en);
 // Priority 1: Questions and hints (Must)
 // Priority 2: Choices and options (Should)
 const questionKeys = keys.filter(
-  (k) => k.endsWith('.title') || k.endsWith('.hint') || k.startsWith('signup.') || k.startsWith('application.')
+  (k) =>
+    k.endsWith('.title') ||
+    k.endsWith('.hint') ||
+    k.startsWith('signup.') ||
+    k.startsWith('application.'),
 );
 
-console.log(`Checking audio files for ${questionKeys.length} priority keys in English and Amharic...`);
+console.log(
+  `Checking audio files for ${questionKeys.length} priority keys in English and Amharic...`,
+);
 
 const missing = { en: [], am: [] };
 const found = { en: [], am: [] };

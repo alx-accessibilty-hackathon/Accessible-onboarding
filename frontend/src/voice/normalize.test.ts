@@ -109,7 +109,11 @@ describe('voice/normalize', () => {
       title: 'application.motivation.title',
     };
 
-    const result = normalizeVoiceInput('um I really want this job because I love coding', step, 'en');
+    const result = normalizeVoiceInput(
+      'um I really want this job because I love coding',
+      step,
+      'en',
+    );
     expect(result).toBe('I really want this job because I love coding');
   });
 });

@@ -13,10 +13,12 @@ export interface JobDetailProps {
 }
 
 export function JobDetail({ job, lang, onBack, onApply, headingRef }: JobDetailProps) {
-  const accommodationLabels = (job.accommodations ?? []).filter((c) => c !== 'other').map((code) => {
-    const item = needsVocab.items.find((n) => n.code === code);
-    return item ? t(lang, item.employer) : code;
-  });
+  const accommodationLabels = (job.accommodations ?? [])
+    .filter((c) => c !== 'other')
+    .map((code) => {
+      const item = needsVocab.items.find((n) => n.code === code);
+      return item ? t(lang, item.employer) : code;
+    });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-4)' }}>

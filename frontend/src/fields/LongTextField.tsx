@@ -23,12 +23,7 @@ export function LongTextField({
   const hintId = `${inputId}-hint`;
   const errorId = `${inputId}-error`;
 
-  const describedBy = [
-    step.hint ? hintId : null,
-    error ? errorId : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   const maxRule = step.validate?.find((r) => r.rule === 'max_length');
   const maxLength = maxRule?.value ? Number(maxRule.value) : undefined;
@@ -78,9 +73,7 @@ export function LongTextField({
           fontFamily: 'inherit',
           padding: '0.5em 0.75em',
           borderRadius: 'var(--bo-radius)',
-          border: error
-            ? '2px solid var(--bo-error)'
-            : '2px solid var(--bo-border-strong)',
+          border: error ? '2px solid var(--bo-error)' : '2px solid var(--bo-border-strong)',
           backgroundColor: 'var(--bo-bg)',
           color: 'var(--bo-text)',
           resize: 'vertical',

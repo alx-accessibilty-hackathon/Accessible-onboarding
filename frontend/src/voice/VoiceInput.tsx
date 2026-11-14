@@ -24,7 +24,9 @@ export function VoiceInput({ step, lang, onConfirm, onPending, onSpeechConsent }
   const [consentOpen, setConsentOpen] = useState(false);
   const [micHelpOpen, setMicHelpOpen] = useState(false);
   const [hasConsent, setHasConsent] = useState(() => {
-    return typeof localStorage !== 'undefined' && localStorage.getItem('bo:speech_consent') === 'true';
+    return (
+      typeof localStorage !== 'undefined' && localStorage.getItem('bo:speech_consent') === 'true'
+    );
   });
 
   const [rawText, setRawText] = useState('');
@@ -168,9 +170,20 @@ export function VoiceInput({ step, lang, onConfirm, onPending, onSpeechConsent }
   const fieldLabel = step.title ? t(lang, step.title) : step.id;
 
   return (
-    <div ref={wrapperRef} className="bo-voice-input-wrapper" style={{ margin: 'var(--bo-space-3) 0' }}>
+    <div
+      ref={wrapperRef}
+      className="bo-voice-input-wrapper"
+      style={{ margin: 'var(--bo-space-3) 0' }}
+    >
       {state === 'idle' && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--bo-space-2)', alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--bo-space-2)',
+            alignItems: 'center',
+          }}
+        >
           <Button
             variant="secondary"
             onClick={handleStartVoice}
@@ -273,11 +286,7 @@ export function VoiceInput({ step, lang, onConfirm, onPending, onSpeechConsent }
         onDecline={handleConsentDecline}
       />
 
-      <MicHelp
-        open={micHelpOpen}
-        lang={lang}
-        onClose={() => setMicHelpOpen(false)}
-      />
+      <MicHelp open={micHelpOpen} lang={lang} onClose={() => setMicHelpOpen(false)} />
     </div>
   );
 }

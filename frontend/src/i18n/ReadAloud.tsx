@@ -61,12 +61,7 @@ export interface ReadAloudProps {
   className?: string;
 }
 
-export function ReadAloud({
-  stringKey,
-  lang,
-  fallbackText,
-  className,
-}: ReadAloudProps) {
+export function ReadAloud({ stringKey, lang, fallbackText, className }: ReadAloudProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasClip, setHasClip] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);

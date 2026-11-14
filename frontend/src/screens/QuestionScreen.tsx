@@ -79,9 +79,7 @@ export function QuestionScreen({
     onContinue?.();
   };
 
-  const errors = error
-    ? [{ fieldId, message: t(lang, `errors.${error}`) }]
-    : [];
+  const errors = error ? [{ fieldId, message: t(lang, `errors.${error}`) }] : [];
 
   return (
     <form
@@ -136,9 +134,7 @@ export function QuestionScreen({
       case 'text':
         return <TextField {...common} value={asText} onChange={(v) => onChange(v, 'typed')} />;
       case 'long_text':
-        return (
-          <LongTextField {...common} value={asText} onChange={(v) => onChange(v, 'typed')} />
-        );
+        return <LongTextField {...common} value={asText} onChange={(v) => onChange(v, 'typed')} />;
       case 'phone':
         return <PhoneField {...common} value={asText} onChange={(v) => onChange(v, 'typed')} />;
       case 'digits':
@@ -203,9 +199,7 @@ function ConsentField({
   const inputId = `q-${step.id}`;
   const hintId = `${inputId}-hint`;
   const errorId = `${inputId}-error`;
-  const describedBy = [step.hint ? hintId : null, error ? errorId : null]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   return (
     <>
@@ -244,7 +238,10 @@ function ConsentField({
         />
         <span>{t(lang, 'consent.agree')}</span>
         {value && (
-          <span aria-hidden="true" style={{ color: 'var(--bo-primary)', marginInlineStart: 'auto' }}>
+          <span
+            aria-hidden="true"
+            style={{ color: 'var(--bo-primary)', marginInlineStart: 'auto' }}
+          >
             ✓
           </span>
         )}

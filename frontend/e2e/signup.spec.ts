@@ -49,7 +49,9 @@ test.describe('End-to-end Onboarding and Accessibility Journey', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // 8. ID last 4
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('What are the last 4 numbers on it?');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'What are the last 4 numbers on it?',
+    );
     await page.getByRole('button', { name: 'Skip this question' }).click();
 
     // 9. Support needs
@@ -58,11 +60,15 @@ test.describe('End-to-end Onboarding and Accessibility Journey', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // 10. Support other
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Is there anything else that would help?');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Is there anything else that would help?',
+    );
     await page.getByRole('button', { name: 'Skip this question' }).click();
 
     // 11. Support share
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Who can see what would help you?');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Who can see what would help you?',
+    );
     await page.getByRole('button', { name: 'Skip this question' }).click();
 
     // 12. Check answers

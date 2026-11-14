@@ -39,11 +39,9 @@ export async function publishEmployerJob(
   cfg: ApiConfig,
   jobId: string,
 ): Promise<PublishJobResponse> {
-  return apiFetch<PublishJobResponse>(
-    cfg,
-    `/employer/jobs/${encodeURIComponent(jobId)}/publish`,
-    { method: 'POST' },
-  );
+  return apiFetch<PublishJobResponse>(cfg, `/employer/jobs/${encodeURIComponent(jobId)}/publish`, {
+    method: 'POST',
+  });
 }
 
 /**
