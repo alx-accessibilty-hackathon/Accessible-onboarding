@@ -11,7 +11,13 @@ import (
 // Errors shared by every layer. Repositories return these instead of database errors,
 // and controllers turn them into HTTP status codes.
 var (
-	ErrNotFound = errors.New("not found")
+	ErrNotFound          = errors.New("not found")
+	ErrSpeechUnavailable = errors.New("speech service unavailable")
+	ErrPayloadTooLarge   = errors.New("payload too large")
+	ErrResumeExpired     = errors.New("resume token expired")
+	ErrTooManyAttempts   = errors.New("too many failed attempts")
+	ErrResumeCheckFailed = errors.New("resume check failed")
+	ErrInvalidInput      = errors.New("invalid input")
 )
 
 // Shared values. Keep them in sync with the CHECK constraints in the migrations.
@@ -70,6 +76,37 @@ type Partner struct {
 	ClientID       string
 	Config         map[string]any // languages, help contact, theme, id routes
 	CreatedAt      time.Time
+}
+
+// ClientConfig holds the resolved settings the onboarding widget needs for a partner.
+type ClientConfig struct {
+	Partner          PartnerRef
+	Languages        []string
+	DefaultLanguage  string
+	IDRoutes         []string
+	ReferralPartners []PartnerRef
+	Help             HelpConfig
+	Theme            ThemeConfig
+	Speech           SpeechFlags
+}
+
+type PartnerRef struct {
+	ID   uuid.UUID
+	Name string
+}
+
+type HelpConfig struct {
+	Phone    string
+	Telegram string
+}
+
+type ThemeConfig struct {
+	Primary string
+}
+
+type SpeechFlags struct {
+	Server         bool
+	CloudAvailable bool
 }
 
 type Employer struct {
@@ -227,4 +264,85 @@ type Message struct {
 	Channel   string // sms | telegram
 	Recipient string
 	Body      string
+}
+
+// ResumeToken represents a temporary resume link or code for cross-device sign-up.
+type ResumeToken struct {
+	ID             uuid.UUID
+	RegistrationID uuid.UUID
+	TokenHash      []byte
+	CodeHash       []byte
+	FailedAttempts int
+	ExpiresAt      time.Time
+	UsedAt         *time.Time
+	CreatedAt      time.Time
+}
+
+// VerificationCode represents a one-time code (e.g. 6 digits) for consent or phone sign-in.
+type VerificationCode struct {
+	ID             uuid.UUID
+	PhoneE164      string
+	Purpose        string // login | consent | verify_phone
+	CodeHash       []byte
+	LearnerID      *uuid.UUID
+	FailedAttempts int
+	ExpiresAt      time.Time
+	UsedAt         *time.Time
+	CreatedAt      time.Time
+}
+
+// OutboxMessage represents a queued message for SMS or Telegram delivery.
+type OutboxMessage struct {
+	ID        uuid.UUID
+	Channel   string // sms | telegram
+	Recipient string
+	Body      string
+	Status    string // queued | sent | failed
+	Provider  *string
+	Error     *string
+	CreatedAt time.Time
+	SentAt    *time.Time
+}
+
+// ResumeDOB carries date of birth fields for resume verification.
+type ResumeDOB struct {
+	Calendar string
+	Year     int
+	Month    int
+	Day      int
+}
+
+type ResumeLookupResult struct {
+	RegistrationID uuid.UUID
+	Check          string // "dob" | "phone"
+}
+
+type ResumeVerifyResult struct {
+	RegistrationID uuid.UUID
+	SessionToken   string
+	ExpiresAt      time.Time
+}
+
+type TelegramUpdate struct {
+	UpdateID int              `json:"update_id"`
+	Message  *TelegramMessage `json:"message"`
+}
+
+type TelegramMessage struct {
+	MessageID int           `json:"message_id"`
+	From      *TelegramUser `json:"from"`
+	Chat      TelegramChat  `json:"chat"`
+	Date      int64         `json:"date"`
+	Text      string        `json:"text"`
+}
+
+type TelegramUser struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	Username  string `json:"username"`
+}
+
+type TelegramChat struct {
+	ID   int64  `json:"id"`
+	Type string `json:"type"`
 }

@@ -6,14 +6,44 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
+	// Queries for auth sessions. Table: auth_sessions.
+	CreateAuthSession(ctx context.Context, arg CreateAuthSessionParams) (AuthSession, error)
+	// Queries for consents. Table: consents.
+	CreateConsent(ctx context.Context, arg CreateConsentParams) (Consent, error)
+	CreateOutboxMessage(ctx context.Context, arg CreateOutboxMessageParams) (MessagesOutbox, error)
+	// Queries for resume tokens, verification codes and outbox messages.
+	CreateResumeToken(ctx context.Context, arg CreateResumeTokenParams) (ResumeToken, error)
+	CreateVerificationCode(ctx context.Context, arg CreateVerificationCodeParams) (VerificationCode, error)
+	GetActiveVerificationCode(ctx context.Context, arg GetActiveVerificationCodeParams) (VerificationCode, error)
+	GetAnswer(ctx context.Context, arg GetAnswerParams) (Answer, error)
+	GetAuthSessionByTokenHash(ctx context.Context, tokenHash []byte) (AuthSession, error)
+	GetConsentByLearnerAndKind(ctx context.Context, arg GetConsentByLearnerAndKindParams) (Consent, error)
+	// Queries for learners. Table: learners.
+	GetLearnerByID(ctx context.Context, id uuid.UUID) (Learner, error)
+	GetLearnerByIDAndPartnerID(ctx context.Context, arg GetLearnerByIDAndPartnerIDParams) (Learner, error)
 	// Queries for partners. Each query needs a "-- name: <GoMethodName> :one|:many|:exec" line.
 	// After editing, run `sqlc generate` (from backend/).
 	GetPartnerByPublishableKey(ctx context.Context, publishableKey string) (GetPartnerByPublishableKeyRow, error)
+	// Queries for registrations. Table: registrations.
+	GetRegistrationByID(ctx context.Context, id uuid.UUID) (Registration, error)
+	GetResumeTokenByCodeHash(ctx context.Context, codeHash []byte) (ResumeToken, error)
+	GetResumeTokenByTokenHash(ctx context.Context, tokenHash []byte) (ResumeToken, error)
+	IncrementResumeTokenFailedAttempts(ctx context.Context, id uuid.UUID) (ResumeToken, error)
+	IncrementVerificationCodeFailedAttempts(ctx context.Context, id uuid.UUID) (VerificationCode, error)
 	ListAllowedOrigins(ctx context.Context) ([]string, error)
+	ListAnswersByRegistrationID(ctx context.Context, registrationID uuid.UUID) ([]Answer, error)
+	ListConsentsByLearnerID(ctx context.Context, learnerID uuid.UUID) ([]Consent, error)
+	ListLearnersByPartnerID(ctx context.Context, partnerID uuid.UUID) ([]Learner, error)
+	ListQueuedOutboxMessages(ctx context.Context) ([]MessagesOutbox, error)
 	ListReferralPartners(ctx context.Context) ([]ListReferralPartnersRow, error)
+	MarkResumeTokenUsed(ctx context.Context, id uuid.UUID) error
+	MarkVerificationCodeUsed(ctx context.Context, id uuid.UUID) error
+	RevokeAuthSession(ctx context.Context, id uuid.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)

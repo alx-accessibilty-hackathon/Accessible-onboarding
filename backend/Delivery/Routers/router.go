@@ -2,6 +2,7 @@ package routers
 
 import (
 	"net/http"
+	"os"
 
 	controllers "bridge/Delivery/Controllers"
 	infrastructure "bridge/Infrastructure"
@@ -40,10 +41,38 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 	router.Use(infrastructure.CORSMiddleware())
 
 	// Liveness check for Docker
-	router.GET("/health", func(c *gin.Context) {
+	healthHandler := func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-	// TODO: serve ../api/openapi.yaml at /api/openapi.yaml and Swagger UI at /api/docs
+	}
+	router.GET("/health", healthHandler)
+
+	// OpenAPI 3 spec and interactive documentation
+	openapiHandler := func(c *gin.Context) {
+		candidates := []string{
+			"../../../api/openapi.yaml",
+			"../../api/openapi.yaml",
+			"../api/openapi.yaml",
+			"api/openapi.yaml",
+			"./api/openapi.yaml",
+		}
+		for _, path := range candidates {
+			if data, err := os.ReadFile(path); err == nil {
+				c.Data(http.StatusOK, "application/yaml; charset=utf-8", data)
+				return
+			}
+		}
+		c.String(http.StatusNotFound, "openapi.yaml not found")
+	}
+
+	router.GET("/api/openapi.yaml", openapiHandler)
+	router.GET("/openapi.yaml", openapiHandler)
+
+	docsHandler := func(c *gin.Context) {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusOK, swaggerUIHTML)
+	}
+	router.GET("/api/docs", docsHandler)
+	router.GET("/docs", docsHandler)
 
 	v1 := router.Group("/api/v1")
 
@@ -52,6 +81,7 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 	v1.POST("/auth/staff/login", ctrl.Auth.StaffLoginController)
 	v1.POST("/oauth/token", ctrl.Auth.OAuthTokenController)
 	v1.POST("/auth/logout", ctrl.Auth.LogoutController) // TODO: accept a learner or a staff token
+	v1.POST("/telegram/webhook", ctrl.Registration.TelegramWebhookController)
 
 	// Widget routes: partner key only
 	widget := v1.Group("", infrastructure.PartnerKeyMiddleware())
@@ -60,6 +90,8 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 		widget.POST("/registrations", ctrl.Registration.CreateRegistrationController)
 		widget.GET("/jobs", ctrl.Job.ListJobsController)
 		widget.GET("/jobs/:id", ctrl.Job.GetJobController)
+		widget.POST("/resume/lookup", ctrl.Registration.ResumeLookupController)
+		widget.POST("/resume/verify", ctrl.Registration.ResumeVerifyController)
 	}
 
 	// Learner routes: partner key + learner token
@@ -86,6 +118,11 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 			employer.POST("/jobs", ctrl.Job.CreateEmployerJobController)
 			employer.POST("/jobs/:id/publish", ctrl.Job.PublishEmployerJobController)
 		}
+
+		partnerStaff := staff.Group("/partner")
+		{
+			partnerStaff.POST("/registrations/:id/consent-code", ctrl.Registration.SendConsentCodeController)
+		}
 	}
 
 	// Partner-server routes (Level 2 API): OAuth client-credentials token with a scope
@@ -102,3 +139,30 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 
 	return router
 }
+
+const swaggerUIHTML = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Bridge Onboarding API Documentation</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function() {
+      SwaggerUIBundle({
+        url: '/api/openapi.yaml',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIBundle.SwaggerUIStandalonePreset
+        ]
+      });
+    };
+  </script>
+</body>
+</html>`

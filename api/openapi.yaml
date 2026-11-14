@@ -1,0 +1,718 @@
+openapi: 3.0.3
+info:
+  title: Bridge Onboarding API
+  description: >
+    Accessible drop-in onboarding module developed for Digital Bridge Hackathon 2026 (Track 1).
+    Supports WCAG 2.2 AA compliant onboarding, multilingual support (Amharic & English),
+    offline sync, speech-to-text, private support requests, and inclusive ID routes.
+  version: 1.0.0
+servers:
+  - url: /api/v1
+    description: Current API v1 endpoint
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      description: Returns service status for docker and health monitors.
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+  /config:
+    get:
+      summary: Get widget configuration
+      description: Returns configuration for the embedding partner widget.
+      security:
+        - PartnerKey: []
+      responses:
+        "200":
+          description: Partner configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalError'
+  /registrations:
+    post:
+      summary: Start a new registration
+      description: Creates a draft learner and registration session.
+      security:
+        - PartnerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [flow_id, flow_version]
+              properties:
+                flow_id:
+                  type: string
+                  example: "signup"
+                flow_version:
+                  type: integer
+                  example: 1
+                language:
+                  type: string
+                  example: "am"
+                simple_mode:
+                  type: boolean
+                  example: false
+      responses:
+        "201":
+          description: Registration created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registration_id:
+                    type: string
+                    format: uuid
+                  learner_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: "draft"
+                  current_step:
+                    type: string
+                    example: "welcome"
+                  session:
+                    $ref: '#/components/schemas/Session'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+  /registrations/{id}:
+    get:
+      summary: Get registration state
+      security:
+        - LearnerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Current registration answers and progress
+        "404":
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update registration progress
+      security:
+        - LearnerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Progress saved
+  /registrations/{id}/answers/{questionId}:
+    put:
+      summary: Save an answer with conflict detection
+      security:
+        - LearnerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "phone"
+      responses:
+        "200":
+          description: Answer saved
+        "409":
+          description: Answer conflict
+        "422":
+          $ref: '#/components/responses/ValidationError'
+  /registrations/{id}/support-request:
+    put:
+      summary: Save support request privately
+      security:
+        - LearnerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Support request encrypted and saved
+  /registrations/{id}/consents:
+    post:
+      summary: Record consent decision
+      security:
+        - LearnerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, granted, method]
+              properties:
+                kind:
+                  type: string
+                  enum: [data_processing, cloud_speech, sms, telegram, partner_access]
+                granted:
+                  type: boolean
+                method:
+                  type: string
+                  enum: [tap, sms_code, spoken, partner_witnessed]
+      responses:
+        "201":
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  kind:
+                    type: string
+                  granted:
+                    type: boolean
+                  created_at:
+                    type: string
+                    format: date-time
+        "400":
+          $ref: '#/components/responses/InvalidID'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+  /registrations/{id}/submit:
+    post:
+      summary: Complete and submit registration
+      security:
+        - LearnerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Registration submitted successfully
+        "422":
+          $ref: '#/components/responses/ValidationError'
+  /speech/transcriptions:
+    post:
+      summary: Transcribe audio speech to text
+      security:
+        - LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio, language]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Audio recording up to 3 MB
+                language:
+                  type: string
+                  example: "am"
+                step_id:
+                  type: string
+                  example: "phone"
+                field_type:
+                  type: string
+                  example: "phone"
+      responses:
+        "200":
+          description: Audio transcribed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionResponse'
+        "413":
+          description: Audio file exceeds 3 MB limit
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "503":
+          description: All speech providers unavailable
+  /jobs:
+    get:
+      summary: List published jobs with accommodation codes
+      security:
+        - PartnerKey: []
+      responses:
+        "200":
+          description: List of accessible job postings
+  /jobs/{id}:
+    get:
+      summary: Get job details
+      security:
+        - PartnerKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Job details
+  /jobs/{id}/jobposting.jsonld:
+    get:
+      summary: Get schema.org JobPosting JSON-LD
+      responses:
+        "200":
+          description: Standard JobPosting metadata
+  /jobs/{id}/applications:
+    post:
+      summary: Submit a job application
+      security:
+        - LearnerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Application submitted
+  /auth/staff/login:
+    post:
+      summary: Staff member login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Staff login session
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+  /auth/staff/me:
+    get:
+      summary: Current staff profile and role
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: Staff profile
+  /employer/jobs:
+    get:
+      summary: List employer's jobs
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: Employer jobs
+    post:
+      summary: Create employer job posting
+      security:
+        - StaffBearer: []
+      responses:
+        "201":
+          description: Draft job created
+  /employer/jobs/{id}/publish:
+    post:
+      summary: Publish employer job posting
+      security:
+        - StaffBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Job published
+  /oauth/token:
+    post:
+      summary: Partner server OAuth 2.0 client credentials token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, client_id, client_secret]
+              properties:
+                grant_type:
+                  type: string
+                  example: "client_credentials"
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+                scope:
+                  type: string
+      responses:
+        "200":
+          description: OAuth access token
+  /partner-api/learners:
+    get:
+      summary: List registered learners for partner server
+      security:
+        - PartnerServerBearer: []
+      responses:
+        "200":
+          description: List of learners
+  /partner-api/learners/{id}:
+    get:
+      summary: Get learner record for partner server
+      security:
+        - PartnerServerBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Learner details
+  /auth/logout:
+    post:
+      summary: Terminate session ("Forget me on this phone")
+      responses:
+        "200":
+          description: Session terminated
+  /resume/lookup:
+    post:
+      summary: Lookup resume session check type
+      security:
+        - PartnerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  example: "K7M9P2"
+                token:
+                  type: string
+                  example: "r_8fK9mP2xQ7vLz3"
+      responses:
+        "200":
+          description: Resume session found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registration_id:
+                    type: string
+                    format: uuid
+                  check:
+                    type: string
+                    enum: [dob, phone]
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "410":
+          description: Resume token expired
+        "429":
+          description: Too many failed attempts
+  /resume/verify:
+    post:
+      summary: Verify resume session credentials and issue session token
+      security:
+        - PartnerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                token:
+                  type: string
+                dob:
+                  type: object
+                  properties:
+                    calendar:
+                      type: string
+                      enum: [ethiopian, gregorian]
+                    year:
+                      type: integer
+                    month:
+                      type: integer
+                    day:
+                      type: integer
+                phone_last4:
+                  type: string
+                  maxLength: 4
+      responses:
+        "200":
+          description: Resume verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registration_id:
+                    type: string
+                    format: uuid
+                  session:
+                    $ref: '#/components/schemas/Session'
+        "401":
+          description: Verification check failed
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "410":
+          description: Resume token expired
+        "429":
+          description: Too many failed attempts
+  /partner/registrations/{id}/consent-code:
+    post:
+      summary: Send consent code to learner phone
+      security:
+        - StaffBearer: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+      responses:
+        "200":
+          description: Consent code sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  phone:
+                    type: string
+                  expires_in:
+                    type: integer
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /telegram/webhook:
+    post:
+      summary: Telegram bot webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+
+components:
+  securitySchemes:
+    PartnerKey:
+      type: apiKey
+      in: header
+      name: X-Partner-Key
+    LearnerBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    StaffBearer:
+      type: http
+      scheme: bearer
+    PartnerServerBearer:
+      type: http
+      scheme: bearer
+
+  schemas:
+    ConfigResponse:
+      type: object
+      properties:
+        partner:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        languages:
+          type: array
+          items:
+            type: string
+        default_language:
+          type: string
+        id_routes:
+          type: array
+          items:
+            type: string
+        referral_partners:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+        help:
+          type: object
+          properties:
+            phone:
+              type: string
+            telegram:
+              type: string
+        theme:
+          type: object
+          properties:
+            primary:
+              type: string
+        speech:
+          type: object
+          properties:
+            server:
+              type: boolean
+            cloud_available:
+              type: boolean
+
+    TranscriptionResponse:
+      type: object
+      properties:
+        transcript:
+          type: string
+          example: "0912345678"
+        confidence:
+          type: number
+          example: 0.85
+        provider:
+          type: string
+          example: "azure"
+
+    Session:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        code:
+          type: string
+        title:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+
+  responses:
+    Unauthorized:
+      description: Unauthorized request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InvalidID:
+      description: Invalid identifier format
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

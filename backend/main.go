@@ -25,8 +25,9 @@ func main() {
 	// Infrastructure services (outside world: tokens/encryption, speech-to-text, SMS)
 	security := infrastructure.InitSecurityService(cfg.DataEncryptionKey, cfg.CodeHashKey)
 	speech := infrastructure.InitSpeechService(cfg.STTProviders, cfg.STTTimeout)
+	speech.SetAzure(cfg.AzureSpeechKey, cfg.AzureSpeechRegion)
+	speech.SetLocalURL(cfg.LocalSTTURL)
 	messages := infrastructure.InitMessageService(cfg.SMSProvider)
-	_ = messages // TODO: pass to the resume-link / consent-code use cases (Should)
 
 	// Repositories
 	partnerRepo := repository.NewPartnerRepo(db)
@@ -40,10 +41,10 @@ func main() {
 	applicationRepo := repository.NewApplicationRepo(db)
 
 	// Use cases
-	configUsecase := usecase.NewConfigUsecase(partnerRepo)
-	registrationUsecase := usecase.NewRegistrationUsecase(learnerRepo, registrationRepo, sessionRepo, security)
+	configUsecase := usecase.NewConfigUsecase(partnerRepo, speech)
+	registrationUsecase := usecase.NewRegistrationUsecase(learnerRepo, registrationRepo, sessionRepo, security, messages)
 	supportUsecase := usecase.NewSupportUsecase(supportRepo, security)
-	consentUsecase := usecase.NewConsentUsecase(consentRepo)
+	consentUsecase := usecase.NewConsentUsecase(consentRepo, registrationRepo)
 	authUsecase := usecase.NewAuthUsecase(sessionRepo, staffRepo, partnerRepo, security)
 	speechUsecase := usecase.NewSpeechUsecase(consentRepo, speech)
 	jobUsecase := usecase.NewJobUsecase(jobRepo)
