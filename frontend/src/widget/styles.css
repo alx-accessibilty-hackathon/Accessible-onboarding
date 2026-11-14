@@ -1,0 +1,168 @@
+/*
+ * Bridge Onboarding styles (UI rules: TECHNICAL_PLAN.md section 4.4).
+ * Loaded inside the widget's shadow root (App.tsx, via ?inline) and on the staff pages.
+ * Components use the --bo-* tokens only: never a raw colour.
+ */
+
+/* Shadow root host: stop the partner page's inherited styles leaking in. */
+:host {
+  all: initial;
+  display: block;
+}
+
+.bo-root {
+  /* Colours (contrast against white in TECHNICAL_PLAN.md 4.4) */
+  --bo-text: #1b1f24;
+  --bo-text-muted: #4a5870;
+  --bo-bg: #ffffff;
+  --bo-surface: #f5f7fa;
+  --bo-border-strong: #6b7280;
+  --bo-border-subtle: #d6dde8;
+  --bo-primary: #cc3636; /* ALX red darkened to pass AA (#db3e3e is only 4.40:1) */
+  --bo-primary-hover: #a82b2b;
+  --bo-on-primary: #ffffff;
+  --bo-focus: #1a5fd0;
+  --bo-error: #b42318;
+  --bo-error-bg: #fdecea;
+  --bo-success: #0a7650;
+  --bo-info-bg: #eaf0f7;
+  --bo-navy: #12305a;
+  --bo-selected-bg: #fbeaea;
+
+  /* Spacing scale: 4, 8, 12, 16, 24, 32, 48 px */
+  --bo-space-1: 4px;
+  --bo-space-2: 8px;
+  --bo-space-3: 12px;
+  --bo-space-4: 16px;
+  --bo-space-5: 24px;
+  --bo-space-6: 32px;
+  --bo-space-7: 48px;
+
+  --bo-target: 48px; /* minimum tap target */
+  --bo-radius: 8px;
+
+  /* px, not rem: a partner page may change the root font size. Children use em. */
+  font-size: 18px;
+  font-family: 'DM Sans', 'Noto Sans Ethiopic', 'Ebrima', 'Nyala', system-ui, sans-serif;
+  line-height: 1.5;
+  color: var(--bo-text);
+  background: var(--bo-bg);
+}
+
+.bo-root *,
+.bo-root *::before,
+.bo-root *::after {
+  box-sizing: border-box;
+}
+
+/* Ethiopic letters are taller: give them more line height. */
+.bo-root:lang(am),
+.bo-root:lang(ti),
+.bo-root :lang(am),
+.bo-root :lang(ti) {
+  line-height: 1.6;
+}
+
+.bo-simple {
+  font-size: 20px;
+}
+
+/* Layout: one column, max 36rem, 16px side padding (reflows at 400% zoom). */
+.bo-frame {
+  max-width: 36em;
+  margin-inline: auto;
+  padding: var(--bo-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--bo-space-5);
+}
+
+.bo-header,
+.bo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bo-space-3);
+  align-items: center;
+}
+
+.bo-root h1 {
+  font-size: 1.5em;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.bo-root h2 {
+  font-size: 1.25em;
+  margin: 0;
+}
+
+.bo-hint {
+  color: var(--bo-text-muted);
+  font-size: 0.9em;
+  margin: 0;
+}
+
+/* Focus is always visible. Never remove this. */
+.bo-root :focus-visible {
+  outline: 3px solid var(--bo-focus);
+  outline-offset: 2px;
+}
+
+/* Buttons: one primary per screen. */
+.bo-btn {
+  min-height: var(--bo-target);
+  min-width: var(--bo-target);
+  padding: 0.5em 1.25em;
+  font: inherit;
+  font-weight: 700;
+  border-radius: var(--bo-radius);
+  cursor: pointer;
+}
+
+.bo-btn-primary {
+  background: var(--bo-primary);
+  color: var(--bo-on-primary);
+  border: 2px solid var(--bo-primary);
+}
+
+.bo-btn-primary:hover {
+  background: var(--bo-primary-hover);
+  border-color: var(--bo-primary-hover);
+}
+
+.bo-btn-secondary {
+  background: var(--bo-bg);
+  color: var(--bo-text);
+  border: 2px solid var(--bo-border-strong);
+}
+
+.bo-link {
+  min-height: var(--bo-target);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--bo-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Hidden on screen, still read by screen readers. */
+.bo-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bo-root * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

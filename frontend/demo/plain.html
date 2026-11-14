@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Example Training Centre | Join</title>
+    <style>
+      body {
+        font-family: Georgia, serif;
+        margin: 0;
+        background: #fafafa;
+        color: #222;
+      }
+      header,
+      main {
+        padding: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- A host page that has nothing to do with ALX: proves "installs on any other site" (I1). -->
+    <header>
+      <p><strong>Example Training Centre</strong></p>
+    </header>
+    <main>
+      <bridge-onboarding partner="pk_demo_jobboard" flow="signup"></bridge-onboarding>
+    </main>
+
+    <!-- In production this is: <script src="https://YOUR-HOST/v1/bridge-onboarding.js" defer></script> -->
+    <script type="module" src="/src/widget/element.tsx"></script>
+    <script>
+      // The host page can listen to the widget's events.
+      document.addEventListener('bridge-onboarding:ready', (e) =>
+        console.log('[host] ready', e.detail),
+      );
+      document.addEventListener('bridge-onboarding:completed', (e) =>
+        console.log('[host] completed', e.detail),
+      );
+    </script>
+  </body>
+</html>

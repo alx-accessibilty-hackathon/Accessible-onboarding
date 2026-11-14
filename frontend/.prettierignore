@@ -1,0 +1,9 @@
+node_modules
+dist
+dist-widget
+coverage
+playwright-report
+test-results
+public/audio
+src/api/types.gen.ts
+package-lock.json
