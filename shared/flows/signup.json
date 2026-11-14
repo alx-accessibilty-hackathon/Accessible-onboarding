@@ -1,0 +1,201 @@
+{
+  "id": "signup",
+  "version": 1,
+  "start": "welcome",
+  "steps": [
+    {
+      "id": "welcome",
+      "type": "info",
+      "title": "signup.welcome.title",
+      "hint": "signup.welcome.hint",
+      "icon": "waving_hand",
+      "next": "consent_data"
+    },
+    {
+      "id": "consent_data",
+      "type": "consent",
+      "title": "signup.consent_data.title",
+      "hint": "signup.consent_data.hint",
+      "required": true,
+      "storage": "none",
+      "next": "full_name"
+    },
+    {
+      "id": "full_name",
+      "type": "text",
+      "title": "signup.full_name.title",
+      "hint": "signup.full_name.hint",
+      "icon": "person",
+      "autocomplete": "name",
+      "required": true,
+      "storage": "answer",
+      "validate": [{ "rule": "min_length", "value": 2, "error": "too_short" }],
+      "next": "preferred_name"
+    },
+    {
+      "id": "preferred_name",
+      "type": "text",
+      "title": "signup.preferred_name.title",
+      "hint": "signup.preferred_name.hint",
+      "icon": "person",
+      "autocomplete": "nickname",
+      "required": false,
+      "storage": "answer",
+      "next": "contact_method"
+    },
+    {
+      "id": "contact_method",
+      "type": "single_choice",
+      "title": "signup.contact_method.title",
+      "icon": "call",
+      "required": true,
+      "storage": "answer",
+      "options": [
+        { "value": "phone", "label": "signup.contact_method.phone", "icon": "smartphone", "say": ["phone", "ስልክ"] },
+        { "value": "telegram", "label": "signup.contact_method.telegram", "icon": "send", "say": ["telegram", "ቴሌግራም"] },
+        { "value": "partner", "label": "signup.contact_method.partner", "icon": "handshake" },
+        { "value": "none", "label": "signup.contact_method.none", "icon": "block" }
+      ],
+      "next": [
+        { "when": { "step": "contact_method", "in": ["phone", "telegram"] }, "goto": "phone" },
+        { "goto": "dob" }
+      ]
+    },
+    {
+      "id": "phone",
+      "type": "phone",
+      "title": "signup.phone.title",
+      "hint": "signup.phone.hint",
+      "icon": "smartphone",
+      "autocomplete": "tel",
+      "required": true,
+      "storage": "answer",
+      "validate": [{ "rule": "phone_et", "error": "phone_invalid" }],
+      "next": "dob"
+    },
+    {
+      "id": "dob",
+      "type": "date",
+      "title": "signup.dob.title",
+      "hint": "signup.dob.hint",
+      "icon": "cake",
+      "required": false,
+      "storage": "answer",
+      "calendar_default": { "am": "ethiopian", "en": "gregorian" },
+      "validate": [{ "rule": "date_valid", "error": "date_invalid" }],
+      "next": "id_route"
+    },
+    {
+      "id": "id_route",
+      "type": "single_choice",
+      "title": "signup.id_route.title",
+      "hint": "signup.id_route.hint",
+      "icon": "badge",
+      "required": true,
+      "storage": "answer",
+      "options": [
+        { "value": "fayda", "label": "signup.id_route.fayda", "icon": "badge", "say": ["fayda", "ፋይዳ"] },
+        { "value": "kebele_id", "label": "signup.id_route.kebele_id", "icon": "badge", "say": ["kebele", "ቀበሌ"] },
+        { "value": "refugee_id", "label": "signup.id_route.refugee_id", "icon": "badge", "say": ["refugee", "ስደተኛ"] },
+        { "value": "unhcr_proof", "label": "signup.id_route.unhcr_proof", "icon": "description", "say": ["unhcr"] },
+        { "value": "other_document", "label": "signup.id_route.other_document", "icon": "description" },
+        { "value": "none", "label": "signup.id_route.none", "icon": "handshake" }
+      ],
+      "next": [
+        { "when": { "step": "id_route", "equals": "none" }, "goto": "referral_partner" },
+        { "when": { "step": "id_route", "equals": "other_document" }, "goto": "id_doc_type" },
+        { "goto": "id_last4" }
+      ]
+    },
+    {
+      "id": "id_doc_type",
+      "type": "single_choice",
+      "title": "signup.id_doc_type.title",
+      "icon": "description",
+      "required": true,
+      "storage": "answer",
+      "options": [
+        { "value": "student_id", "label": "signup.id_doc_type.student_id" },
+        { "value": "birth_certificate", "label": "signup.id_doc_type.birth_certificate" },
+        { "value": "idir_equb_id", "label": "signup.id_doc_type.idir_equb_id" },
+        { "value": "kebele_letter", "label": "signup.id_doc_type.kebele_letter" },
+        { "value": "driving_licence", "label": "signup.id_doc_type.driving_licence" },
+        { "value": "passport", "label": "signup.id_doc_type.passport" },
+        { "value": "other", "label": "signup.id_doc_type.other" }
+      ],
+      "next": "id_last4"
+    },
+    {
+      "id": "id_last4",
+      "type": "digits",
+      "title": "signup.id_last4.title",
+      "hint": "signup.id_last4.hint",
+      "icon": "pin",
+      "required": false,
+      "storage": "answer",
+      "validate": [{ "rule": "digits", "value": 4, "error": "digits_invalid" }],
+      "next": "support_needs"
+    },
+    {
+      "id": "referral_partner",
+      "type": "single_choice",
+      "title": "signup.referral_partner.title",
+      "hint": "signup.referral_partner.hint",
+      "icon": "handshake",
+      "required": true,
+      "storage": "answer",
+      "options_from": "config:referral_partners",
+      "next": "referral_contact"
+    },
+    {
+      "id": "referral_contact",
+      "type": "single_choice",
+      "title": "signup.referral_contact.title",
+      "icon": "call",
+      "required": true,
+      "storage": "answer",
+      "options": [
+        { "value": "phone", "label": "signup.referral_contact.phone", "icon": "call" },
+        { "value": "telegram", "label": "signup.referral_contact.telegram", "icon": "send" },
+        { "value": "in_person", "label": "signup.referral_contact.in_person", "icon": "location_on" }
+      ],
+      "next": "support_needs"
+    },
+    {
+      "id": "support_needs",
+      "type": "multi_choice",
+      "title": "signup.support_needs.title",
+      "hint": "signup.support_needs.hint",
+      "icon": "volunteer_activism",
+      "required": false,
+      "storage": "support",
+      "options_from": "vocab:needs",
+      "next": "support_other"
+    },
+    {
+      "id": "support_other",
+      "type": "long_text",
+      "title": "signup.support_other.title",
+      "hint": "signup.support_other.hint",
+      "required": false,
+      "storage": "support",
+      "validate": [{ "rule": "max_length", "value": 500, "error": "too_long" }],
+      "next": "support_share"
+    },
+    {
+      "id": "support_share",
+      "type": "multi_choice",
+      "title": "signup.support_share.title",
+      "hint": "signup.support_share.hint",
+      "required": false,
+      "storage": "support",
+      "options": [
+        { "value": "courses", "label": "signup.support_share.courses" },
+        { "value": "employers", "label": "signup.support_share.employers" }
+      ],
+      "next": "check"
+    },
+    { "id": "check", "type": "check_answers", "title": "signup.check.title", "next": "done" },
+    { "id": "done", "type": "done", "title": "signup.done.title", "hint": "signup.done.hint" }
+  ]
+}

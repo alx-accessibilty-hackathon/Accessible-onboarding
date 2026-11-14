@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "items": [
+    { "code": "screen_reader", "icon": "record_voice_over", "learner": "needs.screen_reader.learner", "employer": "needs.screen_reader.employer" },
+    { "code": "large_text", "icon": "zoom_in", "learner": "needs.large_text.learner", "employer": "needs.large_text.employer" },
+    { "code": "sign_language", "icon": "sign_language", "learner": "needs.sign_language.learner", "employer": "needs.sign_language.employer" },
+    { "code": "captions", "icon": "closed_caption", "learner": "needs.captions.learner", "employer": "needs.captions.employer" },
+    { "code": "step_free", "icon": "accessible", "learner": "needs.step_free.learner", "employer": "needs.step_free.employer" },
+    { "code": "accessible_toilet", "icon": "wc", "learner": "needs.accessible_toilet.learner", "employer": "needs.accessible_toilet.employer" },
+    { "code": "flexible_hours", "icon": "schedule", "learner": "needs.flexible_hours.learner", "employer": "needs.flexible_hours.employer" },
+    { "code": "remote_work", "icon": "home", "learner": "needs.remote_work.learner", "employer": "needs.remote_work.employer" },
+    { "code": "extra_time", "icon": "timer", "learner": "needs.extra_time.learner", "employer": "needs.extra_time.employer" },
+    { "code": "written_instructions", "icon": "description", "learner": "needs.written_instructions.learner", "employer": "needs.written_instructions.employer" },
+    { "code": "quiet_space", "icon": "volume_off", "learner": "needs.quiet_space.learner", "employer": "needs.quiet_space.employer" },
+    { "code": "own_device", "icon": "devices", "learner": "needs.own_device.learner", "employer": "needs.own_device.employer" },
+    { "code": "person_to_help", "icon": "support_agent", "learner": "needs.person_to_help.learner", "employer": "needs.person_to_help.employer" },
+    { "code": "other", "icon": "more_horiz", "learner": "needs.other.learner", "employer": "needs.other.employer" }
+  ]
+}

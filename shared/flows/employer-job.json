@@ -1,0 +1,86 @@
+{
+  "id": "employer-job",
+  "version": 1,
+  "start": "title",
+  "steps": [
+    {
+      "id": "title",
+      "type": "text",
+      "title": "employer.title.title",
+      "required": true,
+      "storage": "answer",
+      "validate": [{ "rule": "min_length", "value": 2, "error": "too_short" }],
+      "next": "description"
+    },
+    {
+      "id": "description",
+      "type": "long_text",
+      "title": "employer.description.title",
+      "hint": "employer.description.hint",
+      "required": true,
+      "storage": "answer",
+      "validate": [{ "rule": "max_length", "value": 3000, "error": "too_long" }],
+      "next": "location_type"
+    },
+    {
+      "id": "location_type",
+      "type": "single_choice",
+      "title": "employer.location_type.title",
+      "required": true,
+      "storage": "answer",
+      "options": [
+        { "value": "onsite", "label": "employer.location_type.onsite", "icon": "apartment" },
+        { "value": "remote", "label": "employer.location_type.remote", "icon": "home" },
+        { "value": "hybrid", "label": "employer.location_type.hybrid", "icon": "sync_alt" }
+      ],
+      "next": [
+        { "when": { "step": "location_type", "equals": "remote" }, "goto": "work_hours" },
+        { "goto": "location_text" }
+      ]
+    },
+    {
+      "id": "location_text",
+      "type": "text",
+      "title": "employer.location_text.title",
+      "required": true,
+      "storage": "answer",
+      "next": "work_hours"
+    },
+    {
+      "id": "work_hours",
+      "type": "text",
+      "title": "employer.work_hours.title",
+      "hint": "employer.work_hours.hint",
+      "required": false,
+      "storage": "answer",
+      "next": "employment_type"
+    },
+    {
+      "id": "employment_type",
+      "type": "single_choice",
+      "title": "employer.employment_type.title",
+      "required": true,
+      "storage": "answer",
+      "options": [
+        { "value": "full_time", "label": "employer.employment_type.full_time" },
+        { "value": "part_time", "label": "employer.employment_type.part_time" },
+        { "value": "contract", "label": "employer.employment_type.contract" },
+        { "value": "internship", "label": "employer.employment_type.internship" },
+        { "value": "temporary", "label": "employer.employment_type.temporary" }
+      ],
+      "next": "accommodations"
+    },
+    {
+      "id": "accommodations",
+      "type": "multi_choice",
+      "title": "employer.accommodations.title",
+      "hint": "employer.accommodations.hint",
+      "required": false,
+      "storage": "answer",
+      "options_from": "vocab:needs",
+      "next": "check"
+    },
+    { "id": "check", "type": "check_answers", "title": "employer.check.title", "next": "done" },
+    { "id": "done", "type": "done", "title": "employer.done.title" }
+  ]
+}

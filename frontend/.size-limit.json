@@ -1,0 +1,8 @@
+[
+  {
+    "name": "Widget script (first load)",
+    "path": "dist-widget/bridge-onboarding.js",
+    "limit": "150 KB",
+    "gzip": true
+  }
+]

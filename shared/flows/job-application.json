@@ -1,0 +1,54 @@
+{
+  "id": "job-application",
+  "version": 1,
+  "start": "contact_confirm",
+  "steps": [
+    {
+      "id": "contact_confirm",
+      "type": "single_choice",
+      "title": "application.contact_confirm.title",
+      "required": true,
+      "storage": "answer",
+      "options": [
+        { "value": "yes", "label": "common.yes" },
+        { "value": "no", "label": "common.no" }
+      ],
+      "next": "motivation"
+    },
+    {
+      "id": "motivation",
+      "type": "long_text",
+      "title": "application.motivation.title",
+      "hint": "application.motivation.hint",
+      "required": true,
+      "storage": "answer",
+      "validate": [{ "rule": "max_length", "value": 1000, "error": "too_long" }],
+      "next": "start_date"
+    },
+    {
+      "id": "start_date",
+      "type": "date",
+      "title": "application.start_date.title",
+      "required": true,
+      "storage": "answer",
+      "calendar_default": { "am": "ethiopian", "en": "gregorian" },
+      "validate": [{ "rule": "date_valid", "error": "date_invalid" }],
+      "next": "attach_support"
+    },
+    {
+      "id": "attach_support",
+      "type": "single_choice",
+      "title": "application.attach_support.title",
+      "hint": "application.attach_support.hint",
+      "required": true,
+      "storage": "answer",
+      "options": [
+        { "value": "yes", "label": "common.yes" },
+        { "value": "no", "label": "common.no" }
+      ],
+      "next": "check"
+    },
+    { "id": "check", "type": "check_answers", "title": "application.check.title", "next": "done" },
+    { "id": "done", "type": "done", "title": "application.done.title" }
+  ]
+}
