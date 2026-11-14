@@ -48,3 +48,45 @@ func toPartnerRefDTOs(ps []*domain.Partner) []PartnerRefDTO {
 	}
 	return out
 }
+
+func toConfigDTO(c *domain.ClientConfig) ConfigDTO {
+	referrals := make([]PartnerRefDTO, 0, len(c.ReferralPartners))
+	for _, rp := range c.ReferralPartners {
+		referrals = append(referrals, PartnerRefDTO{
+			ID:   rp.ID,
+			Name: rp.Name,
+		})
+	}
+
+	languages := c.Languages
+	if languages == nil {
+		languages = []string{}
+	}
+
+	idRoutes := c.IDRoutes
+	if idRoutes == nil {
+		idRoutes = []string{}
+	}
+
+	return ConfigDTO{
+		Partner: PartnerRefDTO{
+			ID:   c.Partner.ID,
+			Name: c.Partner.Name,
+		},
+		Languages:        languages,
+		DefaultLanguage:  c.DefaultLanguage,
+		IDRoutes:         idRoutes,
+		ReferralPartners: referrals,
+		Help: HelpDTO{
+			Phone:    c.Help.Phone,
+			Telegram: c.Help.Telegram,
+		},
+		Theme: ThemeDTO{
+			Primary: c.Theme.Primary,
+		},
+		Speech: SpeechFlagsDTO{
+			Server:         c.Speech.Server,
+			CloudAvailable: c.Speech.CloudAvailable,
+		},
+	}
+}

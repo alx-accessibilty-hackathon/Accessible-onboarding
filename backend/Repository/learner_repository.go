@@ -1,8 +1,14 @@
 package repository
 
 import (
+	"context"
+	"errors"
+
+	domain "bridge/Domain"
 	sqlc "bridge/Repository/sqlc"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -17,5 +23,79 @@ func NewLearnerRepo(db *pgxpool.Pool) *LearnerRepository {
 	return &LearnerRepository{
 		DB: db,
 		Q:  sqlc.New(db),
+	}
+}
+
+func (r *LearnerRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
+	row, err := r.Q.GetLearnerByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toDomainLearner(&row), nil
+}
+
+func (r *LearnerRepository) GetByIDAndPartnerID(ctx context.Context, id uuid.UUID, partnerID uuid.UUID) (*domain.Learner, error) {
+	row, err := r.Q.GetLearnerByIDAndPartnerID(ctx, sqlc.GetLearnerByIDAndPartnerIDParams{
+		ID:        id,
+		PartnerID: partnerID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toDomainLearner(&row), nil
+}
+
+func (r *LearnerRepository) ListByPartnerID(ctx context.Context, partnerID uuid.UUID) ([]*domain.Learner, error) {
+	rows, err := r.Q.ListLearnersByPartnerID(ctx, partnerID)
+	if err != nil {
+		return nil, err
+	}
+	learners := make([]*domain.Learner, 0, len(rows))
+	for i := range rows {
+		learners = append(learners, toDomainLearner(&rows[i]))
+	}
+	return learners, nil
+}
+
+func toDomainLearner(l *sqlc.Learner) *domain.Learner {
+	var fullName, preferredName, contactMethod, phoneE164, dobCalendar string
+	if l.FullName != nil {
+		fullName = *l.FullName
+	}
+	if l.PreferredName != nil {
+		preferredName = *l.PreferredName
+	}
+	if l.ContactMethod != nil {
+		contactMethod = *l.ContactMethod
+	}
+	if l.PhoneE164 != nil {
+		phoneE164 = *l.PhoneE164
+	}
+	if l.DobCalendar != nil {
+		dobCalendar = *l.DobCalendar
+	}
+	return &domain.Learner{
+		ID:            l.ID,
+		PartnerID:     l.PartnerID,
+		Status:        l.Status,
+		FullName:      fullName,
+		PreferredName: preferredName,
+		ContactMethod: contactMethod,
+		PhoneE164:     phoneE164,
+		PhoneVerified: l.PhoneVerified,
+		DOB:           l.Dob,
+		DOBCalendar:   dobCalendar,
+		Language:      l.Language,
+		SimpleMode:    l.SimpleMode,
+		IdentityLevel: l.IdentityLevel,
+		CreatedAt:     l.CreatedAt,
+		UpdatedAt:     l.UpdatedAt,
+		RegisteredAt:  l.RegisteredAt,
 	}
 }

@@ -43,6 +43,26 @@ func TestHealth(t *testing.T) {
 	assert.JSONEq(t, `{"status":"ok"}`, w.Body.String())
 }
 
+func TestOpenAPI(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/openapi.yaml", nil)
+	testRouter().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "openapi: 3.0.3")
+	assert.Contains(t, w.Header().Get("Content-Type"), "application/yaml")
+}
+
+func TestDocs(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/docs", nil)
+	testRouter().ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "swagger-ui")
+	assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
+}
+
 func TestSkeletonRoutesAreRegistered(t *testing.T) {
 	routes := []struct{ method, path string }{
 		{http.MethodGet, "/api/v1/config"},
@@ -51,6 +71,11 @@ func TestSkeletonRoutesAreRegistered(t *testing.T) {
 		{http.MethodGet, "/api/v1/jobs/123/jobposting.jsonld"},
 		{http.MethodPost, "/api/v1/employer/jobs/123/publish"},
 		{http.MethodGet, "/api/v1/partner-api/learners"},
+		{http.MethodGet, "/api/v1/partner-api/learners/123"},
+		{http.MethodPost, "/api/v1/resume/lookup"},
+		{http.MethodPost, "/api/v1/resume/verify"},
+		{http.MethodPost, "/api/v1/partner/registrations/123/consent-code"},
+		{http.MethodPost, "/api/v1/telegram/webhook"},
 	}
 	r := testRouter()
 	for _, rt := range routes {

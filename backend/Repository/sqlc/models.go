@@ -11,6 +11,25 @@ import (
 	"github.com/google/uuid"
 )
 
+type Answer struct {
+	RegistrationID uuid.UUID
+	QuestionID     string
+	Value          json.RawMessage
+	InputMethod    string
+	Version        int32
+	UpdatedAt      time.Time
+}
+
+type Application struct {
+	ID            uuid.UUID
+	JobID         uuid.UUID
+	LearnerID     uuid.UUID
+	Answers       json.RawMessage
+	AttachSupport bool
+	Status        string
+	CreatedAt     time.Time
+}
+
 type AuditLog struct {
 	ID         int64
 	ActorType  string
@@ -22,10 +41,95 @@ type AuditLog struct {
 	CreatedAt  time.Time
 }
 
+type AuthSession struct {
+	ID          uuid.UUID
+	SubjectType string
+	SubjectID   uuid.UUID
+	TokenHash   []byte
+	Scopes      []string
+	ActingFor   *uuid.UUID
+	CreatedAt   time.Time
+	LastUsedAt  time.Time
+	ExpiresAt   time.Time
+	RevokedAt   *time.Time
+}
+
+type Consent struct {
+	ID        uuid.UUID
+	LearnerID uuid.UUID
+	Kind      string
+	Granted   bool
+	Method    string
+	PartnerID *uuid.UUID
+	StaffID   *uuid.UUID
+	CreatedAt time.Time
+	RevokedAt *time.Time
+}
+
 type Employer struct {
 	ID        uuid.UUID
 	Name      string
 	CreatedAt time.Time
+}
+
+type IdentityEvidence struct {
+	ID         uuid.UUID
+	LearnerID  uuid.UUID
+	Route      string
+	DocType    *string
+	Last4      *string
+	Level      string
+	AttestedBy *uuid.UUID
+	AttestedAt *time.Time
+	CreatedAt  time.Time
+}
+
+type Job struct {
+	ID             uuid.UUID
+	EmployerID     *uuid.UUID
+	Source         string
+	SourceUrl      *string
+	Title          string
+	Description    string
+	LocationType   string
+	LocationText   *string
+	WorkHours      *string
+	EmploymentType string
+	Accommodations []string
+	Status         string
+	CreatedAt      time.Time
+	PublishedAt    *time.Time
+}
+
+type Learner struct {
+	ID            uuid.UUID
+	PartnerID     uuid.UUID
+	Status        string
+	FullName      *string
+	PreferredName *string
+	ContactMethod *string
+	PhoneE164     *string
+	PhoneVerified bool
+	Dob           *time.Time
+	DobCalendar   *string
+	Language      string
+	SimpleMode    bool
+	IdentityLevel string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	RegisteredAt  *time.Time
+}
+
+type MessagesOutbox struct {
+	ID        uuid.UUID
+	Channel   string
+	Recipient string
+	Body      string
+	Status    string
+	Provider  *string
+	Error     *string
+	CreatedAt time.Time
+	SentAt    *time.Time
 }
 
 type Partner struct {
@@ -41,6 +145,40 @@ type Partner struct {
 	CreatedAt        time.Time
 }
 
+type Referral struct {
+	ID                uuid.UUID
+	LearnerID         uuid.UUID
+	PartnerID         uuid.UUID
+	ContactPreference string
+	Status            string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type Registration struct {
+	ID            uuid.UUID
+	LearnerID     uuid.UUID
+	FlowID        string
+	FlowVersion   int32
+	Status        string
+	CurrentStep   *string
+	ActingStaffID *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	SubmittedAt   *time.Time
+}
+
+type ResumeToken struct {
+	ID             uuid.UUID
+	RegistrationID uuid.UUID
+	TokenHash      []byte
+	CodeHash       []byte
+	FailedAttempts int32
+	ExpiresAt      time.Time
+	UsedAt         *time.Time
+	CreatedAt      time.Time
+}
+
 type StaffUser struct {
 	ID               uuid.UUID
 	Email            string
@@ -51,4 +189,27 @@ type StaffUser struct {
 	EmployerID       *uuid.UUID
 	DailyAttestLimit int32
 	CreatedAt        time.Time
+}
+
+type SupportRequest struct {
+	ID             uuid.UUID
+	LearnerID      uuid.UUID
+	Ciphertext     []byte
+	Nonce          []byte
+	ShareCourses   bool
+	ShareEmployers bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type VerificationCode struct {
+	ID             uuid.UUID
+	PhoneE164      string
+	Purpose        string
+	CodeHash       []byte
+	LearnerID      *uuid.UUID
+	FailedAttempts int32
+	ExpiresAt      time.Time
+	UsedAt         *time.Time
+	CreatedAt      time.Time
 }
