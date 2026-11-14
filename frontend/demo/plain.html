@@ -3,39 +3,97 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Example Training Centre | Join</title>
+    <title>Hostile Host Page | Bridge Onboarding Isolation Test</title>
     <style>
-      body {
-        font-family: Georgia, serif;
-        margin: 0;
-        background: #fafafa;
-        color: #222;
+      /* Hostile CSS intended to prove Shadow DOM boundary prevents external CSS leaks */
+      * {
+        color: red !important;
+        font-size: 10px !important;
+        font-family: 'Comic Sans MS', cursive, sans-serif !important;
+        letter-spacing: 2px !important;
       }
-      header,
-      main {
+      body {
+        margin: 0;
+        padding: 20px;
+        background: #f0f0f0;
+      }
+      button, input, select, textarea {
+        background-color: yellow !important;
+        border: 4px dashed magenta !important;
+        color: purple !important;
+      }
+      h1, h2, h3, p {
+        text-transform: uppercase !important;
+        color: darkgreen !important;
+      }
+      #host-notice {
+        background: #fff;
         padding: 16px;
+        margin-bottom: 24px;
+        border: 2px solid red;
+      }
+      #event-log, #event-log * {
+        background: #222222;
+        color: #ffffff !important;
+        font-family: monospace !important;
+        font-size: 12px !important;
+        letter-spacing: 0 !important;
+      }
+      #event-log {
+        padding: 16px;
+        margin-top: 24px;
+        border-radius: 6px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      #event-log p {
+        color: #a6e22e !important;
+        text-transform: none !important;
+        font-size: 12px !important;
+        margin: 4px 0;
       }
     </style>
   </head>
   <body>
-    <!-- A host page that has nothing to do with ALX: proves "installs on any other site" (I1). -->
-    <header>
-      <p><strong>Example Training Centre</strong></p>
-    </header>
-    <main>
-      <bridge-onboarding partner="pk_demo_jobboard" flow="signup"></bridge-onboarding>
-    </main>
+    <div id="host-notice">
+      <h2>Hostile Host Page Notice</h2>
+      <p>This host page applies aggressive global styles (* { color: red !important; font-size: 10px !important }).</p>
+      <p>Notice that the &lt;bridge-onboarding&gt; widget below is completely isolated by its Shadow DOM and retains its proper Apple-inspired design tokens, typography, and button states.</p>
+    </div>
 
-    <!-- In production this is: <script src="https://YOUR-HOST/v1/bridge-onboarding.js" defer></script> -->
+    <!-- The embeddable Bridge Onboarding Web Component -->
+    <bridge-onboarding partner="pk_demo_partner" flow="signup"></bridge-onboarding>
+
+    <div id="event-log">
+      <strong>Host Event Log (Dispatched via bubbles + composed CustomEvents):</strong>
+      <div id="log-entries"></div>
+    </div>
+
     <script type="module" src="/src/widget/element.tsx"></script>
     <script>
-      // The host page can listen to the widget's events.
-      document.addEventListener('bridge-onboarding:ready', (e) =>
-        console.log('[host] ready', e.detail),
-      );
-      document.addEventListener('bridge-onboarding:completed', (e) =>
-        console.log('[host] completed', e.detail),
-      );
+      const logContainer = document.getElementById('log-entries');
+      function logEvent(name, detail) {
+        const p = document.createElement('p');
+        p.textContent = `[${new Date().toLocaleTimeString()}] ${name}: ${JSON.stringify(detail)}`;
+        logContainer.appendChild(p);
+      }
+
+      const events = [
+        'bridge-onboarding:ready',
+        'bridge-onboarding:step-changed',
+        'bridge-onboarding:saved',
+        'bridge-onboarding:completed',
+        'bridge-onboarding:support-requested',
+        'bridge-onboarding:application-submitted',
+        'bridge-onboarding:error',
+      ];
+
+      events.forEach((evtName) => {
+        document.addEventListener(evtName, (e) => {
+          console.log('[HOST EVENT]', evtName, e.detail);
+          logEvent(evtName, e.detail);
+        });
+      });
     </script>
   </body>
 </html>

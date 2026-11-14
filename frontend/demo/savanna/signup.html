@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Savanna | Sign Up</title>
+    <link rel="stylesheet" href="./savanna.css" />
+  </head>
+  <body>
+    <header class="savanna-nav">
+      <a href="./home.html" class="savanna-logo">
+        <span>🌱 Savanna</span>
+      </a>
+      <nav>
+        <ul class="savanna-nav-links">
+          <li><a href="./home.html">Dashboard</a></li>
+          <li><a href="./jobs.html">Careers</a></li>
+          <li><a href="./signup.html" class="active">Sign Up</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="savanna-container">
+      <div class="savanna-card" style="max-width: 640px; margin: 0 auto;">
+        <!-- Embedded Bridge Onboarding Widget -->
+        <bridge-onboarding partner="pk_savanna_hub" flow="signup"></bridge-onboarding>
+      </div>
+    </main>
+
+    <script type="module" src="/src/widget/element.tsx"></script>
+    <script>
+      document.addEventListener('bridge-onboarding:completed', (e) => {
+        console.log('[Savanna Host] Registration completed!', e.detail);
+        // Automatically redirect to learner home in 3 seconds
+        setTimeout(() => {
+          window.location.href = './home.html';
+        }, 3000);
+      });
+    </script>
+  </body>
+</html>
