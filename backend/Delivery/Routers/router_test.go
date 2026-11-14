@@ -5,7 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"time"
+
 	controllers "bridge/Delivery/Controllers"
+	infrastructure "bridge/Infrastructure"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +28,9 @@ func testRouter() *gin.Engine {
 		Job:          controllers.NewJobController(nil),
 		Application:  controllers.NewApplicationController(nil),
 		Learner:      controllers.NewLearnerController(nil),
+	}, &Middlewares{
+		IPLimiter:     infrastructure.NewIPRateLimiter(1000, time.Minute),
+		GlobalLimiter: infrastructure.NewGlobalRateLimiter(1000, time.Minute),
 	})
 }
 

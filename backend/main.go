@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
+	"time"
 
+	config "bridge/Config"
 	controllers "bridge/Delivery/Controllers"
 	routers "bridge/Delivery/Routers"
 	infrastructure "bridge/Infrastructure"
@@ -11,13 +13,19 @@ import (
 )
 
 func main() {
+	// Configuration: the only place environment variables are read
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("configuration error: ", err)
+	}
+
 	// Initialize dependencies
-	db := repository.InitializeDB()
+	db := repository.InitializeDB(cfg.DatabaseURL)
 
 	// Infrastructure services (outside world: tokens/encryption, speech-to-text, SMS)
-	security := infrastructure.InitSecurityService()
-	speech := infrastructure.InitSpeechService()
-	messages := infrastructure.InitMessageService()
+	security := infrastructure.InitSecurityService(cfg.DataEncryptionKey, cfg.CodeHashKey)
+	speech := infrastructure.InitSpeechService(cfg.STTProviders, cfg.STTTimeout)
+	messages := infrastructure.InitMessageService(cfg.SMSProvider)
 	_ = messages // TODO: pass to the resume-link / consent-code use cases (Should)
 
 	// Repositories
@@ -55,11 +63,17 @@ func main() {
 		Learner:      controllers.NewLearnerController(learnerUsecase),
 	}
 
-	// Router
-	router := routers.SetupRouter(ctrls)
+	// Middleware
+	mw := &routers.Middlewares{
+		IPLimiter:     infrastructure.NewIPRateLimiter(120, time.Minute),         // 120 requests per minute per IP
+		GlobalLimiter: infrastructure.NewGlobalRateLimiter(1000, 10*time.Second), // 1000 requests per 10 seconds
+	}
 
-	// Run the app (gin reads the PORT environment variable, default 8080)
-	if err := router.Run(); err != nil {
+	// Router
+	router := routers.SetupRouter(ctrls, mw)
+
+	// Run the app
+	if err := router.Run(":" + cfg.Port); err != nil {
 		log.Fatal("server stopped: ", err)
 	}
 }

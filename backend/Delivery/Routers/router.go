@@ -22,10 +22,21 @@ type Controllers struct {
 	Learner      *controllers.LearnerController
 }
 
+// Middlewares groups the middleware that needs setting up in main.go (rate limiters now;
+// the sign-in middlewares join here once the auth use case exists).
+type Middlewares struct {
+	IPLimiter     *infrastructure.IPRateLimiter     // per client IP
+	GlobalLimiter *infrastructure.GlobalRateLimiter // whole server
+}
+
 // SetupRouter registers every route and returns the engine; main.go runs it.
 // (Returning the engine instead of calling Run here lets tests call the routes.)
-func SetupRouter(ctrl *Controllers) *gin.Engine {
-	router := gin.Default()
+func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
+	router := gin.Default() // includes the logger and panic recovery
+	// A missing or extra "/" must not turn a POST into a redirect the widget can't follow.
+	router.RedirectTrailingSlash = false
+
+	router.Use(mw.GlobalLimiter.Middleware(), mw.IPLimiter.Middleware())
 	router.Use(infrastructure.CORSMiddleware())
 
 	// Liveness check for Docker

@@ -3,27 +3,17 @@ package repository
 import (
 	"context"
 	"log"
-	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 )
 
-// InitializeDB connects to PostgreSQL using DATABASE_URL.
-func InitializeDB() *pgxpool.Pool {
-	// Only load .env locally; in Docker the variables come from the environment.
-	_ = godotenv.Load(".env")
-
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		log.Fatal("DATABASE_URL not set")
-	}
-
+// InitializeDB connects to PostgreSQL. The URL comes from config.Config.DatabaseURL.
+func InitializeDB(databaseURL string) *pgxpool.Pool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, dbURL)
+	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		log.Fatal("unable to create database pool: ", err)
 	}
@@ -31,5 +21,6 @@ func InitializeDB() *pgxpool.Pool {
 		log.Fatal("unable to reach the database: ", err)
 	}
 
+	log.Println("connected to PostgreSQL")
 	return pool
 }

@@ -49,7 +49,7 @@ func (r *PartnerRepository) GetByPublishableKey(ctx context.Context, key string)
 	}
 
 	return &domain.Partner{
-		ID:             row.ID.String(),
+		ID:             row.ID,
 		Slug:           row.Slug,
 		Name:           row.Name,
 		Kind:           row.Kind,
@@ -68,7 +68,7 @@ func (r *PartnerRepository) ListReferralPartners(ctx context.Context) ([]*domain
 	}
 	partners := make([]*domain.Partner, 0, len(rows))
 	for _, row := range rows {
-		partners = append(partners, &domain.Partner{ID: row.ID.String(), Name: row.Name})
+		partners = append(partners, &domain.Partner{ID: row.ID, Name: row.Name})
 	}
 	return partners, nil
 }
