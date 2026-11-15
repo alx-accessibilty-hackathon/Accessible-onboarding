@@ -31,7 +31,7 @@ export function ReadAloudNotice({ lang, languages }: { lang: string; languages: 
       if (announcedOnce || hasUserGesture()) return;
       announcedOnce = true;
       announce(orderKey.split(',').map((l) => ({ text: t(l, 'read_aloud.notice'), lang: l })));
-    }, 1500);
+    }, 300);
     return () => window.clearTimeout(timer);
   }, [readAloud, orderKey]);
 
