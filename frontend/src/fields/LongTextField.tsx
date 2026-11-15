@@ -68,7 +68,7 @@ export function LongTextField({
         onChange={(e) => onChange(e.target.value)}
         style={{
           width: '100%',
-          minHeight: '120px',
+          minHeight: '6em',
           fontSize: 'inherit',
           fontFamily: 'inherit',
           padding: '0.5em 0.75em',

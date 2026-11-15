@@ -45,9 +45,9 @@ describe('Workflow: Check-your-answers navigation', () => {
     fireEvent.click(faydaRadio);
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    // Step 8: Last 4 digits (optional)
+    // Step 8: Last 4 letters or numbers (optional)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'What are the last 4 numbers on it?',
+      'What are the last 4 letters or numbers on it?',
     );
     fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
 
@@ -187,7 +187,7 @@ describe('Workflow: Employer Job Form', () => {
 
     // Accommodations offered
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Which supports does this job offer?',
+      'Which supports (accommodations) does this job offer?',
     );
     fireEvent.click(screen.getByLabelText('Tools and documents work with screen readers'));
     fireEvent.click(screen.getByLabelText('Remote work'));

@@ -1,6 +1,10 @@
 import { useState, type ReactNode, type RefObject } from 'react';
+import { useAutoRead } from '../a11y/modes';
+import { keyPart } from '../a11y/readParts';
+import type { Part } from '../a11y/speaker';
 import { Button } from '../components/Button';
 import type { Flow, Step } from '../engine/types';
+import { ListenButton } from '../i18n/ReadAloud';
 import { t } from '../i18n/t';
 
 export interface DoneScreenProps {
@@ -39,6 +43,14 @@ export function DoneScreen({
 
   const titleKey = step.title || `${flow.id}.done.title`;
 
+  const readParts = (): Part[] => [
+    keyPart(lang, titleKey),
+    step.hint && keyPart(lang, step.hint),
+    referralOrg && keyPart(lang, 'done.referral_title'),
+    referralOrg && t(lang, 'done.referral_body', { org: referralOrg }),
+  ];
+  useAutoRead(`done:${titleKey}:${referralOrg ?? ''}`, readParts, lang);
+
   return (
     <section
       aria-labelledby="done-heading"
@@ -62,8 +74,8 @@ export function DoneScreen({
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            width: '48px',
-            height: '48px',
+            width: '1.75em',
+            height: '1.75em',
             borderRadius: '50%',
             backgroundColor: 'var(--bo-success)',
             color: 'var(--bo-on-primary)',
@@ -83,6 +95,10 @@ export function DoneScreen({
           {t(lang, step.hint)}
         </p>
       )}
+
+      <div>
+        <ListenButton lang={lang} parts={readParts} />
+      </div>
 
       {referralOrg && (
         <div

@@ -1,6 +1,6 @@
 // Speech-to-text API (FB-6 / FE-B). Sends audio as FormData (speech_dto.go).
 
-import { apiFetch, type ApiConfig } from './client';
+import { ApiError, apiFetch, apiUrl, type ApiConfig } from './client';
 
 export interface Transcription {
   transcript: string;
@@ -31,4 +31,30 @@ export async function transcribe(
     // Give transcription a longer timeout than the default 15 s
     signal: AbortSignal.timeout(30_000),
   });
+}
+
+/**
+ * Read FIXED interface text aloud with the server's voice: POST /speech/synthesis (partner key
+ * only) returns MP3 audio. Never send what the learner typed or said (requirement Q2).
+ * 503 speech_unavailable when no voice is set up for the language.
+ */
+export async function synthesize(cfg: ApiConfig, text: string, language: string): Promise<Blob> {
+  const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'audio/mpeg' });
+  if (cfg.partnerKey) headers.set('X-Partner-Key', cfg.partnerKey);
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(cfg.origin, '/speech/synthesis'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ text, language }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new ApiError(0, 'network');
+  }
+  if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('audio')) {
+    const body = (await res.json().catch(() => ({}))) as { code?: string };
+    throw new ApiError(res.status, body.code ?? 'speech_unavailable');
+  }
+  return res.blob();
 }

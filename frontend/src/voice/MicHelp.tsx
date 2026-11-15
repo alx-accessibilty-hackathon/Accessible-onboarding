@@ -1,3 +1,4 @@
+import { keyPart } from '../a11y/readParts';
 import { Button } from '../components/Button';
 import { Dialog } from '../components/Dialog';
 import { t } from '../i18n/t';
@@ -15,6 +16,11 @@ export function MicHelp({ open, lang, onClose }: MicHelpProps) {
       onClose={onClose}
       title={t(lang, 'voice.mic_help_title')}
       className="bo-mic-help-dialog"
+      lang={lang}
+      readParts={() => [
+        keyPart(lang, 'voice.mic_help_title'),
+        keyPart(lang, 'voice.mic_help_body'),
+      ]}
     >
       <div className="bo-mic-help-content">
         <p>{t(lang, 'voice.mic_help_body')}</p>

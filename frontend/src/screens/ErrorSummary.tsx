@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { useAutoRead } from '../a11y/modes';
+import { keyPart } from '../a11y/readParts';
 import { t } from '../i18n/t';
 
 export interface ErrorItem {
@@ -34,6 +36,13 @@ export function ErrorSummary({ errors, lang, focusKey }: ErrorSummaryProps) {
   useEffect(() => {
     if (hasErrors) summaryRef.current?.focus();
   }, [key, hasErrors]);
+
+  // Read aloud mode: "There is a problem: …" as soon as it appears (error texts are fixed text).
+  useAutoRead(
+    hasErrors ? `errors:${key}` : null,
+    () => [keyPart(lang, 'common.error_summary_title'), ...errors.map((e) => e.message)],
+    lang,
+  );
 
   if (!hasErrors) return null;
 

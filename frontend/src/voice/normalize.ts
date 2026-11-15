@@ -1,4 +1,5 @@
 import type { Step } from '../engine/types';
+import { isCodeStep } from '../engine/validate';
 
 // Filler words to strip (English + Amharic)
 const FILLER_EN = /\b(um|uh|uh+m|ah|er|like|you know)\b/gi;
@@ -216,6 +217,21 @@ export function normalizeDigits(text: string, lang: string): string {
 }
 
 /**
+ * Normalize a short code (the last 4 letters or numbers of a document, e.g. "AB12"):
+ * digit words become digits, spaces and punctuation go, letters become capitals, and the
+ * LAST 4 letters or numbers heard are kept (handles "it ends in A B 1 2" or self-correction).
+ */
+export function normalizeCode(text: string, lang: string, length = 4): string {
+  const converted = spokenDigitsToNumeric(text, lang);
+  // Single letters said one by one ("a b 1 2"), or the code said as one word ("ab12").
+  const words = converted.split(/\s+/).filter(Boolean);
+  const singles = words.filter((w) => /^[0-9A-Za-z]$/.test(w));
+  const source = singles.length >= Math.min(length, words.length) ? singles.join('') : converted;
+  const code = source.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+  return code.length > length ? code.slice(-length) : code;
+}
+
+/**
  * Normalize spoken date:
  * Finds day number (1-30), month name (Ethiopian or Gregorian), 4-digit year.
  */
@@ -295,6 +311,61 @@ export function matchSingleChoice(raw: string, step: Step, lang: string): string
   return null;
 }
 
+/** Lower case, no punctuation (Latin or Ethiopic), single spaces: for comparing spoken words. */
+function plain(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[.,!?;:()"'«»\-–—/።፣፤፥፦፧]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Match what was said to one option of a single-choice question, using the labels as they are
+ * shown in the current language (and the partner names, for "Which organisation…"), the
+ * flow's `say` words, or the option's number ("2", "two", "ሁለት"). Returns the option value,
+ * or null when nothing (or more than one option) matches: then we ask again (section 3.6).
+ */
+export function matchChoice(
+  raw: string,
+  choices: Array<{ value: string; label: string; say?: string[] }>,
+  lang: string,
+): string | null {
+  if (choices.length === 0) return null;
+  const said = plain(stripFiller(raw, lang));
+  if (!said) return null;
+
+  // Exact label or say word
+  for (const c of choices) {
+    if (plain(c.label) === said || c.say?.some((s) => plain(s) === said)) return c.value;
+  }
+
+  // A number on its own ("2", "two", "ሁለት", "number 2"): the second option
+  const digits = spokenDigitsToNumeric(said, lang).match(/^(?:\D*\s)?(\d{1,2})$/);
+  if (digits) {
+    const idx = Number(digits[1]) - 1;
+    if (idx >= 0 && idx < choices.length) return choices[idx].value;
+  }
+
+  // The label (or a say word) inside what was said, or what was said inside the label
+  const words = ` ${said} `;
+  const found = new Set<string>();
+  for (const c of choices) {
+    const label = plain(c.label);
+    if (
+      (label && words.includes(` ${label} `)) ||
+      (said.length >= 3 && ` ${label} `.includes(` ${said} `)) ||
+      c.say?.some((s) => {
+        const w = plain(s);
+        return w.length >= 2 && words.includes(` ${w} `);
+      })
+    ) {
+      found.add(c.value);
+    }
+  }
+  return found.size === 1 ? Array.from(found)[0] : null;
+}
+
 /**
  * Match multi choice:
  * Returns array of matched option values.
@@ -338,6 +409,8 @@ export function normalizeVoiceInput(raw: string, step: Step, lang: string): stri
 
   switch (step.type) {
     case 'text':
+      // A code question ("the last 4 letters or numbers"), not a name.
+      if (isCodeStep(step)) return normalizeCode(cleaned, lang);
       return normalizeName(cleaned, lang);
 
     case 'phone':

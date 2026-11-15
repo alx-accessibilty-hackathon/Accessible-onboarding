@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useAutoRead } from '../a11y/modes';
 import { staffLogin, staffMe, type StaffUser } from '../api/auth';
 import { ApiError, errorCode } from '../api/client';
 import { Banner } from '../components/Banner';
@@ -18,10 +19,19 @@ export function Login({ apiOrigin = '', lang = 'en', onSuccess }: LoginProps) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  // Read aloud mode: the page when it shows, a problem as soon as it appears.
+  useAutoRead(
+    error ? `login-error:${attempt}` : attempt === 0 ? 'staff-login' : null,
+    () => (error ? [error] : [t(lang, 'staff.login_title')]),
+    lang,
+  );
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAttempt((n) => n + 1);
     if (!email.trim() || !password) {
       setError(t(lang, 'staff.missing_fields'));
       return;

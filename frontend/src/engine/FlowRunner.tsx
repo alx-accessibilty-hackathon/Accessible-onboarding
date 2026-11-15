@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { announce } from '../a11y/announce';
 import { focusHeading } from '../a11y/focus';
+import { useAutoRead } from '../a11y/modes';
 import { rememberHostTitle, restoreHostTitle, setStepTitle } from '../a11y/title';
 import type { FieldError } from '../api/client';
 import { Banner } from '../components/Banner';
@@ -20,6 +21,7 @@ import { CheckAnswers } from '../screens/CheckAnswers';
 import { DoneScreen } from '../screens/DoneScreen';
 import type { ErrorItem } from '../screens/ErrorSummary';
 import { isInputStep, QuestionScreen, type InputMethod } from '../screens/QuestionScreen';
+import type { VoiceClipOutcome } from '../voice/types';
 import type { Audience, OptionContext, ReferralPartner } from './options';
 import { computePath, computeProgress, type ProgressState } from './progress';
 import { createInitialState, engineReducer } from './reducer';
@@ -55,8 +57,9 @@ export interface FlowHooks {
   onStepChange?: (step: Step, progress: ProgressState, state: EngineState) => void;
   /** Send from Check your answers. On ok the flow moves on to Done. */
   onSubmit?: (state: EngineState, path: Step[]) => Promise<SubmitOutcome>;
-  /** A recorded voice clip: return the text for the field, or null if it couldn't be done. */
-  onVoiceClip?: (clipId: string, step: Step) => Promise<string | null>;
+  /** A recorded voice clip: return the text for the field (and the speech service that made
+   * it), an error code, or null if it couldn't be done. */
+  onVoiceClip?: (clipId: string, step: Step) => Promise<string | VoiceClipOutcome | null>;
   onSpeechConsent?: (granted: boolean) => void;
 }
 
@@ -75,6 +78,8 @@ export interface FlowRunnerProps {
   submitLabelKey?: string;
   renderStepExtra?: (step: Step, state: EngineState) => ReactNode;
   renderDone?: (step: Step, state: EngineState) => ReactNode;
+  /** A choice question whose options didn't load (or there are none): what to show instead. */
+  renderNoOptions?: (step: Step) => ReactNode;
   jobPostingJsonLd?: object | null;
   referralOrg?: string | null;
 }
@@ -109,6 +114,7 @@ function FlowRunnerInner({
   submitLabelKey,
   renderStepExtra,
   renderDone,
+  renderNoOptions,
   jobPostingJsonLd,
   referralOrg,
 }: FlowRunnerProps & { flow: Flow }) {
@@ -169,6 +175,14 @@ function FlowRunnerInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.currentId]);
 
+  // Read aloud mode: a problem sending is read as soon as it shows.
+  const [submitAttempt, setSubmitAttempt] = useState(0);
+  useAutoRead(
+    submitError ? `submit-error:${submitAttempt}` : null,
+    () => [t(lang, `errors.${submitError}`)],
+    lang,
+  );
+
   if (!step) return <p>{t(lang, 'errors.unknown_question')}</p>;
 
   const answer = state.answers[step.id];
@@ -222,22 +236,27 @@ function FlowRunnerInner({
       setErrorAttempt((n) => n + 1);
     } else {
       setSubmitError(outcome.code);
+      setSubmitAttempt((n) => n + 1);
       announce(t(lang, `errors.${outcome.code}`));
     }
   };
 
-  const handleVoiceClip = async (clipId: string) => {
+  // A recorded clip became text: put it in the field (a single choice is matched to an option
+  // by the voice input itself). The voice input says and shows what was heard.
+  const handleVoiceClip = async (clipId: string): Promise<VoiceClipOutcome | null> => {
     const onVoiceClip = hooksRef.current?.onVoiceClip;
     if (!onVoiceClip) {
       announce(t(lang, 'errors.speech_unavailable'));
-      return;
+      return { code: 'speech_unavailable' };
     }
-    const text = await onVoiceClip(clipId, step);
-    if (text === null) return;
-    if (stateRef.current.currentId === step.id) {
-      dispatch({ type: 'ANSWER', stepId: step.id, value: text, inputMethod: 'voice' });
-      announce(`${t(lang, 'voice.filled')} ${text}`);
+    const res = await onVoiceClip(clipId, step);
+    if (res === null) return null;
+    const outcome: VoiceClipOutcome = typeof res === 'string' ? { text: res, raw: res } : res;
+    if ('code' in outcome) return outcome;
+    if (step.type !== 'single_choice' && stateRef.current.currentId === step.id) {
+      dispatch({ type: 'ANSWER', stepId: step.id, value: outcome.text, inputMethod: 'voice' });
     }
+    return outcome;
   };
 
   const showBack = state.history.length > 0 && step.type !== 'done';
@@ -326,12 +345,14 @@ function FlowRunnerInner({
           voice={
             voice
               ? {
-                  onPending: (clipId) => void handleVoiceClip(clipId),
+                  onPending: (clipId) => handleVoiceClip(clipId),
                   onSpeechConsent: hooks?.onSpeechConsent,
                 }
               : null
           }
           extra={renderStepExtra?.(step, state)}
+          progressText={isInputStep(step) ? progressText : undefined}
+          noOptions={renderNoOptions?.(step)}
         />
       )}
     </div>

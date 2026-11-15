@@ -1,4 +1,5 @@
 import needsVocab from '@shared/vocab/needs.json';
+import { useId } from 'react';
 import { t } from '../i18n/t';
 
 export interface JobFilterProps {
@@ -8,6 +9,8 @@ export interface JobFilterProps {
 }
 
 export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
+  const hintId = `${useId()}-hint`;
+
   const handleToggle = (code: string) => {
     if (selectedNeeds.includes(code)) {
       onChange(selectedNeeds.filter((c) => c !== code));
@@ -22,11 +25,13 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
 
   return (
     <fieldset
+      aria-describedby={hintId}
       style={{
         border: '2px solid var(--bo-border-subtle)',
         borderRadius: 'var(--bo-radius)',
         padding: 'var(--bo-space-3) var(--bo-space-4)',
         margin: 0,
+        minWidth: 0,
         backgroundColor: 'var(--bo-surface)',
       }}
     >
@@ -41,16 +46,14 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
         {t(lang, 'jobs.filter_title')}
       </legend>
 
-      <p className="bo-hint" style={{ margin: '0 0 var(--bo-space-3) 0' }}>
-        {lang === 'am'
-          ? 'እርስዎን የሚረዱ ድጋፎችን ይምረጡ፤ ስራዎች በስልክዎ ላይ በቀጥታ ይጣራሉ (ምርጫዎችዎ ሚስጥራዊ ናቸው)።'
-          : 'Select the accommodations you need. Matching happens entirely on your phone (your needs stay private).'}
+      <p id={hintId} className="bo-hint" style={{ margin: '0 0 var(--bo-space-3) 0' }}>
+        {t(lang, 'jobs.filter_hint')}
       </p>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(13em, 100%), 1fr))',
           gap: 'var(--bo-space-2)',
         }}
       >
@@ -81,8 +84,8 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
                 checked={isChecked}
                 onChange={() => handleToggle(item.code)}
                 style={{
-                  width: '20px',
-                  height: '20px',
+                  width: '1.1em',
+                  height: '1.1em',
                   accentColor: 'var(--bo-primary)',
                   cursor: 'pointer',
                   flexShrink: 0,
@@ -93,6 +96,7 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
                   fontSize: '0.9em',
                   color: 'var(--bo-text)',
                   fontWeight: isChecked ? 600 : 400,
+                  minWidth: 0,
                 }}
               >
                 {labelText}
@@ -112,7 +116,7 @@ export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
             onClick={handleClear}
             style={{ fontSize: '0.9em' }}
           >
-            {lang === 'am' ? 'ሁሉንም አጽዳ' : 'Clear all filters'}
+            {t(lang, 'jobs.clear_filters')}
           </button>
         </div>
       )}

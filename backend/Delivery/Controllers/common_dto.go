@@ -175,6 +175,8 @@ func respondError(c *gin.Context, err error) {
 		status, code, title = http.StatusConflict, "already_exists", "Already exists"
 	case errors.Is(err, domain.ErrAlreadySubmitted):
 		status, code, title = http.StatusConflict, "already_submitted", "Already submitted"
+	case errors.Is(err, domain.ErrNotRegistered):
+		status, code, title = http.StatusConflict, "not_registered", "Finish signing up first"
 	case errors.Is(err, domain.ErrRateLimited):
 		status, code, title = http.StatusTooManyRequests, "rate_limited", "Too many requests"
 	case errors.Is(err, domain.ErrSpeechUnavailable):

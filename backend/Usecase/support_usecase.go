@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -74,4 +75,29 @@ func (uc *SupportUsecase) Save(ctx context.Context, actor domain.Actor, regID uu
 		return time.Time{}, err
 	}
 	return uc.SupportRepo.Upsert(ctx, reg.LearnerID, nonce, ciphertext, req.ShareCourses, req.ShareEmployers)
+}
+
+// openSupportRequest decrypts a stored support request (the learner ID is the additional
+// data). Callers decide who may see it: the learner themself (GET /me), or an employer the
+// learner attached it to (with an audit log row).
+func openSupportRequest(sec domain.SecurityService, s *domain.SealedSupportRequest) (*domain.SupportRequest, error) {
+	plaintext, err := sec.Decrypt(s.Nonce, s.Ciphertext, s.LearnerID.String())
+	if err != nil {
+		return nil, fmt.Errorf("decrypt support request: %w", err)
+	}
+	var p supportPayload
+	if err := json.Unmarshal(plaintext, &p); err != nil {
+		return nil, fmt.Errorf("read support request: %w", err)
+	}
+	if p.Needs == nil {
+		p.Needs = []string{}
+	}
+	return &domain.SupportRequest{
+		LearnerID:      s.LearnerID,
+		Needs:          p.Needs,
+		OtherText:      p.OtherText,
+		ShareCourses:   s.ShareCourses,
+		ShareEmployers: s.ShareEmployers,
+		UpdatedAt:      s.UpdatedAt,
+	}, nil
 }

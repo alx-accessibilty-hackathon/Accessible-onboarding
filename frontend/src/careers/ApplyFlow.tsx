@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { announce } from '../a11y/announce';
+import { useAutoRead } from '../a11y/modes';
+import { keyPart } from '../a11y/readParts';
+import type { Part } from '../a11y/speaker';
+import { ListenButton } from '../i18n/ReadAloud';
 import { isMarkedRegistered, loadSession, type LearnerSession } from '../api/auth';
 import { ApiError, errorCode, type ApiConfig } from '../api/client';
 import { submitApplication, type ApplicationAnswerItem } from '../api/applications';
@@ -104,6 +108,21 @@ export function ApplyFlow({
     if (status === 'signup_needed' || failed) headingRef.current?.focus();
   }, [status, failed]);
 
+  // Read aloud mode: these screens are read like the sign-up screens.
+  const problemParts = (): Part[] => [
+    keyPart(lang, 'apply.problem_title'),
+    t(lang, `errors.${jobError ?? errorCodeText}`),
+  ];
+  const signupFirstParts = (): Part[] => [
+    keyPart(lang, 'apply.signup_first_title'),
+    t(lang, 'apply.signup_first_body', { title: job?.title ?? '' }),
+  ];
+  useAutoRead(
+    failed ? 'apply:problem' : status === 'signup_needed' ? 'apply:signup-first' : null,
+    () => (failed ? problemParts() : signupFirstParts()),
+    lang,
+  );
+
   const hooks = useMemo<FlowHooks>(
     () => ({
       onStepChange: (step, progress) =>
@@ -137,9 +156,9 @@ export function ApplyFlow({
       onVoiceClip: async (clipId, step) => {
         if (!session) return null;
         const res = await transcribeClip({ ...api, token: session.token }, clipId, step, lang);
-        if ('text' in res) return res.text;
+        if ('text' in res) return res; // with `provider`: "mock" is the test voice service
         announce(t(lang, `errors.${res.code}`));
-        return null;
+        return res;
       },
     }),
     [api, emit, jobId, lang, session],
@@ -159,6 +178,7 @@ export function ApplyFlow({
           <Button variant="secondary" onClick={onBackToJobs}>
             {t(lang, 'jobs.back_to_jobs')}
           </Button>
+          <ListenButton lang={lang} parts={problemParts} />
         </div>
       </div>
     );
@@ -182,6 +202,7 @@ export function ApplyFlow({
           <Button variant="secondary" onClick={onBackToJobs}>
             {t(lang, 'jobs.back_to_jobs')}
           </Button>
+          <ListenButton lang={lang} parts={signupFirstParts} />
         </div>
       </div>
     );
@@ -200,7 +221,12 @@ export function ApplyFlow({
         hooks={hooks}
         manageTitle={manageTitle}
         renderStepExtra={(step) =>
-          step.id === 'contact_confirm' ? <ContactDetails lang={lang} answers={contact} /> : null
+          step.id === 'contact_confirm' ? (
+            <>
+              <ContactDetails lang={lang} answers={contact} />
+              <p className="bo-hint">{t(lang, 'apply.contact_change_note')}</p>
+            </>
+          ) : null
         }
         renderDone={() => (
           <div className="bo-actions">
@@ -227,7 +253,9 @@ function ContactDetails({ lang, answers }: { lang: string; answers: Record<strin
         {typeof name === 'string' && name && (
           <div>
             <dt style={{ fontWeight: 700 }}>{t(lang, 'signup.full_name.title')}</dt>
-            <dd style={{ margin: 0 }}>{name}</dd>
+            <dd data-bo-private="" style={{ margin: 0 }}>
+              {name}
+            </dd>
           </div>
         )}
         {typeof method === 'string' && method && (
@@ -239,7 +267,9 @@ function ContactDetails({ lang, answers }: { lang: string; answers: Record<strin
         {typeof phone === 'string' && phone && (
           <div>
             <dt style={{ fontWeight: 700 }}>{t(lang, 'signup.phone.title')}</dt>
-            <dd style={{ margin: 0 }}>{formatEthiopianPhoneDisplay(phone)}</dd>
+            <dd data-bo-private="" style={{ margin: 0 }}>
+              {formatEthiopianPhoneDisplay(phone)}
+            </dd>
           </div>
         )}
       </dl>

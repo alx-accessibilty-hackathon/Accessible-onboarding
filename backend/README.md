@@ -140,18 +140,51 @@ The files follow goose's format and are embedded in the binary. `go run . migrat
 
 Only SHA-256 hashes of tokens are stored. Staff passwords use bcrypt.
 
+The partner key may also come from the query string (`?key=` or `?partner_key=`) when the `X-Partner-Key` header is missing; the allowed-origin check is the same.
+
 **Built:**
 - **Registrations:** answers, progress, submit, the support request (encrypted) and consents
 - **Continue on another device:** resume links, lookup and verify
-- **Jobs:** public jobs, JobPosting JSON-LD, employer jobs and applications
-- **Platform:** `/config`, speech-to-text (mock, Azure, local), the partner API (list and detail) and the partner-staff consent code
+- **The learner's own data (`/me`):** see, change and delete (below)
+- **Jobs:** public jobs, JobPosting JSON-LD, employer jobs, applications, and the employer's view of the applications to their jobs
+- **Partner staff:** the consent code and the referral queue (below)
+- **Platform:** `/config`, speech-to-text (mock, Azure, local), the partner API (list and detail)
 - **Running it:** `migrate` and `seed`, the dev SMS inbox, and Docker
 
 **Not built yet (Shoulds):**
 - learner phone-code sign-in
-- `/me` (see, download, delete)
-- the other partner-staff routes (start a registration for a learner, confirm consent, attest, referral queue)
+- downloading `/me` as a file
+- the other partner-staff routes (start a registration for a learner, confirm consent, attest)
 - the support inbox
-- employer applications view
 - JobPosting import and feed
 - the Telegram bot replies
+
+### Learner profile, referral queue, employer applications
+
+Errors use the usual shape `{status, code, title, errors: [{field, code}]}`.
+
+**`GET /api/v1/me`** (partner key + learner token): the learner's own data. The support request is decrypted here only, because it is theirs.
+
+```json
+{ "learner_id": "…", "registration_id": "…", "status": "registered",
+  "full_name": "Abebe Kebede", "preferred_name": "", "contact_method": "phone", "phone": "+251912345678",
+  "dob": { "iso": "2017-09-25", "calendar": "ethiopian" }, "language": "am", "simple_mode": false,
+  "identity": { "route": "other_document", "doc_type": "kebele_letter", "level": "self_declared", "has_last4": false },
+  "support": { "needs": ["screen_reader"], "other_text": "", "share_with": { "courses": false, "employers": true } },
+  "referral": { "partner_name": "AAAPD", "status": "requested", "contact_preference": "in_person" },
+  "registered_at": "2026-11-15T09:32:02Z" }
+```
+
+`dob`, `identity`, `support`, `referral` and `registered_at` are `null` when there is nothing.
+
+**`PATCH /api/v1/me`**: only the fields sent change: `full_name`, `preferred_name`, `contact_method`, `phone`, `dob` (same value as the sign-up answer; `null` clears it), `language`, `simple_mode`. Each field is checked with the rule of the sign-up step of the same name, and errors name the field (`{"field":"phone","code":"phone_invalid"}`). Contact by `partner` or `none` clears the stored phone, including the phone answer saved at sign-up. Contact by `phone` or `telegram` with no phone stored or sent is `422 {field: "phone", code: "required"}`. Before submit, only `language` and `simple_mode` may change; anything else is `409 not_registered`. Answers `200` with the `GET /me` body. Support needs are changed with `PUT /registrations/{id}/support-request`.
+
+**`DELETE /api/v1/me`**: `204`. In one transaction: deletes the learner (registrations, answers, resume tokens, identity evidence, referrals, the support request, consents, applications and verification codes cascade), deletes their sessions (and staff sessions acting for them), and writes an `audit_log` row (`learner`, `learner.deleted`, target `learner`, no personal data). The token stops working (`401`).
+
+**`GET /api/v1/partner/referrals`** (staff token, role `partner_staff`): referrals to the staff member's own organisation, newest first: `{ "items": [{ "id", "status", "contact_preference", "created_at", "learner": { "learner_id", "full_name", "preferred_name", "contact_method", "phone", "language" } }], "next_cursor": null }`.
+
+**`PATCH /api/v1/partner/referrals/{id}`** (`partner_staff`), body `{ "status": "in_progress" | "closed" }`: `200` with one item. Another organisation's referral is `404`.
+
+**`GET /api/v1/employer/jobs/{id}/applications`** (staff token, role `employer`): applications to the employer's own job, newest first: `{ "items": [{ "id", "status", "created_at", "answers", "attach_support", "applicant": { "full_name", "preferred_name", "contact_method", "phone", "language" }, "support": { "needs", "other_text" } | null }], "next_cursor": null }`. `support` is filled only when the applicant attached it to that application, and each decrypt writes an `audit_log` row (`staff`, `support_request.read`, target `learner`, meta `{"job_id": …}`). Another employer's job is `404`.
+
+**Date answers** may leave out `iso`: the API computes it from the `ethiopian` part or from a flat `{ "calendar", "year", "month", "day" }`, and stores `{ calendar, ethiopian?, iso }`.

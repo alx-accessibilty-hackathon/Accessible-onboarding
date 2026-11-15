@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Savanna | My profile</title>
+    <link rel="stylesheet" href="./savanna.css" />
+  </head>
+  <body>
+    <header class="savanna-nav">
+      <a href="./home.html" class="savanna-logo">
+        <span>🌱 Savanna</span>
+      </a>
+      <nav>
+        <ul class="savanna-nav-links">
+          <li><a href="./home.html">Dashboard</a></li>
+          <li><a href="./jobs.html">Careers</a></li>
+          <li><a href="./signup.html">Sign Up</a></li>
+          <li><a href="./profile.html" class="active" aria-current="page">My profile</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="savanna-container">
+      <div class="savanna-card" style="max-width: 640px; margin: 0 auto">
+        <!-- See, change or delete my data (GET, PATCH and DELETE /me) -->
+        <bridge-onboarding partner="pk_demo_savanna" flow="profile"></bridge-onboarding>
+      </div>
+    </main>
+
+    <script type="module" src="/src/widget/element.tsx"></script>
+  </body>
+</html>

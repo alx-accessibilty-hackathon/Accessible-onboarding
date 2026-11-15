@@ -64,15 +64,18 @@ export function engineReducer(state: EngineState, action: EngineAction): EngineS
 
       // If returning to Check your answers
       if (state.returnTo) {
-        // A changed answer can open a new branch (e.g. phone after "Phone call or SMS"):
-        // ask its unanswered questions first, then go back to Check your answers.
+        // A changed answer can open a new branch (e.g. phone after "Phone call or SMS", or the
+        // last 4 letters after "Passport" instead of "Letter from the kebele"): ask its new
+        // questions first, then go back to Check your answers. A question already seen (even
+        // left empty with Continue) is not new.
         const branchId = nextStepId(state.flow, state.currentId, state.answers);
         const branchStep = branchId ? state.flow.steps.find((s) => s.id === branchId) : undefined;
         if (
           branchStep &&
           branchStep.id !== state.returnTo &&
           !['info', 'consent', 'check_answers', 'done'].includes(branchStep.type) &&
-          state.answers[branchStep.id] === undefined
+          state.answers[branchStep.id] === undefined &&
+          !state.history.includes(branchStep.id)
         ) {
           return {
             ...state,

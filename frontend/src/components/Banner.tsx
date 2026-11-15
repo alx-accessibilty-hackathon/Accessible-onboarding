@@ -9,6 +9,8 @@ interface BannerProps {
   /** Called when the user dismisses the banner. Omit to hide the dismiss button. */
   onDismiss?: () => void;
   className?: string;
+  /** No live role: the message is said through the one live region (announce()) instead. */
+  quiet?: boolean;
 }
 
 const iconName: Record<BannerVariant, string> = {
@@ -27,8 +29,8 @@ const variantClass: Record<BannerVariant, string> = {
  * Banner for inline messages.
  * Errors use role="alert" (assertive); info/success use role="status" (polite).
  */
-export function Banner({ variant, children, onDismiss, className }: BannerProps) {
-  const role = variant === 'error' ? 'alert' : 'status';
+export function Banner({ variant, children, onDismiss, className, quiet = false }: BannerProps) {
+  const role = quiet ? undefined : variant === 'error' ? 'alert' : 'status';
   const cls = className ? `${variantClass[variant]} ${className}` : variantClass[variant];
 
   return (

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import { forwardRef, type ButtonHTMLAttributes } from 'react';
 
 // Primary: one per screen (Continue, Submit, Keep). Secondary: Say again, Skip. Link: Back, Change.
 type Variant = 'primary' | 'secondary' | 'link';
@@ -13,7 +13,10 @@ const classes: Record<Variant, string> = {
   link: 'bo-link',
 };
 
-export function Button({ variant = 'primary', type = 'button', className, ...rest }: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = 'primary', type = 'button', className, ...rest },
+  ref,
+) {
   const cls = className ? `${classes[variant]} ${className}` : classes[variant];
-  return <button type={type} className={cls} {...rest} />;
-}
+  return <button ref={ref} type={type} className={cls} {...rest} />;
+});

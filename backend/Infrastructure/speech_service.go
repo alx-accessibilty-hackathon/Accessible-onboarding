@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -291,4 +292,53 @@ func convertToWav(ctx context.Context, input []byte) ([]byte, error) {
 		return nil, fmt.Errorf("ffmpeg error: %w (stderr: %s)", err, stderr.String())
 	}
 	return stdout.Bytes(), nil
+}
+
+// ttsVoices: the Azure neural voice per language for read-aloud. Languages without a voice
+// here answer ErrSpeechUnavailable, and the widget falls back to recordings or the device voice.
+var ttsVoices = map[string]struct{ locale, voice string }{
+	"am": {"am-ET", "am-ET-MekdesNeural"},
+	"en": {"en-US", "en-US-JennyNeural"},
+}
+
+// Synthesize reads text aloud with Azure text-to-speech (needs AZURE_SPEECH_KEY and
+// AZURE_SPEECH_REGION) and returns MP3 audio. The widget only sends fixed interface text here,
+// never a learner's own answers.
+func (s *SpeechService) Synthesize(ctx context.Context, text, language string) ([]byte, error) {
+	v, ok := ttsVoices[strings.ToLower(strings.SplitN(language, "-", 2)[0])]
+	if !ok || s.azureKey == "" || s.azureRegion == "" || s.isBreakerOpen("azure-tts") {
+		return nil, domain.ErrSpeechUnavailable
+	}
+	var escaped bytes.Buffer
+	if err := xml.EscapeText(&escaped, []byte(text)); err != nil {
+		return nil, err
+	}
+	ssml := fmt.Sprintf(`<speak version="1.0" xml:lang="%s"><voice name="%s">%s</voice></speak>`, v.locale, v.voice, escaped.String())
+
+	url := fmt.Sprintf("https://%s.tts.speech.microsoft.com/cognitiveservices/v1", s.azureRegion)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(ssml))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Ocp-Apim-Subscription-Key", s.azureKey)
+	req.Header.Set("Content-Type", "application/ssml+xml")
+	req.Header.Set("X-Microsoft-OutputFormat", "audio-24khz-48kbitrate-mono-mp3")
+	req.Header.Set("User-Agent", "bridge-onboarding")
+
+	res, err := s.httpClient.Do(req)
+	if err != nil {
+		s.recordFailure("azure-tts")
+		return nil, domain.ErrSpeechUnavailable
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		s.recordFailure("azure-tts")
+		return nil, domain.ErrSpeechUnavailable
+	}
+	audio, err := io.ReadAll(io.LimitReader(res.Body, 5<<20))
+	if err != nil {
+		return nil, err
+	}
+	s.recordSuccess("azure-tts")
+	return audio, nil
 }

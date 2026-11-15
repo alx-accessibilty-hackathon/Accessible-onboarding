@@ -21,6 +21,11 @@ type Controllers struct {
 	Job          *controllers.JobController
 	Application  *controllers.ApplicationController
 	Learner      *controllers.LearnerController
+
+	// Round 3. Left nil (as in the router tests), their routes answer 501.
+	Me                  *controllers.MeController
+	Referral            *controllers.ReferralController
+	EmployerApplication *controllers.EmployerApplicationController
 }
 
 // Middlewares groups the middleware set up in main.go. A nil handler lets requests through
@@ -117,6 +122,7 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 		widget.GET("/jobs/:id", ctrl.Job.GetJobController)
 		widget.POST("/resume/lookup", mw.strict(), ctrl.Registration.ResumeLookupController)
 		widget.POST("/resume/verify", mw.strict(), ctrl.Registration.ResumeVerifyController)
+		widget.POST("/speech/synthesis", ctrl.Speech.SynthesizeController) // read aloud, fixed text only
 	}
 
 	// Learner routes: partner key + learner token
@@ -131,6 +137,9 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 		learner.POST("/registrations/:id/submit", ctrl.Registration.SubmitRegistrationController)
 		learner.POST("/speech/transcriptions", ctrl.Speech.TranscribeController)
 		learner.POST("/jobs/:id/applications", ctrl.Application.CreateApplicationController)
+		learner.GET("/me", ctrl.Me.GetMeController)
+		learner.PATCH("/me", ctrl.Me.UpdateMeController)
+		learner.DELETE("/me", ctrl.Me.DeleteMeController)
 	}
 
 	// Staff routes: staff token
@@ -143,11 +152,14 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 			employer.GET("/jobs", ctrl.Job.ListEmployerJobsController)
 			employer.POST("/jobs", ctrl.Job.CreateEmployerJobController)
 			employer.POST("/jobs/:id/publish", ctrl.Job.PublishEmployerJobController)
+			employer.GET("/jobs/:id/applications", ctrl.EmployerApplication.ListJobApplicationsController)
 		}
 
 		partnerStaff := staff.Group("/partner", infrastructure.RequireRole("partner_staff"))
 		{
 			partnerStaff.POST("/registrations/:id/consent-code", ctrl.Registration.SendConsentCodeController)
+			partnerStaff.GET("/referrals", ctrl.Referral.ListPartnerReferralsController)
+			partnerStaff.PATCH("/referrals/:id", ctrl.Referral.UpdatePartnerReferralController)
 		}
 	}
 
@@ -164,8 +176,8 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 	}
 
 	// Should endpoints still to build (see TECHNICAL_PLAN_LITE.md): learner phone-code sign-in,
-	// /me (see, download, delete), the rest of the partner staff routes (E1), /support/requests,
-	// employer applications, JobPosting import and feed.
+	// downloading /me, the rest of the partner staff routes (E1), /support/requests,
+	// JobPosting import and feed.
 
 	return router
 }

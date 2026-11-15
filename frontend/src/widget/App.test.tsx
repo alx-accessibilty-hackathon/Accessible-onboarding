@@ -1,10 +1,14 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
 describe('App (widget root)', () => {
-  it('shows the first sign-up step as the page heading', () => {
+  // The chosen language is remembered on the device: start each test without one.
+  beforeEach(() => localStorage.clear());
+
+  it('asks for the language first, then shows the first sign-up step as the page heading', () => {
     render(<App flow="signup" lang="en" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Sign up to learn with us');
   });
 

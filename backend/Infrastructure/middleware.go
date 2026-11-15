@@ -84,9 +84,17 @@ func (p OriginPolicy) devAllows(origin string) bool {
 // PartnerKeyMiddleware reads X-Partner-Key, finds the partner (401 if unknown) and checks that
 // the browser's Origin is one of the partner's allowed origins (403 otherwise). Requests
 // without an Origin header (curl, a server) are not browser calls and pass the origin check.
+// Without the header, the key may come from the query string (?key= or ?partner_key=), for
+// links and pages that can't set headers; the origin check is the same.
 func PartnerKeyMiddleware(partners PartnerLookup, policy OriginPolicy) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := strings.TrimSpace(c.GetHeader("X-Partner-Key"))
+		if key == "" {
+			key = strings.TrimSpace(c.Query("key"))
+		}
+		if key == "" {
+			key = strings.TrimSpace(c.Query("partner_key"))
+		}
 		if key == "" {
 			abort(c, http.StatusUnauthorized, "partner_key_missing", "X-Partner-Key header is missing")
 			return
@@ -105,6 +113,7 @@ func PartnerKeyMiddleware(partners PartnerLookup, policy OriginPolicy) gin.Handl
 			abort(c, http.StatusForbidden, "origin_not_allowed", "This website may not use this partner key")
 			return
 		}
+		c.Set("partner_key", key) // the key as resolved here (GET /config reads it)
 		SetActor(c, domain.Actor{Kind: domain.ActorAnonymous, PartnerID: partner.ID})
 		c.Next()
 	}

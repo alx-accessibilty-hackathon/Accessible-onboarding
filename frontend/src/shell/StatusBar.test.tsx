@@ -14,7 +14,7 @@ describe('shell/StatusBar', () => {
     vi.spyOn(outbox, 'pendingCount').mockResolvedValue(0);
 
     render(<StatusBar lang="en" registrationId="reg_1" />);
-    expect(await screen.findByText('Saved to your account')).toBeInTheDocument();
+    expect(await screen.findByText('Saved online')).toBeInTheDocument();
   });
 
   it('shows saved on this phone only when online but outbox has pending items', async () => {

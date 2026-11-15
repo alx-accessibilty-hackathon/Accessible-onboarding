@@ -110,3 +110,24 @@ func (sc *SpeechController) TranscribeController(c *gin.Context) {
 
 	c.JSON(http.StatusOK, toTranscriptionDTO(transcription))
 }
+
+// POST /api/v1/speech/synthesis (partner key)
+// Reads fixed interface text aloud: 200 audio/mpeg, or 503 speech_unavailable when no voice
+// exists for the language (the widget then uses recordings or the device's own voice).
+func (sc *SpeechController) SynthesizeController(c *gin.Context) {
+	if sc.SpeechUc == nil {
+		notImplemented(c)
+		return
+	}
+	var req SynthesizeRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	audio, err := sc.SpeechUc.Synthesize(c.Request.Context(), req.Text, req.Language)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=86400")
+	c.Data(http.StatusOK, "audio/mpeg", audio)
+}

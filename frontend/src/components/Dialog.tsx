@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
+import { useAutoRead } from '../a11y/modes';
+import type { Part } from '../a11y/speaker';
+import { ListenButton } from '../i18n/ReadAloud';
+import { t } from '../i18n/t';
 import { Icon } from './Icon';
 
 interface DialogProps {
@@ -10,15 +14,28 @@ interface DialogProps {
   title: string;
   children: ReactNode;
   className?: string;
+  /** The widget language: the close button is named in it. */
+  lang?: string;
+  /** What the dialog says: read when it opens (Read aloud mode) and by its Listen button. */
+  readParts?: () => Part[];
 }
 
 /**
  * Modal dialog using the native `<dialog>` element.
  * Focus is trapped while open; focus returns to the opener on close.
  */
-export function Dialog({ open, onClose, title, children, className }: DialogProps) {
+export function Dialog({
+  open,
+  onClose,
+  title,
+  children,
+  className,
+  lang,
+  readParts,
+}: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const openerRef = useRef<Element | null>(null);
+  const id = useId();
 
   // Open / close the native dialog and manage focus restoration.
   useEffect(() => {
@@ -40,6 +57,9 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
       openerRef.current = null;
     }
   }, [open]);
+
+  // Read aloud mode: say what the dialog says when it opens (after focus moved into it).
+  useAutoRead(open && readParts ? `dialog:${id}` : null, readParts ?? (() => []), lang ?? 'en');
 
   // Handle backdrop clicks using native event listener to satisfy jsx-a11y
   useEffect(() => {
@@ -73,9 +93,17 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
     <dialog ref={dialogRef} className={cls} onCancel={handleCancel} aria-label={title}>
       <div className="bo-dialog-header">
         <h2 className="bo-dialog-title">{title}</h2>
-        <button type="button" className="bo-dialog-close" onClick={onClose} aria-label="Close">
-          <Icon name="close" />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--bo-space-2)' }}>
+          {open && readParts && lang && <ListenButton lang={lang} parts={readParts} />}
+          <button
+            type="button"
+            className="bo-dialog-close"
+            onClick={onClose}
+            aria-label={lang ? t(lang, 'common.close') : 'Close'}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
       </div>
       <div className="bo-dialog-body">{children}</div>
     </dialog>

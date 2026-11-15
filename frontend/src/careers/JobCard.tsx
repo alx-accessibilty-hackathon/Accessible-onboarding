@@ -1,6 +1,6 @@
-import needsVocab from '@shared/vocab/needs.json';
 import { Button } from '../components/Button';
 import { t } from '../i18n/t';
+import { jobLocation, jobSummary, matchText as matchTextOf, supportLabels } from './jobText';
 import type { MatchedJob } from './match';
 
 export interface JobCardProps {
@@ -11,18 +11,19 @@ export interface JobCardProps {
 }
 
 export function JobCard({ matched, lang, onApply, onViewDetails }: JobCardProps) {
-  const { job, matchedCount, totalSelected, isFullMatch } = matched;
+  const { job, totalSelected, isFullMatch } = matched;
 
-  // Lookup accommodation employer labels
-  const accommodationLabels = (job.accommodations ?? [])
-    .filter((c) => c !== 'other')
-    .map((code) => {
-      const item = needsVocab.items.find((n) => n.code === code);
-      return item ? t(lang, item.employer) : code;
-    });
+  const accommodationLabels = supportLabels(job, lang);
+  const location = jobLocation(job, lang);
+  const matchText = matchTextOf(matched, lang);
+  const supportsLabel = t(lang, 'jobs.supports_offered');
+  // Read aloud mode: said when focus moves into this card (title, employer, place, type of
+  // work, how many of the chosen supports it offers, the supports).
+  const summary = jobSummary(matched, lang).join('. ');
 
   return (
     <article
+      data-bo-context={summary}
       style={{
         padding: 'var(--bo-space-4)',
         borderRadius: 'var(--bo-radius)',
@@ -46,33 +47,26 @@ export function JobCard({ matched, lang, onApply, onViewDetails }: JobCardProps)
           gap: 'var(--bo-space-2)',
         }}
       >
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h2 style={{ margin: '0 0 var(--bo-space-1) 0', fontSize: '1.25em' }}>{job.title}</h2>
           <p style={{ margin: 0, fontWeight: 600, color: 'var(--bo-text-muted)' }}>
-            {job.employer?.name} •{' '}
-            {job.location_text || t(lang, `employer.location_type.${job.location_type}`)}
+            {job.employer?.name} • {location}
           </p>
         </div>
 
         {totalSelected > 0 && (
           <div
             style={{
-              padding: '4px 10px',
-              borderRadius: '16px',
+              padding: '0.2em 0.6em',
+              borderRadius: 'var(--bo-radius)',
               fontSize: '0.85em',
               fontWeight: 700,
               backgroundColor: isFullMatch ? 'var(--bo-selected-bg)' : 'var(--bo-info-bg)',
-              color: isFullMatch ? 'var(--bo-primary)' : 'var(--bo-text)',
+              color: isFullMatch ? 'var(--bo-primary-hover)' : 'var(--bo-text)',
               border: `1px solid ${isFullMatch ? 'var(--bo-primary)' : 'var(--bo-border-strong)'}`,
             }}
           >
-            {isFullMatch
-              ? lang === 'am'
-                ? `የመረጧቸውን ሁሉንም ${totalSelected} ድጋፎች ያሟላል`
-                : `Offers all ${totalSelected} supports you chose`
-              : lang === 'am'
-                ? `ከመረጧቸው ውስጥ ${matchedCount} ከ ${totalSelected} ድጋፎችን ያሟላል`
-                : `Offers ${matchedCount} of ${totalSelected} supports`}
+            {matchText}
           </div>
         )}
       </div>
@@ -91,18 +85,18 @@ export function JobCard({ matched, lang, onApply, onViewDetails }: JobCardProps)
               fontWeight: 600,
               color: 'var(--bo-text-muted)',
               display: 'block',
-              marginBottom: '4px',
+              marginBottom: 'var(--bo-space-1)',
             }}
           >
-            {lang === 'am' ? 'የሚቀርቡ ድጋፎች፦' : 'Supports offered:'}
+            {supportsLabel}
           </span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--bo-space-2)' }}>
             {accommodationLabels.map((lbl, i) => (
               <span
                 key={i}
                 style={{
                   fontSize: '0.8em',
-                  padding: '3px 8px',
+                  padding: '0.2em 0.5em',
                   borderRadius: '4px',
                   backgroundColor: 'var(--bo-surface)',
                   border: '1px solid var(--bo-border-subtle)',
@@ -125,20 +119,16 @@ export function JobCard({ matched, lang, onApply, onViewDetails }: JobCardProps)
           alignItems: 'center',
         }}
       >
-        <Button
-          variant="primary"
-          onClick={() => onApply(job.id)}
-          aria-label={`${lang === 'am' ? 'ያመልክቱ ለ' : 'Apply for'} ${job.title}`}
-        >
-          {lang === 'am' ? `ያመልክቱ ለ ${job.title}` : `Apply for ${job.title}`}
+        <Button variant="primary" onClick={() => onApply(job.id)}>
+          {t(lang, 'jobs.apply_for', { title: job.title })}
         </Button>
 
         <Button
           variant="secondary"
           onClick={() => onViewDetails(job.id)}
-          aria-label={`${lang === 'am' ? 'ዝርዝር ይመልከቱ ለ' : 'View details for'} ${job.title}`}
+          aria-label={t(lang, 'jobs.view_details_for', { title: job.title })}
         >
-          {lang === 'am' ? 'ዝርዝር ይመልከቱ' : 'View details'}
+          {t(lang, 'jobs.view_details')}
         </Button>
       </div>
     </article>

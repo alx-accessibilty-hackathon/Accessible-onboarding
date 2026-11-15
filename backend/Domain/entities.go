@@ -25,6 +25,7 @@ var (
 	ErrTooManyAttempts   = errors.New("too many failed attempts")
 	ErrResumeCheckFailed = errors.New("resume check failed")
 	ErrInvalidInput      = errors.New("invalid input")
+	ErrNotRegistered     = errors.New("not registered") // 409 not_registered: finish signing up first
 )
 
 // FieldError is one problem with one field: Field is the JSON field or flow step ID,
@@ -91,7 +92,21 @@ const (
 
 	ApplicationStatusSubmitted = "submitted"
 
-	ReferralStatusRequested = "requested"
+	ReferralStatusRequested  = "requested"
+	ReferralStatusInProgress = "in_progress"
+	ReferralStatusClosed     = "closed"
+
+	ContactPhone    = "phone"
+	ContactTelegram = "telegram"
+	ContactPartner  = "partner"
+	ContactNone     = "none"
+
+	// audit_log values (actor_type, action, target_type). Meta never holds personal data.
+	AuditActorLearner         = "learner"
+	AuditActorStaff           = "staff"
+	AuditActionLearnerDeleted = "learner.deleted"
+	AuditActionSupportRead    = "support_request.read"
+	AuditTargetLearner        = "learner"
 
 	// IDRouteNone is the "I have no ID" answer: the learner is referred to a partner organisation (R7).
 	IDRouteNone          = "none"
@@ -293,6 +308,66 @@ type SupportRequest struct {
 	ShareEmployers bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+// SealedSupportRequest is a support request as stored: the needs and free text are AES-GCM
+// ciphertext (decrypt with the learner ID as additional data); the share flags are plain.
+type SealedSupportRequest struct {
+	LearnerID      uuid.UUID
+	Nonce          []byte
+	Ciphertext     []byte
+	ShareCourses   bool
+	ShareEmployers bool
+	UpdatedAt      time.Time
+}
+
+// LearnerProfile is what GET /me shows the learner: their own data (Q4).
+type LearnerProfile struct {
+	Learner             *Learner
+	Registration        *Registration     // the latest; nil if none
+	Identity            *IdentityEvidence // the latest; nil before submit
+	Support             *SupportRequest   // decrypted, only for the learner themself; nil if none
+	Referral            *Referral         // the latest; nil if none
+	ReferralPartnerName string
+}
+
+// ProfileChanges is PATCH /me: nil means "keep". DOB holds the raw date answer (same shape as
+// the sign-up "dob" answer); JSON null clears it.
+type ProfileChanges struct {
+	FullName      *string
+	PreferredName *string
+	ContactMethod *string
+	Phone         *string
+	DOB           json.RawMessage
+	Language      *string
+	SimpleMode    *bool
+}
+
+// PartnerReferral is a referral with the learner it is about, as the referral partner's
+// staff see it (R7). Only the learner's name, contact and language are filled in.
+type PartnerReferral struct {
+	Referral *Referral
+	Learner  *Learner
+}
+
+// EmployerApplication is an application as the employer of the job sees it (C3).
+// Sealed is set by the repository only when the applicant attached their support request;
+// the use case decrypts it into Support.
+type EmployerApplication struct {
+	Application *Application
+	Applicant   *Learner // name, contact and language only
+	Sealed      *SealedSupportRequest
+	Support     *SupportRequest
+}
+
+// AuditEntry is one row of audit_log. Meta never holds personal data.
+type AuditEntry struct {
+	ActorType  string
+	ActorID    *uuid.UUID
+	Action     string
+	TargetType string
+	TargetID   *uuid.UUID
+	Meta       map[string]any
 }
 
 type Consent struct {

@@ -23,6 +23,8 @@ body {
   border-bottom: 1px solid var(--savanna-border);
   padding: 16px 24px;
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   align-items: center;
 }
@@ -39,6 +41,7 @@ body {
 
 .savanna-nav-links {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
   list-style: none;
   margin: 0;
