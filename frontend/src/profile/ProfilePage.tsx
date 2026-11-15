@@ -12,7 +12,15 @@ import type { Part } from '../a11y/speaker';
 import { rememberHostTitle, restoreHostTitle, setStepTitle } from '../a11y/title';
 import { forgetEverything, loadSession, type LearnerSession } from '../api/auth';
 import { ApiError, errorCode, type ApiConfig } from '../api/client';
-import { deleteMe, fetchMe, patchMe, type ContactMethod, type Me, type MePatch } from '../api/me';
+import {
+  deleteMe,
+  exportMe,
+  fetchMe,
+  patchMe,
+  type ContactMethod,
+  type Me,
+  type MePatch,
+} from '../api/me';
 import { putSupportRequest } from '../api/registrations';
 import { Banner } from '../components/Banner';
 import { Button } from '../components/Button';
@@ -121,6 +129,9 @@ export function ProfilePage({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const questionHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -358,6 +369,36 @@ export function ProfilePage({
   };
 
   /* ---------------------------------------------------------------- */
+  /*  Data export (Q4)                                                 */
+  /* ---------------------------------------------------------------- */
+
+  const handleExport = async () => {
+    if (!learnerApi || exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const data = await exportMe(learnerApi);
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bridge-data-${(data.learner?.learner_id || 'me').slice(0, 8)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      announce(t(lang, 'profile.export_success'));
+    } catch (err) {
+      const code = errorCode(err);
+      setExportError(code);
+      announce(t(lang, `errors.${code}`));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /* ---------------------------------------------------------------- */
   /*  Deleting                                                         */
   /* ---------------------------------------------------------------- */
 
@@ -542,6 +583,7 @@ export function ProfilePage({
     const parts: Part[] = [keyPart(lang, 'profile.title'), keyPart(lang, 'profile.intro')];
     if (draft) parts.push(keyPart(lang, 'profile.draft_body'));
     for (const row of rows(me)) parts.push(row.label, ...row.spoken);
+    parts.push(keyPart(lang, 'profile.export_title'), keyPart(lang, 'profile.export_body'));
     parts.push(keyPart(lang, 'profile.delete_title'), keyPart(lang, 'profile.delete_body'));
     return parts;
   };
@@ -756,6 +798,39 @@ export function ProfilePage({
           </div>
         ))}
       </dl>
+
+      <section
+        aria-labelledby="bo-export-title"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--bo-space-3)',
+          padding: 'var(--bo-space-4)',
+          border: '2px solid var(--bo-border-strong)',
+          borderRadius: 'var(--bo-radius)',
+          background: 'var(--bo-surface)',
+        }}
+      >
+        <h2 id="bo-export-title" style={{ fontSize: '1.1em', margin: 0 }}>
+          {t(lang, 'profile.export_title')}
+        </h2>
+        <p style={{ margin: 0 }}>{t(lang, 'profile.export_body')}</p>
+        <div>
+          <Button
+            variant="secondary"
+            onClick={() => void handleExport()}
+            disabled={exporting}
+            aria-busy={exporting || undefined}
+          >
+            {t(lang, exporting ? 'profile.exporting' : 'profile.export_button')}
+          </Button>
+        </div>
+        {exportError && (
+          <Banner variant="error" quiet>
+            {t(lang, `errors.${exportError}`)}
+          </Banner>
+        )}
+      </section>
 
       <section
         aria-labelledby="bo-delete-title"

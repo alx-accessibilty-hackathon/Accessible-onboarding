@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 
 	domain "bridge/Domain"
@@ -40,6 +41,23 @@ func (mc *MeController) GetMeController(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, toMeDTO(profile))
+}
+
+// GET /api/v1/me/export
+// Streams formatted JSON of all data stored for the authenticated learner (Q4).
+func (mc *MeController) ExportMeController(c *gin.Context) {
+	if !mc.ready(c) {
+		return
+	}
+	export, err := mc.MeUc.Export(c.Request.Context(), infrastructure.ActorFrom(c))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	dto := toMeExportDTO(export)
+
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"bridge-data-%s.json\"", export.Profile.Learner.ID.String()))
+	c.IndentedJSON(http.StatusOK, dto)
 }
 
 // PATCH /api/v1/me

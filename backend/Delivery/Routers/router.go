@@ -138,6 +138,7 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 		learner.POST("/speech/transcriptions", ctrl.Speech.TranscribeController)
 		learner.POST("/jobs/:id/applications", ctrl.Application.CreateApplicationController)
 		learner.GET("/me", ctrl.Me.GetMeController)
+		learner.GET("/me/export", ctrl.Me.ExportMeController)
 		learner.PATCH("/me", ctrl.Me.UpdateMeController)
 		learner.DELETE("/me", ctrl.Me.DeleteMeController)
 	}
