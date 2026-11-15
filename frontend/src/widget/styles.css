@@ -33,6 +33,7 @@
 /* Dark theme tokens: automatically via OS preference or explicitly with data-theme="dark" */
 @media (prefers-color-scheme: dark) {
   .bo-root:not([data-theme='light']) {
+    color-scheme: dark;
     --bo-text: #f0f4f8;
     --bo-text-muted: #9eb0c6;
     --bo-bg: #0f141c;
@@ -53,6 +54,7 @@
 }
 
 .bo-root[data-theme='dark'] {
+  color-scheme: dark;
   --bo-text: #f0f4f8;
   --bo-text-muted: #9eb0c6;
   --bo-bg: #0f141c;
@@ -72,6 +74,8 @@
 }
 
 .bo-root {
+  color-scheme: light;
+  border-radius: var(--bo-radius);
 
   /*
    * Text size (the "Text size" control, 100% to 400%): --bo-scale multiplies the root font

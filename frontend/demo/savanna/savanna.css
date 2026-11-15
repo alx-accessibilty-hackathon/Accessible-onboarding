@@ -1,5 +1,6 @@
 /* Savanna theme styling for demo host pages */
 :root {
+  color-scheme: light;
   --savanna-primary: #101828;
   --savanna-accent: #026aa2;
   --savanna-bg: #f8fafc;
@@ -10,7 +11,13 @@
   --savanna-radius: 12px;
 }
 
+html {
+  background-color: var(--savanna-bg);
+  min-height: 100%;
+}
+
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --savanna-primary: #f1f5f9;
   --savanna-accent: #38bdf8;
   --savanna-bg: #0b0f17;
@@ -30,6 +37,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
+    color-scheme: dark;
     --savanna-primary: #f1f5f9;
     --savanna-accent: #38bdf8;
     --savanna-bg: #0b0f17;
@@ -110,6 +118,7 @@ body {
   border-radius: var(--savanna-radius);
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
 }
 
 .savanna-banner-card {
