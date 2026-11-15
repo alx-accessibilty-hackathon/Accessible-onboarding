@@ -18,7 +18,8 @@ import (
 )
 
 type mockSpeechUsecase struct {
-	transcribeFn func(ctx context.Context, audio []byte, language string, stepID string, fieldType string, learnerID *uuid.UUID) (*domain.Transcription, error)
+	domain.SpeechUsecaseI // methods these tests don't use
+	transcribeFn          func(ctx context.Context, audio []byte, language string, stepID string, fieldType string, learnerID *uuid.UUID) (*domain.Transcription, error)
 }
 
 func (m *mockSpeechUsecase) Transcribe(ctx context.Context, audio []byte, language string, stepID string, fieldType string, learnerID *uuid.UUID) (*domain.Transcription, error) {

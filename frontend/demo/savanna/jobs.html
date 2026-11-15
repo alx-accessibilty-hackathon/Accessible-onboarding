@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Savanna | Accessible Careers</title>
+    <link rel="stylesheet" href="./savanna.css" />
+  </head>
+  <body>
+    <header class="savanna-nav">
+      <a href="./home.html" class="savanna-logo">
+        <span>🌱 Savanna</span>
+      </a>
+      <nav>
+        <ul class="savanna-nav-links">
+          <li><a href="./home.html">Dashboard</a></li>
+          <li><a href="./jobs.html" class="active" aria-current="page">Careers</a></li>
+          <li><a href="./signup.html">Sign Up</a></li>
+          <li><a href="./profile.html">My profile</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="savanna-container">
+      <div style="margin-bottom: 24px">
+        <h1 style="font-size: 1.75rem; margin-bottom: 8px">Explore Inclusive Careers</h1>
+        <p style="color: var(--savanna-text-muted); margin: 0">
+          All roles list the accommodations offered. Filter by what would help you work best.
+        </p>
+      </div>
+
+      <div class="savanna-card">
+        <!-- Embedded Bridge Onboarding Careers Portal -->
+        <bridge-onboarding partner="pk_demo_savanna" flow="jobs"></bridge-onboarding>
+      </div>
+    </main>
+
+    <script type="module" src="/src/widget/element.tsx"></script>
+    <script>
+      document.addEventListener('bridge-onboarding:application-submitted', (e) => {
+        console.log('[Savanna Host] Job application submitted!', e.detail);
+      });
+    </script>
+  </body>
+</html>

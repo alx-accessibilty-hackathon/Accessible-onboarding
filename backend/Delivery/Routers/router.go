@@ -21,13 +21,42 @@ type Controllers struct {
 	Job          *controllers.JobController
 	Application  *controllers.ApplicationController
 	Learner      *controllers.LearnerController
+
+	// Round 3. Left nil (as in the router tests), their routes answer 501.
+	Me                  *controllers.MeController
+	Referral            *controllers.ReferralController
+	EmployerApplication *controllers.EmployerApplicationController
 }
 
-// Middlewares groups the middleware that needs setting up in main.go (rate limiters now;
-// the sign-in middlewares join here once the auth use case exists).
+// Middlewares groups the middleware set up in main.go. A nil handler lets requests through
+// (the router tests build the router without sign-in).
 type Middlewares struct {
-	IPLimiter     *infrastructure.IPRateLimiter     // per client IP
+	IPLimiter     *infrastructure.IPRateLimiter     // per client IP, every request
 	GlobalLimiter *infrastructure.GlobalRateLimiter // whole server
+	StrictLimiter *infrastructure.IPRateLimiter     // per IP: sign-in, OAuth, new registrations, resume
+
+	CORS              gin.HandlerFunc
+	PartnerKey        gin.HandlerFunc // X-Partner-Key + allowed origin
+	LearnerAuth       gin.HandlerFunc // Bearer lt_…
+	StaffAuth         gin.HandlerFunc // Bearer st_…
+	PartnerServerAuth gin.HandlerFunc // Bearer pt_…
+	TelegramSecret    gin.HandlerFunc
+
+	DevRoutes bool // APP_ENV=dev: /api/v1/dev/messages
+}
+
+func orPass(h gin.HandlerFunc) gin.HandlerFunc {
+	if h == nil {
+		return func(c *gin.Context) { c.Next() }
+	}
+	return h
+}
+
+func (m *Middlewares) strict() gin.HandlerFunc {
+	if m.StrictLimiter == nil {
+		return orPass(nil)
+	}
+	return m.StrictLimiter.Middleware()
 }
 
 // SetupRouter registers every route and returns the engine; main.go runs it.
@@ -38,7 +67,7 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 	router.RedirectTrailingSlash = false
 
 	router.Use(mw.GlobalLimiter.Middleware(), mw.IPLimiter.Middleware())
-	router.Use(infrastructure.CORSMiddleware())
+	router.Use(orPass(mw.CORS))
 
 	// Liveness check for Docker
 	healthHandler := func(c *gin.Context) {
@@ -75,40 +104,46 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 	router.GET("/docs", docsHandler)
 
 	v1 := router.Group("/api/v1")
+	partnerKey, learnerAuth, staffAuth := orPass(mw.PartnerKey), orPass(mw.LearnerAuth), orPass(mw.StaffAuth)
 
 	// Public: no key, no token
 	v1.GET("/jobs/:id/jobposting.jsonld", ctrl.Job.GetJobPostingController)
-	v1.POST("/auth/staff/login", ctrl.Auth.StaffLoginController)
-	v1.POST("/oauth/token", ctrl.Auth.OAuthTokenController)
-	v1.POST("/auth/logout", ctrl.Auth.LogoutController) // TODO: accept a learner or a staff token
-	v1.POST("/telegram/webhook", ctrl.Registration.TelegramWebhookController)
+	v1.POST("/auth/staff/login", mw.strict(), ctrl.Auth.StaffLoginController)
+	v1.POST("/oauth/token", mw.strict(), ctrl.Auth.OAuthTokenController)
+	v1.POST("/auth/logout", ctrl.Auth.LogoutController) // learner or staff token, checked by the use case
+	v1.POST("/telegram/webhook", orPass(mw.TelegramSecret), ctrl.Registration.TelegramWebhookController)
 
 	// Widget routes: partner key only
-	widget := v1.Group("", infrastructure.PartnerKeyMiddleware())
+	widget := v1.Group("", partnerKey)
 	{
 		widget.GET("/config", ctrl.Config.GetConfigController)
-		widget.POST("/registrations", ctrl.Registration.CreateRegistrationController)
+		widget.POST("/registrations", mw.strict(), ctrl.Registration.CreateRegistrationController)
 		widget.GET("/jobs", ctrl.Job.ListJobsController)
 		widget.GET("/jobs/:id", ctrl.Job.GetJobController)
-		widget.POST("/resume/lookup", ctrl.Registration.ResumeLookupController)
-		widget.POST("/resume/verify", ctrl.Registration.ResumeVerifyController)
+		widget.POST("/resume/lookup", mw.strict(), ctrl.Registration.ResumeLookupController)
+		widget.POST("/resume/verify", mw.strict(), ctrl.Registration.ResumeVerifyController)
+		widget.POST("/speech/synthesis", ctrl.Speech.SynthesizeController) // read aloud, fixed text only
 	}
 
 	// Learner routes: partner key + learner token
-	learner := v1.Group("", infrastructure.PartnerKeyMiddleware(), infrastructure.LearnerAuthMiddleware())
+	learner := v1.Group("", partnerKey, learnerAuth)
 	{
 		learner.GET("/registrations/:id", ctrl.Registration.GetRegistrationController)
 		learner.PATCH("/registrations/:id", ctrl.Registration.UpdateProgressController)
 		learner.PUT("/registrations/:id/answers/:questionId", ctrl.Registration.SaveAnswerController)
 		learner.PUT("/registrations/:id/support-request", ctrl.Support.SaveSupportRequestController)
 		learner.POST("/registrations/:id/consents", ctrl.Consent.CreateConsentController)
+		learner.POST("/registrations/:id/resume-links", ctrl.Registration.CreateResumeLinkController)
 		learner.POST("/registrations/:id/submit", ctrl.Registration.SubmitRegistrationController)
 		learner.POST("/speech/transcriptions", ctrl.Speech.TranscribeController)
 		learner.POST("/jobs/:id/applications", ctrl.Application.CreateApplicationController)
+		learner.GET("/me", ctrl.Me.GetMeController)
+		learner.PATCH("/me", ctrl.Me.UpdateMeController)
+		learner.DELETE("/me", ctrl.Me.DeleteMeController)
 	}
 
 	// Staff routes: staff token
-	staff := v1.Group("", infrastructure.StaffAuthMiddleware())
+	staff := v1.Group("", staffAuth)
 	{
 		staff.GET("/auth/staff/me", ctrl.Auth.StaffMeController)
 
@@ -117,25 +152,32 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 			employer.GET("/jobs", ctrl.Job.ListEmployerJobsController)
 			employer.POST("/jobs", ctrl.Job.CreateEmployerJobController)
 			employer.POST("/jobs/:id/publish", ctrl.Job.PublishEmployerJobController)
+			employer.GET("/jobs/:id/applications", ctrl.EmployerApplication.ListJobApplicationsController)
 		}
 
-		partnerStaff := staff.Group("/partner")
+		partnerStaff := staff.Group("/partner", infrastructure.RequireRole("partner_staff"))
 		{
 			partnerStaff.POST("/registrations/:id/consent-code", ctrl.Registration.SendConsentCodeController)
+			partnerStaff.GET("/referrals", ctrl.Referral.ListPartnerReferralsController)
+			partnerStaff.PATCH("/referrals/:id", ctrl.Referral.UpdatePartnerReferralController)
 		}
 	}
 
 	// Partner-server routes (Level 2 API): OAuth client-credentials token with a scope
-	partnerAPI := v1.Group("/partner-api", infrastructure.PartnerServerAuthMiddleware(), infrastructure.RequireScope("learners:read"))
+	partnerAPI := v1.Group("/partner-api", orPass(mw.PartnerServerAuth), infrastructure.RequireScope("learners:read"))
 	{
 		partnerAPI.GET("/learners", ctrl.Learner.ListPartnerLearnersController)
 		partnerAPI.GET("/learners/:id", ctrl.Learner.GetPartnerLearnerController)
 	}
 
-	// Should endpoints (add when the Musts are done; see TECHNICAL_PLAN_LITE.md):
-	// resume links and lookup/verify, learner phone-code sign-in, /dev/messages,
-	// /me (see, download, delete), partner staff routes (E1), /support/requests,
-	// employer applications, JobPosting import and feed.
+	// Development only: the simulated SMS / Telegram inbox (resume codes, consent codes).
+	if mw.DevRoutes {
+		v1.GET("/dev/messages", ctrl.Registration.DevMessagesController)
+	}
+
+	// Should endpoints still to build (see TECHNICAL_PLAN_LITE.md): learner phone-code sign-in,
+	// downloading /me, the rest of the partner staff routes (E1), /support/requests,
+	// JobPosting import and feed.
 
 	return router
 }

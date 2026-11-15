@@ -1,3 +1,3 @@
 // Entry for our own hosted sign-up page (index.html).
-// TODO (FB-10): register the service worker here (vite-plugin-pwa) for full offline install.
+// No service worker yet: offline answers are kept in IndexedDB by the widget itself.
 import './widget/element';

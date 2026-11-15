@@ -13,9 +13,10 @@ import (
 )
 
 type mockLearnerRepo struct {
-	getByIDFn             func(ctx context.Context, id uuid.UUID) (*domain.Learner, error)
-	getByIDAndPartnerIDFn func(ctx context.Context, id uuid.UUID, partnerID uuid.UUID) (*domain.Learner, error)
-	listByPartnerIDFn     func(ctx context.Context, partnerID uuid.UUID) ([]*domain.Learner, error)
+	domain.LearnerRepositoryI // methods these tests don't use
+	getByIDFn                 func(ctx context.Context, id uuid.UUID) (*domain.Learner, error)
+	getByIDAndPartnerIDFn     func(ctx context.Context, id uuid.UUID, partnerID uuid.UUID) (*domain.Learner, error)
+	listByPartnerIDFn         func(ctx context.Context, partnerID uuid.UUID) ([]*domain.Learner, error)
 }
 
 func (m *mockLearnerRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
@@ -86,21 +87,24 @@ func TestLearnerUsecase_GetPartnerLearner_WithoutPartnerID(t *testing.T) {
 		},
 	}
 
+	// Without a signed-in partner server nothing is returned: no partner, no learner (Q7).
 	uc := NewLearnerUsecase(repo)
 	res, err := uc.GetPartnerLearner(context.Background(), nil, learnerID)
-	require.NoError(t, err)
-	assert.Equal(t, expected, res)
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	assert.Nil(t, res)
+	_ = expected
 }
 
 func TestLearnerUsecase_GetPartnerLearner_NotFound(t *testing.T) {
 	repo := &mockLearnerRepo{
-		getByIDFn: func(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
+		getByIDAndPartnerIDFn: func(ctx context.Context, id uuid.UUID, partnerID uuid.UUID) (*domain.Learner, error) {
 			return nil, domain.ErrNotFound
 		},
 	}
 
+	partnerID := uuid.New()
 	uc := NewLearnerUsecase(repo)
-	res, err := uc.GetPartnerLearner(context.Background(), nil, uuid.New())
+	res, err := uc.GetPartnerLearner(context.Background(), &partnerID, uuid.New())
 	require.ErrorIs(t, err, domain.ErrNotFound)
 	assert.Nil(t, res)
 }

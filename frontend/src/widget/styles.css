@@ -29,24 +29,35 @@
   --bo-navy: #12305a;
   --bo-selected-bg: #fbeaea;
 
-  /* Spacing scale: 4, 8, 12, 16, 24, 32, 48 px */
-  --bo-space-1: 4px;
-  --bo-space-2: 8px;
-  --bo-space-3: 12px;
-  --bo-space-4: 16px;
-  --bo-space-5: 24px;
-  --bo-space-6: 32px;
-  --bo-space-7: 48px;
+  /*
+   * Text size (the "Text size" control, 100% to 400%): --bo-scale multiplies the root font
+   * size, and every text and control is sized in em from it. Spacing grows too, but at most
+   * 1.5 times (--bo-space-scale), so a narrow screen keeps room for the words.
+   * Both are set inline on the root by the app.
+   */
+  --bo-scale: 1;
+  --bo-space-scale: 1;
+
+  /* Spacing scale: 4, 8, 12, 16, 24, 32, 48 px (at normal text size) */
+  --bo-space-1: calc(4px * var(--bo-space-scale));
+  --bo-space-2: calc(8px * var(--bo-space-scale));
+  --bo-space-3: calc(12px * var(--bo-space-scale));
+  --bo-space-4: calc(16px * var(--bo-space-scale));
+  --bo-space-5: calc(24px * var(--bo-space-scale));
+  --bo-space-6: calc(32px * var(--bo-space-scale));
+  --bo-space-7: calc(48px * var(--bo-space-scale));
 
   --bo-target: 48px; /* minimum tap target */
   --bo-radius: 8px;
 
   /* px, not rem: a partner page may change the root font size. Children use em. */
-  font-size: 18px;
+  font-size: calc(18px * var(--bo-scale));
   font-family: 'DM Sans', 'Noto Sans Ethiopic', 'Ebrima', 'Nyala', system-ui, sans-serif;
   line-height: 1.5;
   color: var(--bo-text);
   background: var(--bo-bg);
+  /* Big text in a narrow box: a word longer than the line breaks instead of overflowing. */
+  overflow-wrap: anywhere;
 }
 
 .bo-root *,
@@ -64,7 +75,62 @@
 }
 
 .bo-simple {
-  font-size: 20px;
+  font-size: calc(20px * var(--bo-scale));
+}
+
+/* Nothing may be wider than the widget (WCAG 1.4.10), at any text size. A fieldset is as wide
+   as its widest content by default: let it shrink like any other box. */
+.bo-root fieldset {
+  min-inline-size: 0;
+}
+
+.bo-root img,
+.bo-root svg,
+.bo-root input,
+.bo-root select,
+.bo-root textarea,
+.bo-root button {
+  max-width: 100%;
+}
+
+/* Big text (200% and more): the width goes to the words, not to padding, giant headings or
+   giant radio dots. Text still grows to the size chosen. */
+.bo-large-text h1 {
+  font-size: 1.2em;
+}
+
+.bo-large-text h2 {
+  font-size: 1.1em;
+}
+
+.bo-large-text .bo-btn,
+.bo-large-text .bo-chip,
+.bo-large-text .bo-banner {
+  padding-inline: 10px !important;
+}
+
+/* An icon and a tick beside a big label: the label gets its own line instead. */
+.bo-large-text .bo-btn {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.bo-large-text input[type='radio'],
+.bo-large-text input[type='checkbox'] {
+  width: min(1.25em, 40px) !important;
+  height: min(1.25em, 40px) !important;
+}
+
+.bo-large-text .bo-card,
+.bo-large-text .bo-dialog-body,
+.bo-large-text .bo-dialog-header {
+  padding: var(--bo-space-3);
+}
+
+/* A native list can't wrap its text: it stops growing at 32px (about 175%), so the chosen
+   month is never cut off in a narrow box. */
+.bo-root select {
+  font-size: min(1em, 32px) !important;
 }
 
 /* Layout: one column, max 36rem, 16px side padding (reflows at 400% zoom). */
@@ -164,5 +230,362 @@
   .bo-root * {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* =============================================
+   Text size choice (header) and notices
+   ============================================= */
+
+.bo-text-size {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.bo-text-size-legend {
+  padding: 0;
+  font-weight: 700;
+  font-size: 0.9em;
+}
+
+.bo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bo-space-2);
+  margin-top: var(--bo-space-1);
+}
+
+.bo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bo-space-2);
+  min-height: var(--bo-target);
+  min-width: var(--bo-target);
+  padding: 0 0.6em;
+  border: 2px solid var(--bo-border-strong);
+  border-radius: var(--bo-radius);
+  background: var(--bo-bg);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Selected: thicker border and tint, plus the filled radio (never colour alone) */
+.bo-chip-on {
+  border: 3px solid var(--bo-primary);
+  background: var(--bo-selected-bg);
+}
+
+.bo-chip input[type='radio'] {
+  width: 1.1em;
+  height: 1.1em;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--bo-primary);
+  cursor: pointer;
+}
+
+.bo-notice {
+  font-size: 0.95em;
+}
+
+/* =============================================
+   Card
+   ============================================= */
+
+.bo-card {
+  background: var(--bo-surface);
+  border: 1px solid var(--bo-border-subtle);
+  border-radius: var(--bo-radius);
+  padding: var(--bo-space-5);
+}
+
+/* =============================================
+   Icon (Material Symbols)
+   ============================================= */
+
+.bo-icon {
+  font-size: 1.25em;
+  vertical-align: middle;
+  user-select: none;
+}
+
+/* =============================================
+   Link Button (<a> styled as button)
+   ============================================= */
+
+.bo-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  gap: var(--bo-space-2);
+}
+
+/* =============================================
+   Banner
+   ============================================= */
+
+.bo-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--bo-space-3);
+  padding: var(--bo-space-3) var(--bo-space-4);
+  border-radius: var(--bo-radius);
+  border: 2px solid transparent;
+  font-size: 0.9em;
+}
+
+.bo-banner-icon {
+  flex-shrink: 0;
+  font-size: 1.35em;
+  line-height: 1;
+  margin-top: 0.1em;
+}
+
+.bo-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.bo-banner-dismiss {
+  flex-shrink: 0;
+  min-height: var(--bo-target);
+  min-width: var(--bo-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+  border-radius: var(--bo-radius);
+}
+
+.bo-banner-error {
+  background: var(--bo-error-bg);
+  border-color: var(--bo-error);
+  color: var(--bo-error);
+}
+
+.bo-banner-info {
+  background: var(--bo-info-bg);
+  border-color: var(--bo-navy);
+  color: var(--bo-navy);
+}
+
+.bo-banner-success {
+  background: #e6f4ee;
+  border-color: var(--bo-success);
+  color: var(--bo-success);
+}
+
+/* =============================================
+   Dialog (native <dialog>)
+   ============================================= */
+
+.bo-dialog {
+  border: 0;
+  border-radius: var(--bo-radius);
+  padding: 0;
+  max-width: min(90vw, 32em);
+  width: 100%;
+  background: var(--bo-bg);
+  color: var(--bo-text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.bo-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.bo-dialog-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bo-space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--bo-space-4) var(--bo-space-5);
+  border-bottom: 1px solid var(--bo-border-subtle);
+}
+
+.bo-dialog-title {
+  font-size: 1.15em;
+  margin: 0;
+}
+
+.bo-dialog-close {
+  min-height: var(--bo-target);
+  min-width: var(--bo-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  color: var(--bo-text);
+  border-radius: var(--bo-radius);
+}
+
+.bo-dialog-body {
+  padding: var(--bo-space-5);
+}
+
+/* =============================================
+   Form inputs
+   ============================================= */
+
+.bo-input {
+  display: block;
+  width: 100%;
+  min-height: var(--bo-target);
+  padding: var(--bo-space-2) var(--bo-space-3);
+  font: inherit;
+  color: var(--bo-text);
+  background: var(--bo-bg);
+  border: 2px solid var(--bo-border-strong);
+  border-radius: var(--bo-radius);
+}
+
+.bo-input::placeholder {
+  color: var(--bo-text-muted);
+}
+
+.bo-input:focus-visible {
+  outline: 3px solid var(--bo-focus);
+  outline-offset: 2px;
+}
+
+.bo-input[aria-invalid='true'] {
+  border-color: var(--bo-error);
+}
+
+.bo-textarea {
+  display: block;
+  width: 100%;
+  min-height: calc(var(--bo-target) * 2);
+  padding: var(--bo-space-2) var(--bo-space-3);
+  font: inherit;
+  color: var(--bo-text);
+  background: var(--bo-bg);
+  border: 2px solid var(--bo-border-strong);
+  border-radius: var(--bo-radius);
+  resize: vertical;
+}
+
+.bo-textarea:focus-visible {
+  outline: 3px solid var(--bo-focus);
+  outline-offset: 2px;
+}
+
+.bo-textarea[aria-invalid='true'] {
+  border-color: var(--bo-error);
+}
+
+/* Checkbox + Radio: large hit area */
+
+.bo-checkbox,
+.bo-radio {
+  display: flex;
+  align-items: center;
+  gap: var(--bo-space-3);
+  min-height: var(--bo-target);
+  padding: var(--bo-space-2) 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--bo-text);
+}
+
+.bo-checkbox input[type='checkbox'],
+.bo-radio input[type='radio'] {
+  width: 1.25em;
+  height: 1.25em;
+  flex-shrink: 0;
+  accent-color: var(--bo-primary);
+  cursor: pointer;
+}
+
+/* =============================================
+   Button states: loading + disabled
+   ============================================= */
+
+.bo-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bo-btn-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.bo-btn-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1.25em;
+  height: 1.25em;
+  border: 3px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: bo-spin 0.6s linear infinite;
+}
+
+@keyframes bo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =============================================
+   Accessibility media queries
+   ============================================= */
+
+@media (prefers-contrast: more) {
+  .bo-card {
+    border-width: 2px;
+    border-color: var(--bo-border-strong);
+  }
+
+  .bo-banner {
+    border-width: 3px;
+  }
+
+  .bo-dialog {
+    border: 2px solid var(--bo-border-strong);
+  }
+
+  .bo-input,
+  .bo-textarea {
+    border-width: 3px;
+  }
+
+  .bo-btn {
+    border-width: 3px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .bo-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.85);
+  }
+
+  .bo-banner-error {
+    background: #f9d6d2;
+  }
+
+  .bo-banner-info {
+    background: #d4dfe8;
+  }
+
+  .bo-banner-success {
+    background: #c8e8d8;
   }
 }

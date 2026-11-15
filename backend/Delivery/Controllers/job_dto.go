@@ -91,3 +91,11 @@ func toJobDTO(j *domain.Job, employerName string) JobDTO {
 		PublishedAt:    j.PublishedAt,
 	}
 }
+
+func toJobDTOs(jobs []*domain.Job) []JobDTO {
+	out := make([]JobDTO, 0, len(jobs)) // [] in JSON, never null
+	for _, j := range jobs {
+		out = append(out, toJobDTO(j, j.EmployerName))
+	}
+	return out
+}

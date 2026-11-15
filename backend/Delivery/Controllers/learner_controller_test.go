@@ -10,6 +10,7 @@ import (
 	"time"
 
 	domain "bridge/Domain"
+	infrastructure "bridge/Infrastructure"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,7 +19,8 @@ import (
 )
 
 type mockLearnerUc struct {
-	getPartnerLearnerFn func(ctx context.Context, partnerID *uuid.UUID, learnerID uuid.UUID) (*domain.Learner, error)
+	domain.LearnerUsecaseI // methods these tests don't use
+	getPartnerLearnerFn    func(ctx context.Context, partnerID *uuid.UUID, learnerID uuid.UUID) (*domain.Learner, error)
 }
 
 func (m *mockLearnerUc) GetPartnerLearner(ctx context.Context, partnerID *uuid.UUID, learnerID uuid.UUID) (*domain.Learner, error) {
@@ -60,7 +62,7 @@ func TestLearnerController_GetPartnerLearner_Success(t *testing.T) {
 
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
-		c.Set("actor", &domain.Actor{
+		infrastructure.SetActor(c, domain.Actor{
 			Kind:      domain.ActorPartnerServer,
 			PartnerID: partnerID,
 			Scopes:    []string{"learners:read"},

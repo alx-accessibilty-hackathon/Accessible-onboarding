@@ -63,25 +63,39 @@ func TestDocs(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
 }
 
-func TestSkeletonRoutesAreRegistered(t *testing.T) {
-	routes := []struct{ method, path string }{
-		{http.MethodGet, "/api/v1/config"},
-		{http.MethodPost, "/api/v1/registrations"},
-		{http.MethodPut, "/api/v1/registrations/123/answers/phone"},
-		{http.MethodGet, "/api/v1/jobs/123/jobposting.jsonld"},
-		{http.MethodPost, "/api/v1/employer/jobs/123/publish"},
-		{http.MethodGet, "/api/v1/partner-api/learners"},
-		{http.MethodGet, "/api/v1/partner-api/learners/123"},
-		{http.MethodPost, "/api/v1/resume/lookup"},
-		{http.MethodPost, "/api/v1/resume/verify"},
-		{http.MethodPost, "/api/v1/partner/registrations/123/consent-code"},
-		{http.MethodPost, "/api/v1/telegram/webhook"},
+// Every route exists (404 would mean a missing route). The use cases are nil here, so the
+// requests are invalid on purpose (no body, "123" is not a UUID) and the handlers answer
+// before calling them; 501 means the handler has no use case behind it. Without a token,
+// role- and scope-protected routes answer 401.
+func TestRoutesAreRegistered(t *testing.T) {
+	routes := []struct {
+		method, path string
+		want         int
+	}{
+		{http.MethodGet, "/api/v1/config", http.StatusNotImplemented},
+		{http.MethodPost, "/api/v1/registrations", http.StatusBadRequest},
+		{http.MethodGet, "/api/v1/registrations/123", http.StatusBadRequest},
+		{http.MethodPatch, "/api/v1/registrations/123", http.StatusBadRequest},
+		{http.MethodPut, "/api/v1/registrations/123/answers/phone", http.StatusBadRequest},
+		{http.MethodPut, "/api/v1/registrations/123/support-request", http.StatusBadRequest},
+		{http.MethodPost, "/api/v1/registrations/123/submit", http.StatusBadRequest},
+		{http.MethodGet, "/api/v1/jobs?limit=500", http.StatusUnprocessableEntity},
+		{http.MethodGet, "/api/v1/jobs/123", http.StatusBadRequest},
+		{http.MethodGet, "/api/v1/jobs/123/jobposting.jsonld", http.StatusBadRequest},
+		{http.MethodPost, "/api/v1/jobs/123/applications", http.StatusBadRequest},
+		{http.MethodPost, "/api/v1/employer/jobs", http.StatusUnauthorized}, // employer role needed
+		{http.MethodPost, "/api/v1/employer/jobs/123/publish", http.StatusUnauthorized},
+		{http.MethodGet, "/api/v1/partner-api/learners", http.StatusUnauthorized}, // scope needed
+		{http.MethodGet, "/api/v1/partner-api/learners/123", http.StatusUnauthorized},
+		{http.MethodPost, "/api/v1/resume/lookup", http.StatusNotImplemented},
+		{http.MethodPost, "/api/v1/resume/verify", http.StatusNotImplemented},
+		{http.MethodPost, "/api/v1/partner/registrations/123/consent-code", http.StatusUnauthorized},
+		{http.MethodPost, "/api/v1/telegram/webhook", http.StatusNotImplemented},
 	}
 	r := testRouter()
 	for _, rt := range routes {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest(rt.method, rt.path, nil))
-		// 501 means the route exists and its handler is still a skeleton (404 would mean a missing route).
-		assert.Equal(t, http.StatusNotImplemented, w.Code, "%s %s", rt.method, rt.path)
+		assert.Equal(t, rt.want, w.Code, "%s %s", rt.method, rt.path)
 	}
 }

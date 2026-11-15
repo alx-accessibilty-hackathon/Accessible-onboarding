@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Savanna | Learner Dashboard</title>
+    <link rel="stylesheet" href="./savanna.css" />
+  </head>
+  <body>
+    <header class="savanna-nav">
+      <a href="./home.html" class="savanna-logo">
+        <span>🌱 Savanna</span>
+      </a>
+      <nav>
+        <ul class="savanna-nav-links">
+          <li><a href="./home.html" class="active" aria-current="page">Dashboard</a></li>
+          <li><a href="./jobs.html">Careers</a></li>
+          <li><a href="./signup.html">Sign Up</a></li>
+          <li><a href="./profile.html">My profile</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="savanna-container">
+      <div style="margin-bottom: 32px">
+        <h1 style="font-size: 1.75rem; margin-bottom: 8px">Welcome back!</h1>
+        <p style="color: var(--savanna-text-muted); margin: 0">
+          Continue your learning pathway and discover accessible career opportunities.
+        </p>
+      </div>
+
+      <!-- Homepage card labelled "Complete your profile" (DM-3) -->
+      <section class="savanna-card savanna-banner-card" aria-labelledby="profile-card-title">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+          "
+        >
+          <div>
+            <h2 id="profile-card-title" style="margin: 0 0 6px 0; font-size: 1.25rem">
+              Complete your profile
+            </h2>
+            <p style="margin: 0; color: var(--savanna-text-muted)">
+              Sign up, tell us what would help you learn and work, and then find jobs that offer
+              those supports.
+            </p>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px">
+          <!-- Embedded onboarding module directly inside the dashboard card -->
+          <!-- A card on a busy page: leave the page title alone. -->
+          <bridge-onboarding
+            partner="pk_demo_savanna"
+            flow="signup"
+            manage-title="false"
+          ></bridge-onboarding>
+        </div>
+      </section>
+
+      <!-- Active learning stats -->
+      <div
+        style="
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+          gap: 20px;
+        "
+      >
+        <div class="savanna-card">
+          <h3 style="margin-top: 0; font-size: 1.1rem">My Courses</h3>
+          <p style="font-size: 2rem; font-weight: 700; margin: 8px 0; color: var(--savanna-accent)">
+            3
+          </p>
+          <p style="color: var(--savanna-text-muted); margin: 0">
+            Active tech & soft-skills tracks
+          </p>
+        </div>
+
+        <!-- No made-up count: job matching happens on the learner's own device (Careers page). -->
+        <div class="savanna-card">
+          <h3 style="margin-top: 0; font-size: 1.1rem">Jobs that offer what you need</h3>
+          <p style="color: var(--savanna-text-muted); margin: 8px 0">
+            Choose the supports you need and see which jobs offer them.
+          </p>
+          <p style="margin: 0"><a href="./jobs.html">Find a job</a></p>
+        </div>
+
+        <div class="savanna-card">
+          <h3 style="margin-top: 0; font-size: 1.1rem">My profile</h3>
+          <p style="color: var(--savanna-text-muted); margin: 8px 0">
+            See, change or delete what you told us.
+          </p>
+          <p style="margin: 0"><a href="./profile.html">Open my profile</a></p>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="/src/widget/element.tsx"></script>
+  </body>
+</html>

@@ -13,9 +13,10 @@ import (
 )
 
 type mockPartnerRepo struct {
-	partnerFn          func(ctx context.Context, key string) (*domain.Partner, error)
-	referralPartnersFn func(ctx context.Context) ([]*domain.Partner, error)
-	allowedOriginsFn   func(ctx context.Context) ([]string, error)
+	domain.PartnerRepositoryI // methods these tests don't use
+	partnerFn                 func(ctx context.Context, key string) (*domain.Partner, error)
+	referralPartnersFn        func(ctx context.Context) ([]*domain.Partner, error)
+	allowedOriginsFn          func(ctx context.Context) ([]string, error)
 }
 
 func (m *mockPartnerRepo) GetByPublishableKey(ctx context.Context, key string) (*domain.Partner, error) {
@@ -40,8 +41,9 @@ func (m *mockPartnerRepo) ListAllowedOrigins(ctx context.Context) ([]string, err
 }
 
 type mockSpeechService struct {
-	serverSpeech bool
-	cloudSpeech  bool
+	domain.SpeechService // methods these tests don't use
+	serverSpeech         bool
+	cloudSpeech          bool
 }
 
 func (m *mockSpeechService) HasServerSpeech() bool {

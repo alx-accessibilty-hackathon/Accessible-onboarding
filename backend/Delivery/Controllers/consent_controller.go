@@ -1,10 +1,10 @@
 package controllers
 
 import (
-	"errors"
 	"net/http"
 
 	domain "bridge/Domain"
+	infrastructure "bridge/Infrastructure"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,22 +38,9 @@ func (cc *ConsentController) CreateConsentController(c *gin.Context) {
 	}
 
 	consent := req.toDomain()
-	created, err := cc.ConsentUc.CreateConsent(c.Request.Context(), regID, consent)
+	created, err := cc.ConsentUc.CreateConsent(c.Request.Context(), infrastructure.ActorFrom(c), regID, consent)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.AbortWithStatusJSON(http.StatusNotFound, ErrorResponse{
-				Status: http.StatusNotFound,
-				Code:   "not_found",
-				Title:  "Registration not found",
-			})
-			return
-		}
-
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse{
-			Status: http.StatusInternalServerError,
-			Code:   "internal_error",
-			Title:  "Failed to record consent",
-		})
+		respondError(c, err)
 		return
 	}
 

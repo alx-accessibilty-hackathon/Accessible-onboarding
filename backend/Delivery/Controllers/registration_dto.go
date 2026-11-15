@@ -15,7 +15,7 @@ import (
 type CreateRegistrationRequest struct {
 	FlowID      string `json:"flow_id" binding:"required,max=64"`       // e.g. "signup"
 	FlowVersion int    `json:"flow_version" binding:"omitempty,gte=1"`  // defaults to the latest
-	Language    string `json:"language" binding:"required,min=2,max=8"` // "am", "en"… checked against the partner's languages in the use case
+	Language    string `json:"language" binding:"required,min=2,max=8"` // "am", "en"…; the use case checks it is a language code
 	SimpleMode  bool   `json:"simple_mode"`
 }
 
@@ -110,6 +110,15 @@ func toAnswerDTO(a *domain.Answer) AnswerDTO {
 	}
 }
 
+func toSubmitRegistrationResponse(res *domain.SubmitResult) SubmitRegistrationResponse {
+	return SubmitRegistrationResponse{
+		Status:        res.Learner.Status,
+		LearnerID:     res.Learner.ID,
+		IdentityLevel: res.Learner.IdentityLevel,
+		Referral:      toReferralDTO(res.Referral, res.ReferralPartnerName),
+	}
+}
+
 func toAnswerDTOMap(answers []*domain.Answer) map[string]AnswerDTO {
 	m := make(map[string]AnswerDTO, len(answers))
 	for _, a := range answers {
@@ -156,7 +165,7 @@ type ResumeVerifyRequest struct {
 	Code       string     `json:"code"`
 	Token      string     `json:"token"`
 	DOB        *ResumeDOB `json:"dob"`
-	PhoneLast4 string     `json:"phone_last4"`
+	PhoneLast4 string     `json:"phone_last4" binding:"omitempty,len=4,numeric"`
 }
 
 type ResumeDOB struct {
@@ -172,8 +181,31 @@ type ResumeVerifyResponse struct {
 }
 
 // POST /partner/registrations/:id/consent-code
-type SendConsentCodeRequest struct {
-	Phone string `json:"phone"`
+// POST /registrations/:id/resume-links (body optional)
+type CreateResumeLinkRequest struct {
+	SendVia string `json:"send_via" binding:"omitempty,oneof=none sms"`
+	Phone   string `json:"phone" binding:"omitempty,max=32"` // defaults to the learner's phone
+}
+
+// 201 from POST /registrations/:id/resume-links
+type ResumeLinkResponse struct {
+	URL       string              `json:"url"`
+	Code      string              `json:"code"`
+	ExpiresAt string              `json:"expires_at"`
+	Message   *ResumeLinkMessages `json:"message,omitempty"`
+}
+
+type ResumeLinkMessages struct {
+	Channel string `json:"channel"`
+	Status  string `json:"status"`
+}
+
+func toResumeLinkResponse(l *domain.ResumeLink) ResumeLinkResponse {
+	r := ResumeLinkResponse{URL: l.URL, Code: l.Code, ExpiresAt: l.ExpiresAt.UTC().Format(time.RFC3339)}
+	if l.Channel != "" {
+		r.Message = &ResumeLinkMessages{Channel: l.Channel, Status: l.Status}
+	}
+	return r
 }
 
 type SendConsentCodeResponse struct {

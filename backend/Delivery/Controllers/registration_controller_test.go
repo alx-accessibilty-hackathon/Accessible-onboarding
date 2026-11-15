@@ -18,10 +18,11 @@ import (
 )
 
 type mockRegistrationUc struct {
-	resumeLookupFn          func(ctx context.Context, codeOrToken string) (*domain.ResumeLookupResult, error)
-	resumeVerifyFn          func(ctx context.Context, codeOrToken string, dob *domain.ResumeDOB, phoneLast4 string) (*domain.ResumeVerifyResult, int, error)
-	sendConsentCodeFn       func(ctx context.Context, registrationID uuid.UUID, phone string) (string, error)
-	handleTelegramWebhookFn func(ctx context.Context, update *domain.TelegramUpdate) error
+	domain.RegistrationUsecaseI // the sign-up methods (Dev A) are not used by these tests
+	resumeLookupFn              func(ctx context.Context, codeOrToken string) (*domain.ResumeLookupResult, error)
+	resumeVerifyFn              func(ctx context.Context, codeOrToken string, dob *domain.ResumeDOB, phoneLast4 string) (*domain.ResumeVerifyResult, int, error)
+	sendConsentCodeFn           func(ctx context.Context, actor domain.Actor, registrationID uuid.UUID) (string, error)
+	handleTelegramWebhookFn     func(ctx context.Context, update *domain.TelegramUpdate) error
 }
 
 func (m *mockRegistrationUc) ResumeLookup(ctx context.Context, codeOrToken string) (*domain.ResumeLookupResult, error) {
@@ -38,9 +39,9 @@ func (m *mockRegistrationUc) ResumeVerify(ctx context.Context, codeOrToken strin
 	return nil, 0, domain.ErrNotFound
 }
 
-func (m *mockRegistrationUc) SendConsentCode(ctx context.Context, registrationID uuid.UUID, phone string) (string, error) {
+func (m *mockRegistrationUc) SendConsentCode(ctx context.Context, actor domain.Actor, registrationID uuid.UUID) (string, error) {
 	if m.sendConsentCodeFn != nil {
-		return m.sendConsentCodeFn(ctx, registrationID, phone)
+		return m.sendConsentCodeFn(ctx, actor, registrationID)
 	}
 	return "", domain.ErrNotFound
 }
@@ -204,7 +205,7 @@ func TestRegistrationController_SendConsentCode_Success(t *testing.T) {
 	phone := "+251912345678"
 
 	mockUc := &mockRegistrationUc{
-		sendConsentCodeFn: func(ctx context.Context, id uuid.UUID, p string) (string, error) {
+		sendConsentCodeFn: func(ctx context.Context, _ domain.Actor, id uuid.UUID) (string, error) {
 			assert.Equal(t, regID, id)
 			return phone, nil
 		},

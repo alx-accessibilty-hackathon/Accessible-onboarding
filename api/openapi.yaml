@@ -1,51 +1,278 @@
 openapi: 3.0.3
 info:
   title: Bridge Onboarding API
-  description: >
-    Accessible drop-in onboarding module developed for Digital Bridge Hackathon 2026 (Track 1).
-    Supports WCAG 2.2 AA compliant onboarding, multilingual support (Amharic & English),
-    offline sync, speech-to-text, private support requests, and inclusive ID routes.
   version: 1.0.0
+  description: |
+    The REST API behind **Bridge**, the accessible sign-up widget `<bridge-onboarding>` and career
+    gateway (ALX Digital Bridge Accessibility Hackathon 2026, Track 1).
+
+    Every path in this file is the full path on the API server, for example
+    `http://localhost:8080/api/v1/config`.
+
+    ## Who can call what
+
+    | Caller | How it proves who it is | Used on |
+    |---|---|---|
+    | A website with the widget | `X-Partner-Key: pk_…` (public, not a secret). A browser call must also come from one of the partner's allowed origins (`Origin` header), or it gets `403 origin_not_allowed`. Calls without an `Origin` header (curl, a server) skip the origin check. | Widget routes |
+    | A learner | `Authorization: Bearer lt_…` from `POST /api/v1/registrations` or `POST /api/v1/resume/verify`, **plus** the partner key. The token must belong to a learner of that partner. | Learner routes |
+    | Staff (employers, partner staff) | `Authorization: Bearer st_…` from `POST /api/v1/auth/staff/login`, plus a role check. | Staff routes |
+    | A partner's server | `Authorization: Bearer pt_…` from `POST /api/v1/oauth/token` (OAuth 2.0 client credentials) with the scope `learners:read`. | `/api/v1/partner-api/…` |
+
+    Tokens are opaque random strings (not JWTs). Only their SHA-256 hash is stored.
+    Learner tokens last 30 days and are renewed each time they are used; staff tokens last
+    12 hours; partner-server tokens last 1 hour.
+
+    ## Errors
+
+    Every error (except `POST /api/v1/oauth/token`, which uses the OAuth shape
+    `{"error": "invalid_client"}`) has the same shape:
+
+    ```json
+    { "status": 422, "code": "validation_failed", "title": "Validation failed",
+      "errors": [ { "field": "value", "code": "phone_invalid" } ] }
+    ```
+
+    `code` is stable and meant for programs (the widget translates it); `title` is a short
+    English hint and may be missing. Codes: `invalid_request`, `invalid_id`,
+    `validation_failed`, `partner_key_missing`, `partner_key_invalid`, `origin_not_allowed`,
+    `unauthorized`, `forbidden`, `insufficient_scope`, `consent_required`, `not_found`,
+    `answer_conflict`, `already_exists`, `already_submitted`, `not_registered`,
+    `payload_too_large`, `resume_not_found`, `resume_expired`, `resume_check_failed`,
+    `too_many_attempts`, `rate_limited`, `speech_unavailable`, `internal_error`,
+    `not_implemented`. Field codes in `errors[]` include `required`, `too_short`,
+    `too_long`, `invalid`, `invalid_choice`, `email_invalid`, `phone_invalid`,
+    `date_invalid`, `digits_invalid`, `last4_invalid`, `unknown_question`, `unknown_step`.
+
+    ## Rate limits
+
+    Limits are kept in memory per API process (sliding window): 120 requests a minute per IP
+    address, 1000 requests every 10 seconds for the whole server, and 20 a minute per IP on
+    staff sign-in, OAuth tokens, starting a registration and resume lookup/verify. Over the
+    limit: `429 rate_limited` with a `Retry-After` header (seconds).
+
+    ## Browsers (CORS)
+
+    Browser calls are allowed from every origin in any partner's `allowed_origins` (the list
+    is reloaded every 2 minutes) and, when `APP_ENV=dev`, from `https://…<DEV_ALLOWED_ORIGIN_SUFFIX>`
+    (for example a `.trycloudflare.com` tunnel) and `EXTRA_ALLOWED_ORIGINS`. Allowed headers:
+    `Content-Type`, `Authorization`, `X-Partner-Key`. A preflight (`OPTIONS`) answers `204`
+    for an allowed origin and `403` otherwise.
+
+    ## Lists
+
+    Lists are `{ "items": [...], "next_cursor": "…" | null }`. Only `GET /api/v1/jobs` pages
+    with a cursor today; the other lists return everything (or up to `limit`) with
+    `next_cursor: null`.
 servers:
-  - url: /api/v1
-    description: Current API v1 endpoint
+  - url: /
+    description: The server that serves this file (for example http://localhost:8080)
+tags:
+  - name: System
+    description: Health check and these API docs.
+  - name: Widget
+    description: Partner settings for the widget.
+  - name: Registrations
+    description: The sign-up, step by step, saved as the learner goes.
+  - name: Resume
+    description: Continue a sign-up on another device with a link or a short code.
+  - name: Speech
+    description: Speech-to-text for voice answers and text-to-speech for fixed interface text.
+  - name: Jobs
+    description: Published jobs, their accommodations, and schema.org JobPosting JSON-LD.
+  - name: Applications
+    description: Learners apply for jobs.
+  - name: Learner profile
+    description: The signed-in learner sees, changes and deletes their own data.
+  - name: Auth
+    description: Staff sign-in, sign-out and OAuth tokens for partner servers.
+  - name: Employer
+    description: Employers post jobs with their accommodations and read applications.
+  - name: Partner staff
+    description: Staff of a referral organisation (such as AAAPD) work through their referrals.
+  - name: Partner API
+    description: Level 2 integration. A partner's server reads the learners who signed up through it.
+  - name: Messaging
+    description: Telegram bot webhook.
+  - name: Development
+    description: Only when APP_ENV=dev.
+
 paths:
+  # ------------------------------------------------------------------ System
   /health:
     get:
+      operationId: getHealth
+      tags: [System]
       summary: Liveness check
-      description: Returns service status for docker and health monitors.
+      description: Answers `{"status":"ok"}` while the process is running. No sign-in. It does not check the database.
+      security: []
       responses:
         "200":
-          description: Service is healthy
+          description: The API is running.
           content:
             application/json:
               schema:
                 type: object
+                required: [status]
                 properties:
                   status:
                     type: string
-                    example: "ok"
-  /config:
+                    example: ok
+              example:
+                status: ok
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /api/openapi.yaml:
     get:
-      summary: Get widget configuration
-      description: Returns configuration for the embedding partner widget.
+      operationId: getOpenApiSpec
+      tags: [System]
+      summary: This OpenAPI file
+      description: Returns `api/openapi.yaml` as YAML. No sign-in.
+      security: []
+      responses:
+        "200":
+          description: The OpenAPI 3.0.3 document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "404":
+          description: The API process can't find `api/openapi.yaml` relative to its working directory.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: openapi.yaml not found
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /openapi.yaml:
+    get:
+      operationId: getOpenApiSpecShort
+      tags: [System]
+      summary: This OpenAPI file (short address)
+      description: The same as `GET /api/openapi.yaml`.
+      security: []
+      responses:
+        "200":
+          description: The OpenAPI 3.0.3 document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "404":
+          description: The API process can't find `api/openapi.yaml`.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: openapi.yaml not found
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /api/docs:
+    get:
+      operationId: getApiDocs
+      tags: [System]
+      summary: Interactive API docs (Swagger UI)
+      description: An HTML page that loads Swagger UI from unpkg.com and shows `/api/openapi.yaml`. No sign-in.
+      security: []
+      responses:
+        "200":
+          description: The Swagger UI page.
+          content:
+            text/html:
+              schema:
+                type: string
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /docs:
+    get:
+      operationId: getApiDocsShort
+      tags: [System]
+      summary: Interactive API docs (short address)
+      description: The same as `GET /api/docs`.
+      security: []
+      responses:
+        "200":
+          description: The Swagger UI page.
+          content:
+            text/html:
+              schema:
+                type: string
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  # ------------------------------------------------------------------ Widget
+  /api/v1/config:
+    get:
+      operationId: getConfig
+      tags: [Widget]
+      summary: The partner's widget settings
+      description: |
+        **Who:** anyone with the partner key, from an allowed origin.
+
+        The settings of the partner whose key was sent: languages, ID routes, the referral
+        organisations a learner without ID can choose, the help contact, the theme colour and
+        which speech services the server has. Missing settings get defaults:
+        `languages` `["am","en"]`, `default_language` `am` (or the first language if `am` is
+        not in the list), all six `id_routes`, `theme.primary` `#cc3636`.
+        `speech.server` and `speech.cloud_available` come from `STT_PROVIDERS` unless the
+        partner config overrides them.
+
+        Today the widget uses `languages`, `help` and `referral_partners`; it does not yet use
+        `default_language`, `id_routes`, `theme` or `speech`.
       security:
         - PartnerKey: []
       responses:
         "200":
-          description: Partner configuration
+          description: The settings.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConfigResponse'
+                $ref: "#/components/schemas/Config"
+              example:
+                partner:
+                  id: 7b6f1c2e-3d4a-4e5f-8a9b-0c1d2e3f4a5b
+                  name: Savanna (demo)
+                languages: [am, en]
+                default_language: am
+                id_routes: [fayda, kebele_id, refugee_id, unhcr_proof, other_document, none]
+                referral_partners:
+                  - id: 2c9e8f71-5a3b-4d6e-9f10-1a2b3c4d5e6f
+                    name: AAAPD
+                help:
+                  phone: "+251 11 000 0000"
+                  telegram: "@bridge_help_demo"
+                theme:
+                  primary: "#cc3636"
+                speech:
+                  server: true
+                  cloud_available: false
         "401":
-          $ref: '#/components/responses/Unauthorized'
+          $ref: "#/components/responses/WidgetUnauthorized"
+        "403":
+          $ref: "#/components/responses/WidgetForbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "500":
-          $ref: '#/components/responses/InternalError'
-  /registrations:
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Registrations
+  /api/v1/registrations:
     post:
-      summary: Start a new registration
-      description: Creates a draft learner and registration session.
+      operationId: createRegistration
+      tags: [Registrations]
+      summary: Start a sign-up
+      description: |
+        **Who:** anyone with the partner key, from an allowed origin. Strict rate limit
+        (20 a minute per IP).
+
+        Creates a draft learner (belonging to the partner whose key was sent) and a draft
+        registration at the flow's first step, and returns a learner token for this device.
+        Only the `signup` flow can be started today. `flow_version` defaults to the newest
+        version loaded from `shared/flows/`.
       security:
         - PartnerKey: []
       requestBody:
@@ -53,527 +280,2080 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [flow_id, flow_version]
-              properties:
-                flow_id:
-                  type: string
-                  example: "signup"
-                flow_version:
-                  type: integer
-                  example: 1
-                language:
-                  type: string
-                  example: "am"
-                simple_mode:
-                  type: boolean
-                  example: false
+              $ref: "#/components/schemas/CreateRegistrationRequest"
+            example:
+              flow_id: signup
+              language: am
+              simple_mode: false
       responses:
         "201":
-          description: Registration created
+          description: The registration and the learner token. Keep the token; it is shown only once.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  registration_id:
-                    type: string
-                    format: uuid
-                  learner_id:
-                    type: string
-                    format: uuid
-                  status:
-                    type: string
-                    example: "draft"
-                  current_step:
-                    type: string
-                    example: "welcome"
-                  session:
-                    $ref: '#/components/schemas/Session'
-        "401":
-          $ref: '#/components/responses/Unauthorized'
-  /registrations/{id}:
-    get:
-      summary: Get registration state
-      security:
-        - LearnerBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Current registration answers and progress
-        "404":
-          $ref: '#/components/responses/NotFound'
-    patch:
-      summary: Update registration progress
-      security:
-        - LearnerBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Progress saved
-  /registrations/{id}/answers/{questionId}:
-    put:
-      summary: Save an answer with conflict detection
-      security:
-        - LearnerBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: questionId
-          in: path
-          required: true
-          schema:
-            type: string
-            example: "phone"
-      responses:
-        "200":
-          description: Answer saved
-        "409":
-          description: Answer conflict
-        "422":
-          $ref: '#/components/responses/ValidationError'
-  /registrations/{id}/support-request:
-    put:
-      summary: Save support request privately
-      security:
-        - LearnerBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Support request encrypted and saved
-  /registrations/{id}/consents:
-    post:
-      summary: Record consent decision
-      security:
-        - LearnerBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [kind, granted, method]
-              properties:
-                kind:
-                  type: string
-                  enum: [data_processing, cloud_speech, sms, telegram, partner_access]
-                granted:
-                  type: boolean
-                method:
-                  type: string
-                  enum: [tap, sms_code, spoken, partner_witnessed]
-      responses:
-        "201":
-          description: Consent recorded
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    format: uuid
-                  kind:
-                    type: string
-                  granted:
-                    type: boolean
-                  created_at:
-                    type: string
-                    format: date-time
+                $ref: "#/components/schemas/CreateRegistrationResponse"
+              example:
+                registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
+                learner_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                status: draft
+                current_step: welcome
+                session:
+                  token: lt_Q2hhbmdlTWVJc1JhbmRvbQ
+                  expires_at: "2026-12-15T09:30:00Z"
         "400":
-          $ref: '#/components/responses/InvalidID'
-        "404":
-          $ref: '#/components/responses/NotFound'
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/WidgetUnauthorized"
+        "403":
+          $ref: "#/components/responses/WidgetForbidden"
         "422":
-          $ref: '#/components/responses/ValidationError'
-  /registrations/{id}/submit:
-    post:
-      summary: Complete and submit registration
-      security:
-        - LearnerBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Registration submitted successfully
-        "422":
-          $ref: '#/components/responses/ValidationError'
-  /speech/transcriptions:
-    post:
-      summary: Transcribe audio speech to text
-      security:
-        - LearnerBearer: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [audio, language]
-              properties:
-                audio:
-                  type: string
-                  format: binary
-                  description: Audio recording up to 3 MB
-                language:
-                  type: string
-                  example: "am"
-                step_id:
-                  type: string
-                  example: "phone"
-                field_type:
-                  type: string
-                  example: "phone"
-      responses:
-        "200":
-          description: Audio transcribed successfully
+          description: |
+            A rule failed. Fields and codes: `flow_id` (`required`, `too_long`,
+            `invalid_choice` for any flow but `signup`), `flow_version` (`too_short`,
+            `invalid_choice` when that version is not loaded), `language` (`required`,
+            `too_short`, `too_long`, `invalid` when it is not a language code such as `am`,
+            `en` or `om-ET`).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TranscriptionResponse'
-        "413":
-          description: Audio file exceeds 3 MB limit
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: flow_id
+                    code: invalid_choice
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/registrations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+    get:
+      operationId: getRegistration
+      tags: [Registrations]
+      summary: Everything needed to continue a sign-up
+      description: |
+        **Who:** the learner the registration belongs to (partner key + their learner token).
+        Another learner's registration is `403 forbidden`.
+
+        Status, current step, language, Simple mode and every saved answer with its
+        `version` (send it back as `base_version` when you change the answer). Support needs
+        are never returned here, only whether they were sent.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "200":
+          description: The registration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+              example:
+                registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
+                status: draft
+                current_step: dob
+                language: am
+                simple_mode: false
+                answers:
+                  full_name:
+                    question_id: full_name
+                    value: Abebe Kebede
+                    input_method: typed
+                    version: 1
+                    updated_at: "2026-11-15T09:30:12.418Z"
+                  contact_method:
+                    question_id: contact_method
+                    value: phone
+                    input_method: choice
+                    version: 1
+                    updated_at: "2026-11-15T09:30:40.120Z"
+                  phone:
+                    question_id: phone
+                    value: "+251912345678"
+                    input_method: voice
+                    version: 2
+                    updated_at: "2026-11-15T09:31:05.002Z"
+                support_request:
+                  submitted: false
+                updated_at: "2026-11-15T09:31:05.950Z"
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      operationId: updateRegistrationProgress
+      tags: [Registrations]
+      summary: Save the current step, language or Simple mode
+      description: |
+        **Who:** the learner the registration belongs to.
+
+        Only the fields sent change. `current_step` must be a step of the registration's flow.
+        `language` and `simple_mode` are saved on the learner. Works before and after submit.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProgressRequest"
+            example:
+              current_step: phone
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "422":
-          $ref: '#/components/responses/ValidationError'
-        "503":
-          description: All speech providers unavailable
-  /jobs:
-    get:
-      summary: List published jobs with accommodation codes
+          description: "`current_step` (`too_long`, `unknown_step`) or `language` (`too_short`, `too_long`, `invalid`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: current_step
+                    code: unknown_step
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/registrations/{id}/answers/{questionId}:
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+      - $ref: "#/components/parameters/QuestionId"
+    put:
+      operationId: saveAnswer
+      tags: [Registrations]
+      summary: Save one answer (with the version check)
+      description: |
+        **Who:** the learner the registration belongs to, while it is a draft.
+
+        The answer is checked against its step in the flow file (`shared/flows/signup.json`)
+        and cleaned before it is stored: text is trimmed, an Ethiopian phone number becomes
+        E.164 (`0912 345 678` → `+251912345678`), a date becomes
+        `{ "calendar", "ethiopian"?, "iso" }`. Only steps with `"storage": "answer"` can be
+        saved here (support needs use `PUT …/support-request`; the consent screen stays on the
+        device).
+
+        **Version check (optimistic locking).** Send `base_version`: the `version` of the
+        answer you last saw (0 if you never saw one). The server saves only if the stored
+        version is still `base_version`, then returns the answer with `version + 1`. If
+        another device saved first, nothing is saved and you get `409 answer_conflict` with
+        the stored answer in `current`. If nothing is stored yet, the answer is saved as
+        version 1 whatever `base_version` says.
+
+        Value shapes by step type: `text`, `long_text`, `phone`, `digits` and `single_choice`
+        take a string; `multi_choice` a list of strings; `date` an ISO string `"2017-09-25"`,
+        the stored object `{ "calendar": "ethiopian", "ethiopian": {"year":2010,"month":1,"day":15}, "iso": "2017-09-25" }`,
+        or a flat `{ "calendar": "ethiopian"|"gregorian", "year", "month", "day" }`.
+        `null`, `""` or `[]` clears an optional answer.
       security:
         - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveAnswerRequest"
+            examples:
+              phone:
+                summary: A phone number, first save
+                value:
+                  value: 0912 345 678
+                  input_method: typed
+                  base_version: 0
+              date:
+                summary: An Ethiopian-calendar date, changing version 1
+                value:
+                  value:
+                    calendar: ethiopian
+                    year: 2010
+                    month: 1
+                    day: 15
+                  input_method: typed
+                  base_version: 1
       responses:
         "200":
-          description: List of accessible job postings
-  /jobs/{id}:
-    get:
-      summary: Get job details
+          description: Saved. `version` is the new version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Answer"
+              example:
+                question_id: phone
+                value: "+251912345678"
+                input_method: typed
+                version: 1
+                updated_at: "2026-11-15T09:31:05.002Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: |
+            `answer_conflict`: another device saved a newer version; `current` is the stored
+            answer (adopt it, or send yours again with `base_version: current.version`).
+            `already_submitted`: the registration was submitted and can't change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnswerConflict"
+              examples:
+                answer_conflict:
+                  summary: Another device saved first
+                  value:
+                    status: 409
+                    code: answer_conflict
+                    title: Answer changed on another device
+                    current:
+                      question_id: phone
+                      value: "+251911223344"
+                      input_method: typed
+                      version: 2
+                      updated_at: "2026-11-15T09:32:00.000Z"
+                already_submitted:
+                  summary: The sign-up was already sent
+                  value:
+                    status: 409
+                    code: already_submitted
+                    title: Already submitted
+        "422":
+          description: |
+            The answer broke a rule. Body fields: `value` (`required`), `input_method`
+            (`required`, `invalid_choice`), `base_version` (`too_short`, `invalid`),
+            `question_id` (`unknown_question`). The answer itself is reported on the field
+            `value` with the step's error code: `required`, `too_short`, `too_long`,
+            `invalid`, `invalid_choice`, `phone_invalid`, `date_invalid`, `digits_invalid`,
+            `last4_invalid`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: value
+                    code: phone_invalid
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/registrations/{id}/support-request:
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+    put:
+      operationId: saveSupportRequest
+      tags: [Registrations]
+      summary: Save the learner's support needs (encrypted)
+      description: |
+        **Who:** the learner the registration belongs to (before or after submit).
+
+        Replaces the learner's support request. Every need must be a code from
+        `shared/vocab/needs.json`; duplicates are dropped. The needs and the free text are
+        encrypted together with AES-256-GCM (the learner ID is the additional data), so the
+        database holds only bytes. The answer never repeats the needs. `share_with` records
+        who else the learner allows to see them. Fails with `500` if
+        `DATA_ENCRYPTION_KEY` is not set: nothing is ever stored unencrypted.
       security:
         - PartnerKey: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportRequestInput"
+            example:
+              needs: [screen_reader, flexible_hours]
+              other_text: I need instructions in writing.
+              share_with:
+                courses: true
+                employers: false
       responses:
         "200":
-          description: Job details
-  /jobs/{id}/jobposting.jsonld:
-    get:
-      summary: Get schema.org JobPosting JSON-LD
-      responses:
-        "200":
-          description: Standard JobPosting metadata
-  /jobs/{id}/applications:
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportSaved"
+              example:
+                status: saved
+                updated_at: "2026-11-15T09:35:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: "`needs` (`too_long` over 20 items, `invalid_choice` for an unknown code), `needs[n]` (`required`, `too_long`), `other_text` (`too_long` over 500 characters)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: needs
+                    code: invalid_choice
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/registrations/{id}/consents:
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
     post:
-      summary: Submit a job application
+      operationId: createConsent
+      tags: [Registrations]
+      summary: Record a consent decision
+      description: |
+        **Who:** the learner the registration belongs to.
+
+        Records a yes or no for one kind of consent. The widget records `data_processing`
+        (`tap`) when the learner agrees on the consent screen, and `cloud_speech` when they
+        answer the speech question. The latest `cloud_speech` consent decides whether the
+        server may use a cloud speech-to-text provider.
       security:
-        - LearnerBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentRequest"
+            example:
+              kind: data_processing
+              granted: true
+              method: tap
       responses:
         "201":
-          description: Application submitted
-  /auth/staff/login:
+          description: Recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Consent"
+              example:
+                id: 1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a
+                kind: data_processing
+                granted: true
+                created_at: "2026-11-15T09:29:50.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: "`kind` (`required`, `invalid_choice`), `granted` (`required`), `method` (`required`, `invalid_choice`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: granted
+                    code: required
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/registrations/{id}/resume-links:
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
     post:
-      summary: Staff member login
+      operationId: createResumeLink
+      tags: [Resume]
+      summary: Make a link and a code to continue on another device
+      description: |
+        **Who:** the learner the registration belongs to, while it is a draft.
+
+        Makes a link (`PUBLIC_WEB_URL/r/<token>`) and a short code such as `K7M-9P2`, both
+        valid for 72 hours and single use, stored only as hashes. With `send_via: "sms"`
+        they are also texted to `phone` (or to the learner's saved phone number). The body is
+        optional.
+
+        **Not built yet:** the page at `/r/<token>` that uses the link, so the widget does
+        not offer this today. The code can be used with `POST /api/v1/resume/lookup` and
+        `POST /api/v1/resume/verify`. SMS is simulated: messages are logged and listed by
+        `GET /api/v1/dev/messages`.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-      responses:
-        "200":
-          description: Staff login session
-        "401":
-          $ref: '#/components/responses/Unauthorized'
-  /auth/staff/me:
-    get:
-      summary: Current staff profile and role
-      security:
-        - StaffBearer: []
-      responses:
-        "200":
-          description: Staff profile
-  /employer/jobs:
-    get:
-      summary: List employer's jobs
-      security:
-        - StaffBearer: []
-      responses:
-        "200":
-          description: Employer jobs
-    post:
-      summary: Create employer job posting
-      security:
-        - StaffBearer: []
+              $ref: "#/components/schemas/ResumeLinkRequest"
+            example:
+              send_via: sms
       responses:
         "201":
-          description: Draft job created
-  /employer/jobs/{id}/publish:
-    post:
-      summary: Publish employer job posting
-      security:
-        - StaffBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Job published
-  /oauth/token:
-    post:
-      summary: Partner server OAuth 2.0 client credentials token
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              required: [grant_type, client_id, client_secret]
-              properties:
-                grant_type:
-                  type: string
-                  example: "client_credentials"
-                client_id:
-                  type: string
-                client_secret:
-                  type: string
-                scope:
-                  type: string
-      responses:
-        "200":
-          description: OAuth access token
-  /partner-api/learners:
-    get:
-      summary: List registered learners for partner server
-      security:
-        - PartnerServerBearer: []
-      responses:
-        "200":
-          description: List of learners
-  /partner-api/learners/{id}:
-    get:
-      summary: Get learner record for partner server
-      security:
-        - PartnerServerBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: Learner details
-  /auth/logout:
-    post:
-      summary: Terminate session ("Forget me on this phone")
-      responses:
-        "200":
-          description: Session terminated
-  /resume/lookup:
-    post:
-      summary: Lookup resume session check type
-      security:
-        - PartnerKey: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                code:
-                  type: string
-                  example: "K7M9P2"
-                token:
-                  type: string
-                  example: "r_8fK9mP2xQ7vLz3"
-      responses:
-        "200":
-          description: Resume session found
+          description: The link and the code. `message` is present only when it was sent.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  registration_id:
-                    type: string
-                    format: uuid
-                  check:
-                    type: string
-                    enum: [dob, phone]
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "410":
-          description: Resume token expired
-        "429":
-          description: Too many failed attempts
-  /resume/verify:
-    post:
-      summary: Verify resume session credentials and issue session token
-      security:
-        - PartnerKey: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                code:
-                  type: string
-                token:
-                  type: string
-                dob:
-                  type: object
-                  properties:
-                    calendar:
-                      type: string
-                      enum: [ethiopian, gregorian]
-                    year:
-                      type: integer
-                    month:
-                      type: integer
-                    day:
-                      type: integer
-                phone_last4:
-                  type: string
-                  maxLength: 4
-      responses:
-        "200":
-          description: Resume verified successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  registration_id:
-                    type: string
-                    format: uuid
-                  session:
-                    $ref: '#/components/schemas/Session'
+                $ref: "#/components/schemas/ResumeLink"
+              example:
+                url: http://localhost:5173/r/k_V2hhdElzVGhpc1Rva2Vu
+                code: K7M-9P2
+                expires_at: "2026-11-18T09:40:00Z"
+                message:
+                  channel: sms
+                  status: queued
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
-          description: Verification check failed
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
         "404":
-          $ref: '#/components/responses/NotFound'
-        "410":
-          description: Resume token expired
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/AlreadySubmitted"
+        "422":
+          description: "`send_via` (`invalid_choice`), `phone` (`too_long`, or `phone_invalid` when SMS was asked for and there is no valid Ethiopian mobile number)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: phone
+                    code: phone_invalid
         "429":
-          description: Too many failed attempts
-  /partner/registrations/{id}/consent-code:
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/registrations/{id}/submit:
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
     post:
-      summary: Send consent code to learner phone
+      operationId: submitRegistration
+      tags: [Registrations]
+      summary: Finish the sign-up
+      description: |
+        **Who:** the learner the registration belongs to.
+
+        Walks the flow with the saved answers (only the steps on the learner's path count)
+        and lists every required answer that is missing. Then, in one transaction: copies
+        name, contact method, phone and date of birth to the learner (status `registered`),
+        records the identity evidence (route, document type, last 4; level `self_declared`)
+        and, for the "I have no ID" route, creates a referral to the chosen organisation.
+        Submitting again returns the same result (safe to retry). The body is ignored.
       security:
-        - StaffBearer: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - PartnerKey: []
+          LearnerBearer: []
       requestBody:
         required: false
         content:
           application/json:
             schema:
               type: object
-              properties:
-                phone:
-                  type: string
+            example: {}
       responses:
         "200":
-          description: Consent code sent
+          description: Signed up. `referral` is present only for the "I have no ID" route.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  phone:
-                    type: string
-                  expires_in:
-                    type: integer
+                $ref: "#/components/schemas/SubmitResponse"
+              examples:
+                with_id:
+                  summary: Signed up with an ID route
+                  value:
+                    status: registered
+                    learner_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                    identity_level: self_declared
+                referred:
+                  summary: No ID, referred to AAAPD
+                  value:
+                    status: registered
+                    learner_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                    identity_level: self_declared
+                    referral:
+                      id: 4b5c6d7e-8f9a-4b0c-9d1e-2f3a4b5c6d7e
+                      partner_name: AAAPD
+                      status: requested
         "400":
-          $ref: '#/components/responses/ValidationError'
+          $ref: "#/components/responses/InvalidId"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
         "404":
-          $ref: '#/components/responses/NotFound'
-  /telegram/webhook:
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: Required answers are missing (one entry per step ID, code `required`), or the referral organisation is not valid (`referral_partner`, `invalid_choice`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: full_name
+                    code: required
+                  - field: id_route
+                    code: required
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Resume
+  /api/v1/resume/lookup:
     post:
-      summary: Telegram bot webhook
+      operationId: resumeLookup
+      tags: [Resume]
+      summary: Find a sign-up from a resume code or link token
+      description: |
+        **Who:** anyone with the partner key, from an allowed origin. Strict rate limit.
+
+        Says which registration the code (or link token) belongs to and which check the
+        learner must pass next: `dob` (date of birth) or `phone` (last 4 digits). Send `code`
+        or `token`. After 5 failed checks the code is locked.
+      security:
+        - PartnerKey: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/ResumeLookupRequest"
+            example:
+              code: K7M-9P2
       responses:
         "200":
-          description: Webhook received
+          description: Found.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  ok:
-                    type: boolean
+                $ref: "#/components/schemas/ResumeLookupResponse"
+              example:
+                registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
+                check: phone
+        "400":
+          description: Neither `code` nor `token` was sent, or the JSON is unreadable (`invalid_request`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 400
+                code: invalid_request
+                title: Code or token is required
+        "401":
+          $ref: "#/components/responses/WidgetUnauthorized"
+        "403":
+          $ref: "#/components/responses/WidgetForbidden"
+        "404":
+          $ref: "#/components/responses/ResumeNotFound"
+        "410":
+          $ref: "#/components/responses/ResumeExpired"
+        "429":
+          $ref: "#/components/responses/ResumeTooManyAttempts"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/resume/verify:
+    post:
+      operationId: resumeVerify
+      tags: [Resume]
+      summary: Pass the check and get a learner token
+      description: |
+        **Who:** anyone with the partner key, from an allowed origin. Strict rate limit.
+
+        Send the code (or token) and the check: `dob` (`year`, `month`, `day`) or
+        `phone_last4` (exactly 4 digits). On a match the code is used up and a new learner
+        token (30 days) is returned. On a mismatch you get `401 resume_check_failed` with
+        `attempts_left`; after 5 failures the code is locked (`429 too_many_attempts`).
+      security:
+        - PartnerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResumeVerifyRequest"
+            example:
+              code: K7M-9P2
+              phone_last4: "5678"
+      responses:
+        "200":
+          description: The check matched.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeVerifyResponse"
+              example:
+                registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
+                session:
+                  token: lt_TmV3RGV2aWNlVG9rZW5YWQ
+                  expires_at: "2026-12-15T10:00:00Z"
+        "400":
+          description: Neither `code` nor `token` was sent, or the JSON is unreadable (`invalid_request`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 400
+                code: invalid_request
+                title: Code or token is required
+        "401":
+          description: |
+            `resume_check_failed` (the date of birth or the last 4 digits didn't match), or
+            a partner-key problem (`partner_key_missing`, `partner_key_invalid`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeCheckFailed"
+              examples:
+                resume_check_failed:
+                  summary: The check didn't match
+                  value:
+                    status: 401
+                    code: resume_check_failed
+                    title: Resume verification check failed
+                    attempts_left: 3
+                partner_key_missing:
+                  summary: No partner key
+                  value:
+                    status: 401
+                    code: partner_key_missing
+                    title: X-Partner-Key header is missing
+        "403":
+          $ref: "#/components/responses/WidgetForbidden"
+        "404":
+          $ref: "#/components/responses/ResumeNotFound"
+        "410":
+          $ref: "#/components/responses/ResumeExpired"
+        "422":
+          description: "`phone_last4` is not exactly 4 digits (`invalid`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: phone_last4
+                    code: invalid
+        "429":
+          $ref: "#/components/responses/ResumeTooManyAttempts"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Speech
+  /api/v1/speech/transcriptions:
+    post:
+      operationId: transcribeSpeech
+      tags: [Speech]
+      summary: Turn a recorded voice answer into text
+      description: |
+        **Who:** a learner (partner key + learner token).
+
+        Multipart upload of one clip (at most 3 MB; the whole request at most 4 MB). The
+        server converts it to 16 kHz mono WAV with ffmpeg and tries the providers in
+        `STT_PROVIDERS` order: `mock` (a fixed sample that fits the field, for testing),
+        `azure` (cloud: used only if the learner's latest `cloud_speech` consent is a yes)
+        and `local` (`LOCAL_STT_URL`). A provider that fails 3 times in a row is skipped for
+        60 seconds; each try has `STT_TIMEOUT_MS`. The audio is never stored. The text is
+        returned as heard; the widget cleans it up for the field.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/TranscriptionRequest"
+      responses:
+        "200":
+          description: The text. `confidence` is 0 to 1, or -1 when the provider gives none.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transcription"
+              example:
+                transcript: zero nine one two three four five six seven eight
+                confidence: 0.9
+                provider: mock
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "413":
+          description: The clip is over 3 MB (`payload_too_large`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 413
+                code: payload_too_large
+                title: Audio file exceeds 3 MB limit
+        "422":
+          description: "`audio` (`required`), `language` (`required`, `too_short`, `too_long`), `step_id` or `field_type` (`too_long`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: audio
+                    code: required
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/SpeechUnavailable"
+
+  /api/v1/speech/synthesis:
+    post:
+      operationId: synthesizeSpeech
+      tags: [Speech]
+      summary: Read fixed interface text aloud (MP3)
+      description: |
+        **Who:** anyone with the partner key, from an allowed origin.
+
+        Turns **fixed interface text** (questions, options, buttons, messages) into MP3 with
+        Azure neural voices: `am` → `am-ET-MekdesNeural`, `en` → `en-US-JennyNeural`. Never
+        send a learner's own answers here; the widget reads those with the device's voice
+        only. At most 600 characters. Needs `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`;
+        without them, or for another language, it answers `503 speech_unavailable` and the
+        widget falls back to recordings or the device's voice.
+      security:
+        - PartnerKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SynthesisRequest"
+            example:
+              text: What is your full name?
+              language: en
+      responses:
+        "200":
+          description: MP3 audio (24 kHz mono). Sent with `Cache-Control private, max-age=86400`.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: private, max-age=86400
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/WidgetUnauthorized"
+        "403":
+          $ref: "#/components/responses/WidgetForbidden"
+        "422":
+          description: "`text` (`required`, `too_long` over 600 characters), `language` (`required`, `too_short`, `too_long`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: text
+                    code: too_long
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/SpeechUnavailable"
+
+  # ------------------------------------------------------------------ Jobs
+  /api/v1/jobs:
+    get:
+      operationId: listJobs
+      tags: [Jobs]
+      summary: Published jobs, newest first
+      description: |
+        **Who:** anyone with the partner key, from an allowed origin.
+
+        One page of published jobs with their accommodation codes (from
+        `shared/vocab/needs.json`). Matching jobs to a learner's needs happens in the
+        browser, so the needs are never sent here. Pass `next_cursor` back as `cursor` for
+        the next page; it is `null` on the last page.
+      security:
+        - PartnerKey: []
+      parameters:
+        - name: limit
+          in: query
+          description: Jobs per page, 1 to 100 (default 20).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          description: The `next_cursor` of the previous page.
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        "200":
+          description: One page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobList"
+              example:
+                items:
+                  - id: 5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9
+                    title: Junior Web Developer
+                    description: Build and fix pages on our websites with HTML, CSS and JavaScript. A senior developer reviews your work every day.
+                    employer:
+                      name: Example Co
+                    location_type: remote
+                    location_text: ""
+                    work_hours: Mon–Fri, flexible hours
+                    employment_type: full_time
+                    accommodations: [remote_work, screen_reader, large_text, own_device, flexible_hours]
+                    status: published
+                    published_at: "2026-11-14T15:00:00Z"
+                next_cursor: MjAyNi0xMS0xNFQxNTowMDowMFp8NWU2ZjdhOGItOWMwZC00ZTFmLWEyYjMtYzRkNWU2ZjdhOGI5
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/WidgetUnauthorized"
+        "403":
+          $ref: "#/components/responses/WidgetForbidden"
+        "422":
+          description: "`limit` (`too_short`, `too_long`) or `cursor` (`too_long`, `invalid`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: limit
+                    code: too_long
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/jobs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: getJob
+      tags: [Jobs]
+      summary: One published job
+      description: "**Who:** anyone with the partner key, from an allowed origin. Drafts and closed jobs are `404`."
+      security:
+        - PartnerKey: []
+      responses:
+        "200":
+          description: The job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+              example:
+                id: 5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9
+                title: Administrative Assistant
+                description: Welcome visitors, answer the phone, file documents and book meeting rooms in our ground-floor office.
+                employer:
+                  name: Example Co
+                location_type: onsite
+                location_text: Bole, Addis Ababa
+                work_hours: Mon–Fri, 8:30–17:00
+                employment_type: full_time
+                accommodations: [step_free, accessible_toilet, quiet_space]
+                status: published
+                published_at: "2026-11-14T15:00:00Z"
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "401":
+          $ref: "#/components/responses/WidgetUnauthorized"
+        "403":
+          $ref: "#/components/responses/WidgetForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/jobs/{id}/jobposting.jsonld:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: getJobPosting
+      tags: [Jobs]
+      summary: A published job as schema.org JobPosting JSON-LD
+      description: |
+        **Who:** anyone (no key, no token). Level 3 integration: job boards and search
+        engines can read it.
+
+        Standard schema.org properties plus our extension `acc:offers`, the list of
+        accommodation codes. schema.org has no property for workplace accommodations, so the
+        readable text goes in `jobBenefits` and the codes in `acc:offers`, where the `acc`
+        prefix is `PUBLIC_WEB_URL + "/ns/accommodations#"`. Remote jobs get
+        `jobLocationType: TELECOMMUTE` and `applicantLocationRequirements` (Ethiopia). The
+        keys come out in alphabetical order.
+      security: []
+      responses:
+        "200":
+          description: The JobPosting.
+          content:
+            application/ld+json:
+              schema:
+                $ref: "#/components/schemas/JobPosting"
+              example:
+                "@context":
+                  - https://schema.org
+                  - acc: http://localhost:5173/ns/accommodations#
+                "@type": JobPosting
+                acc:offers: [remote_work, screen_reader, large_text, own_device, flexible_hours]
+                applicantLocationRequirements:
+                  "@type": Country
+                  name: Ethiopia
+                datePosted: "2026-11-14"
+                description: Build and fix pages on our websites with HTML, CSS and JavaScript. A senior developer reviews your work every day.
+                employmentType: FULL_TIME
+                hiringOrganization:
+                  "@type": Organization
+                  name: Example Co
+                jobBenefits: "Supports we offer: remote work; tools and documents that work with screen readers; screen magnification and large-print materials; use of your own assistive device or software; flexible hours and breaks."
+                jobLocationType: TELECOMMUTE
+                title: Junior Web Developer
+                workHours: Mon–Fri, flexible hours
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Applications
+  /api/v1/jobs/{id}/applications:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    post:
+      operationId: createApplication
+      tags: [Applications]
+      summary: Apply for a published job
+      description: |
+        **Who:** a learner who finished signing up (status `registered`), with the partner
+        key and their learner token. A draft learner gets `403 forbidden`. One application
+        per job (`409 already_exists` the second time).
+
+        `answers` are the answers of the `job-application` flow, keyed by step ID (at most
+        32 KB). `attach_support_request: true` lets the employer of this job read the
+        learner's support needs with this application (each read is audit-logged).
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApplicationRequest"
+            example:
+              answers:
+                contact_confirm:
+                  value: "yes"
+                  input_method: choice
+                motivation:
+                  value: I like building web pages and I learn fast.
+                  input_method: voice
+                start_date:
+                  value:
+                    calendar: gregorian
+                    iso: "2026-12-01"
+                  input_method: typed
+                attach_support:
+                  value: "yes"
+                  input_method: choice
+              attach_support_request: true
+      responses:
+        "201":
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+              example:
+                id: 6a7b8c9d-0e1f-4a2b-b3c4-d5e6f7a8b9c0
+                job_id: 5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9
+                status: submitted
+                created_at: "2026-11-15T10:10:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The learner already applied for this job (`already_exists`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 409
+                code: already_exists
+                title: Already exists
+        "422":
+          description: "`answers` (`required`, `too_long` over 32 KB, `invalid` when it is not a JSON object)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: answers
+                    code: invalid
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Learner profile
+  /api/v1/me:
+    get:
+      operationId: getMe
+      tags: [Learner profile]
+      summary: The learner's own data
+      description: |
+        **Who:** a learner, with the partner key and their own learner token. Only a learner
+        token works here.
+
+        Profile, latest registration, identity evidence (never the last 4 characters
+        themselves, only whether they were given), referral and the support request. This is
+        the only place the support request is decrypted for the learner, because it is theirs.
+        `dob`, `identity`, `support`, `referral` and `registered_at` are `null` when there is
+        nothing.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "200":
+          description: The learner's data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+              example:
+                learner_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
+                status: registered
+                full_name: Abebe Kebede
+                preferred_name: Abe
+                contact_method: phone
+                phone: "+251912345678"
+                dob:
+                  iso: "2017-09-25"
+                  calendar: ethiopian
+                language: am
+                simple_mode: false
+                identity:
+                  route: other_document
+                  doc_type: student_id
+                  level: self_declared
+                  has_last4: true
+                support:
+                  needs: [screen_reader]
+                  other_text: ""
+                  share_with:
+                    courses: false
+                    employers: true
+                referral: null
+                registered_at: "2026-11-15T09:40:02Z"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      operationId: updateMe
+      tags: [Learner profile]
+      summary: Change the learner's own details
+      description: |
+        **Who:** a learner, with their own token.
+
+        Only the fields sent change. Each is checked with the rule of the sign-up step of the
+        same name, and errors name the field (`{"field":"phone","code":"phone_invalid"}`).
+        Contact by `partner` or `none` clears the stored phone number, including the phone
+        answer saved at sign-up. Contact by `phone` or `telegram` with no phone stored or sent
+        is `422 phone required`. A changed phone number is marked unverified. `"dob": null`
+        clears the date. Before submit, only `language` and `simple_mode` may change;
+        anything else is `409 not_registered`. Support needs are changed with
+        `PUT /api/v1/registrations/{id}/support-request`.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMeRequest"
+            example:
+              contact_method: telegram
+              phone: 0911 223 344
+      responses:
+        "200":
+          description: Saved. The same body as `GET /api/v1/me`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The learner hasn't finished signing up, so only `language` and `simple_mode` can change (`not_registered`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 409
+                code: not_registered
+                title: Finish signing up first
+        "422":
+          description: "Field codes as in the sign-up steps: `full_name` (`required`, `too_short`), `contact_method` (`required`, `invalid_choice`), `phone` (`required`, `phone_invalid`), `dob` (`date_invalid`), `language` (`too_short`, `too_long`, `invalid`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: phone
+                    code: phone_invalid
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      operationId: deleteMe
+      tags: [Learner profile]
+      summary: Delete the learner and everything about them
+      description: |
+        **Who:** a learner, with their own token.
+
+        In one transaction: deletes the learner and, with them, their registrations, answers,
+        resume codes, identity evidence, referrals, support request, consents, job
+        applications and verification codes; deletes their sessions (and staff sessions
+        acting for them); writes an `audit_log` row without personal data
+        (`learner.deleted`). The token stops working (`401` afterwards).
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Auth
+  /api/v1/auth/staff/login:
+    post:
+      operationId: staffLogin
+      tags: [Auth]
+      summary: Staff sign-in
+      description: |
+        **Who:** anyone. Strict rate limit (20 a minute per IP).
+
+        Email and password give a staff token (`st_…`, 12 hours). An unknown email and a
+        wrong password get the same `401` and take the same time. Passwords are stored with
+        bcrypt. There is no sign-up or password reset yet: accounts are created by the
+        operator (the demo ones by `bridge seed`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffLoginRequest"
+            example:
+              email: employer@example.org
+              password: your-password
+      responses:
+        "200":
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffLoginResponse"
+              example:
+                token: st_U3RhZmZUb2tlbkV4YW1wbA
+                expires_at: "2026-11-15T21:00:00Z"
+                role: employer
+                partner_id: null
+                employer_id: 0f1e2d3c-4b5a-4968-8776-655443322110
+                display_name: Example Co HR
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "422":
+          description: "`email` (`required`, `email_invalid`, `too_long`), `password` (`required`, `too_long`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: email
+                    code: email_invalid
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/staff/me:
+    get:
+      operationId: staffMe
+      tags: [Auth]
+      summary: The signed-in staff member
+      description: "**Who:** any staff member with a valid staff token."
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: Who is signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffUser"
+              example:
+                id: 8c9d0e1f-2a3b-4c4d-8e5f-6a7b8c9d0e1f
+                email: staff@aaapd.example
+                display_name: AAAPD staff
+                role: partner_staff
+                partner_id: 2c9e8f71-5a3b-4d6e-9f10-1a2b3c4d5e6f
+                employer_id: null
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [Auth]
+      summary: End a session
+      description: |
+        **Who:** anyone holding a learner (`lt_…`) or staff (`st_…`) token. No partner key is
+        needed. The widget calls it for "Forget me on this phone"; the staff app for
+        Sign out. The token stops working at once.
+      security:
+        - LearnerBearer: []
+        - StaffBearer: []
+      responses:
+        "204":
+          description: Signed out.
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/oauth/token:
+    post:
+      operationId: issuePartnerToken
+      tags: [Auth]
+      summary: OAuth 2.0 client credentials token for a partner's server
+      description: |
+        **Who:** a partner's server with its `client_id` and `client_secret` (never put the
+        secret in a web page). Strict rate limit.
+
+        The body must be form-encoded (`application/x-www-form-urlencoded`), as OAuth 2.0
+        requires. The secret is stored as a SHA-256 hash and compared in constant time. The
+        only scope is `learners:read` (the default). The token (`pt_…`) lasts 1 hour; ask for
+        a new one when it expires. Errors use the OAuth shape `{"error": "…"}`, except
+        `429` and `500`, which use the usual error shape.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/OAuthTokenRequest"
+            example:
+              grant_type: client_credentials
+              client_id: savanna-demo
+              client_secret: your-client-secret
+              scope: learners:read
+      responses:
+        "200":
+          description: The access token. Sent with `Cache-Control no-store`.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthTokenResponse"
+              example:
+                access_token: pt_UGFydG5lclRva2VuRXhh
+                token_type: Bearer
+                expires_in: 3600
+                scope: learners:read
+        "400":
+          description: "`invalid_request` (a field is missing or the body is not form-encoded), `unsupported_grant_type` (not `client_credentials`), `invalid_scope` (a scope other than `learners:read`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthError"
+              examples:
+                invalid_request:
+                  value:
+                    error: invalid_request
+                unsupported_grant_type:
+                  value:
+                    error: unsupported_grant_type
+                invalid_scope:
+                  value:
+                    error: invalid_scope
+        "401":
+          description: Unknown client or wrong secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OAuthError"
+              example:
+                error: invalid_client
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Employer
+  /api/v1/employer/jobs:
+    get:
+      operationId: listEmployerJobs
+      tags: [Employer]
+      summary: The employer's own jobs, drafts included
+      description: "**Who:** staff with the role `employer`. Only that employer's jobs, newest first. `next_cursor` is always `null`."
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: The jobs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobList"
+              example:
+                items:
+                  - id: 5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9
+                    title: Data Entry Clerk
+                    description: Type paper forms into our computer system and check them for mistakes. Three-month contract.
+                    employer:
+                      name: Example Co
+                    location_type: onsite
+                    location_text: Adama
+                    work_hours: Mon–Fri, 9:00–16:00
+                    employment_type: contract
+                    accommodations: [step_free, large_text, extra_time, quiet_space]
+                    status: draft
+                    published_at: null
+                next_cursor: null
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/StaffForbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: createEmployerJob
+      tags: [Employer]
+      summary: Save a draft job with its accommodations
+      description: |
+        **Who:** staff with the role `employer`. The job belongs to their employer.
+
+        The accommodations form. The job is a draft until `POST …/publish`. Text is trimmed.
+        `location_text` is required unless the job is `remote`. `accommodations` are codes
+        from `shared/vocab/needs.json` except `other`; duplicates are dropped.
+      security:
+        - StaffBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobRequest"
+            example:
+              title: Junior Data Analyst
+              description: Clean and report data for our training programmes.
+              location_type: hybrid
+              location_text: Addis Ababa
+              work_hours: Mon–Fri, 9:00–17:00
+              employment_type: full_time
+              accommodations: [flexible_hours, screen_reader, remote_work]
+      responses:
+        "201":
+          description: Saved as a draft.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+              example:
+                id: 5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9
+                title: Junior Data Analyst
+                description: Clean and report data for our training programmes.
+                employer:
+                  name: Example Co
+                location_type: hybrid
+                location_text: Addis Ababa
+                work_hours: Mon–Fri, 9:00–17:00
+                employment_type: full_time
+                accommodations: [flexible_hours, screen_reader, remote_work]
+                status: draft
+                published_at: null
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/StaffForbidden"
+        "404":
+          description: The employer record doesn't exist (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 404
+                code: not_found
+                title: Not found
+        "422":
+          description: "Every problem at once: `title` (`required`, `too_short` under 2, `too_long`), `description` (`required`, `too_long` over 3000), `location_type` (`required`, `invalid_choice`), `location_text` (`required` unless remote, `too_long`), `work_hours` (`too_long`), `employment_type` (`required`, `invalid_choice`), `accommodations` (`too_long` over 20, `invalid_choice`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: location_text
+                    code: required
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/employer/jobs/{id}/publish:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    post:
+      operationId: publishEmployerJob
+      tags: [Employer]
+      summary: Publish a job
+      description: |
+        **Who:** staff with the role `employer`, for their own job. Another employer's job
+        (or a closed one) is `404`, so job IDs can't be probed.
+
+        The job becomes public (`GET /api/v1/jobs`) and gets a JobPosting JSON-LD address.
+        Publishing again keeps the first publication date. No body.
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: Published.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishJobResponse"
+              example:
+                id: 5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9
+                status: published
+                jsonld_url: http://localhost:5173/api/v1/jobs/5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9/jobposting.jsonld
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/StaffForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/employer/jobs/{id}/applications:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      operationId: listJobApplications
+      tags: [Employer]
+      summary: Applications to one of the employer's jobs
+      description: |
+        **Who:** staff with the role `employer`, for their own job. Another employer's job is
+        `404`.
+
+        Newest first. Each item has the applicant's name, contact and language (never ID
+        details) and their application answers. `support` is filled only when the applicant
+        attached their support request to this application; every time it is decrypted an
+        `audit_log` row records who read it (`support_request.read`). `next_cursor` is always
+        `null`.
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: The applications.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployerApplicationList"
+              example:
+                items:
+                  - id: 6a7b8c9d-0e1f-4a2b-b3c4-d5e6f7a8b9c0
+                    status: submitted
+                    created_at: "2026-11-15T10:10:00Z"
+                    answers:
+                      motivation:
+                        value: I like building web pages and I learn fast.
+                        input_method: voice
+                      attach_support:
+                        value: "yes"
+                        input_method: choice
+                    attach_support: true
+                    applicant:
+                      full_name: Abebe Kebede
+                      preferred_name: Abe
+                      contact_method: phone
+                      phone: "+251912345678"
+                      language: am
+                    support:
+                      needs: [screen_reader]
+                      other_text: ""
+                next_cursor: null
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/StaffForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Partner staff
+  /api/v1/partner/registrations/{id}/consent-code:
+    parameters:
+      - $ref: "#/components/parameters/RegistrationId"
+    post:
+      operationId: sendConsentCode
+      tags: [Partner staff]
+      summary: Text a consent code to the learner
+      description: |
+        **Who:** staff with the role `partner_staff`, for a learner of their own partner or a
+        learner referred to their organisation. Anyone else gets `403`.
+
+        Texts a 6-digit code (valid 10 minutes) to the learner's own stored phone number
+        (never a number from the request) and answers the masked number. The code is stored
+        only as a keyed hash.
+
+        **Not built yet:** the endpoint that checks the code and the rest of "partner staff
+        register a learner" (E1). SMS is simulated (see `GET /api/v1/dev/messages`). No body.
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentCodeResponse"
+              example:
+                status: sent
+                phone: "+2519•••••678"
+                expires_in: 600
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/StaffForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: The learner has no phone number (`phone`, `required`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: phone
+                    code: required
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/partner/referrals:
+    get:
+      operationId: listPartnerReferrals
+      tags: [Partner staff]
+      summary: Referrals to the staff member's organisation
+      description: |
+        **Who:** staff with the role `partner_staff`. Only referrals to their own
+        organisation, newest first.
+
+        A referral is a learner without ID who chose this organisation at sign-up. Staff see
+        the learner's name, contact and language; never ID details or support needs.
+        `next_cursor` is always `null`.
+      security:
+        - StaffBearer: []
+      responses:
+        "200":
+          description: The referrals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerReferralList"
+              example:
+                items:
+                  - id: 4b5c6d7e-8f9a-4b0c-9d1e-2f3a4b5c6d7e
+                    status: requested
+                    contact_preference: in_person
+                    created_at: "2026-11-15T09:40:02Z"
+                    learner:
+                      learner_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                      full_name: Tigist Alemu
+                      preferred_name: ""
+                      contact_method: none
+                      phone: ""
+                      language: am
+                next_cursor: null
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/StaffForbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/partner/referrals/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Referral ID.
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updatePartnerReferral
+      tags: [Partner staff]
+      summary: Mark a referral in progress or closed
+      description: "**Who:** staff with the role `partner_staff`, for a referral to their own organisation. Another organisation's referral is `404`."
+      security:
+        - StaffBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReferralRequest"
+            example:
+              status: in_progress
+      responses:
+        "200":
+          description: The updated referral.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerReferral"
+              example:
+                id: 4b5c6d7e-8f9a-4b0c-9d1e-2f3a4b5c6d7e
+                status: in_progress
+                contact_preference: in_person
+                created_at: "2026-11-15T09:40:02Z"
+                learner:
+                  learner_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                  full_name: Tigist Alemu
+                  preferred_name: ""
+                  contact_method: none
+                  phone: ""
+                  language: am
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/StaffForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: "`status` (`required`, `invalid_choice`: only `in_progress` and `closed`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: status
+                    code: invalid_choice
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Partner API
+  /api/v1/partner-api/learners:
+    get:
+      operationId: listPartnerLearners
+      tags: [Partner API]
+      summary: Learners who signed up through this partner
+      description: |
+        **Who:** a partner's server with a `pt_…` token that has the scope `learners:read`.
+
+        Only learners of the partner that owns the token, only those who finished signing up
+        (`registered`), newest sign-up first. Never support needs or ID details. Use
+        `updated_since` to fetch only learners changed after a moment. At most `limit`
+        learners (default 50, at most 200). `cursor` is accepted but not used yet:
+        `next_cursor` is always `null`.
+      security:
+        - PartnerServerBearer: []
+      parameters:
+        - name: updated_since
+          in: query
+          description: Only learners whose record changed after this moment (RFC 3339).
+          schema:
+            type: string
+            format: date-time
+          example: "2026-11-15T00:00:00Z"
+        - name: limit
+          in: query
+          description: At most this many learners, 1 to 200 (default 50).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          description: Accepted for later use; ignored today.
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        "200":
+          description: The learners.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearnerList"
+              example:
+                items:
+                  - learner_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                    full_name: Abebe Kebede
+                    preferred_name: Abe
+                    language: am
+                    status: registered
+                    identity_level: self_declared
+                    contact:
+                      method: phone
+                      phone: "+251912345678"
+                      verified: false
+                    registered_at: "2026-11-15T09:40:02Z"
+                next_cursor: null
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/InsufficientScope"
+        "422":
+          description: "`limit` (`too_short`, `too_long`) or `cursor` (`too_long`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: limit
+                    code: too_long
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/partner-api/learners/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Learner ID.
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getPartnerLearner
+      tags: [Partner API]
+      summary: One learner of this partner
+      description: |
+        **Who:** a partner's server with the scope `learners:read`. Another partner's learner
+        is `404`, and so is a learner who hasn't finished signing up (like the list, only
+        registered learners are shared).
+      security:
+        - PartnerServerBearer: []
+      responses:
+        "200":
+          description: The learner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Learner"
+              example:
+                learner_id: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                full_name: Abebe Kebede
+                preferred_name: Abe
+                language: am
+                status: registered
+                identity_level: self_declared
+                contact:
+                  method: phone
+                  phone: "+251912345678"
+                  verified: false
+                registered_at: "2026-11-15T09:40:02Z"
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/InsufficientScope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  # ------------------------------------------------------------------ Messaging
+  /api/v1/telegram/webhook:
+    post:
+      operationId: telegramWebhook
+      tags: [Messaging]
+      summary: Telegram bot webhook
+      description: |
+        **Who:** Telegram, with `X-Telegram-Bot-Api-Secret-Token` equal to
+        `TELEGRAM_WEBHOOK_SECRET`. Without a secret set, the webhook works only when
+        `APP_ENV=dev` (and answers `404` in production).
+
+        Reacts to `/start` and `/start <resume token>` with a welcome message. Always answers
+        `{"ok": true}`, even for updates it ignores. **Not built yet:** replies are written to
+        the message outbox and the log only; nothing is sent to Telegram (there is no bot
+        token setting).
+      security:
+        - TelegramSecret: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramUpdate"
+            example:
+              update_id: 100001
+              message:
+                message_id: 12
+                from:
+                  id: 555000111
+                  first_name: Abebe
+                  username: abebe_k
+                chat:
+                  id: 555000111
+                  type: private
+                date: 1763200000
+                text: /start
+      responses:
+        "200":
+          description: Received.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramWebhookResponse"
+              example:
+                ok: true
+        "401":
+          description: Wrong secret (`unauthorized`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 401
+                code: unauthorized
+                title: Bad webhook secret
+        "404":
+          description: No `TELEGRAM_WEBHOOK_SECRET` set and not in development (`not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 404
+                code: not_found
+                title: Not found
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  # ------------------------------------------------------------------ Development
+  /api/v1/dev/messages:
+    get:
+      operationId: listDevMessages
+      tags: [Development]
+      summary: The simulated SMS and Telegram inbox
+      description: |
+        **Only when `APP_ENV=dev`** (in production this route does not exist). No sign-in.
+
+        Every queued message (resume links and codes, consent codes, Telegram replies),
+        oldest first. Messages are never really sent today: this is how you read them in a
+        demo.
+      security: []
+      responses:
+        "200":
+          description: The messages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevMessageList"
+              example:
+                items:
+                  - id: 2e3f4a5b-6c7d-4e8f-9a0b-1c2d3e4f5a6b
+                    channel: sms
+                    to: "+251912345678"
+                    body: "Bridge: your consent code is 492015. It works for 10 minutes. Only give it to the person helping you if you agree."
+                    created_at: "2026-11-15T10:20:00Z"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
 components:
   securitySchemes:
@@ -581,138 +2361,1482 @@ components:
       type: apiKey
       in: header
       name: X-Partner-Key
+      description: |
+        The partner's publishable key (`pk_…`). It is public: it goes in the partner's web
+        page. Browser calls must also come from one of the partner's allowed origins. If the
+        header is missing, the key may come from the query string (`?key=` or
+        `?partner_key=`), with the same origin check.
     LearnerBearer:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      bearerFormat: opaque (lt_…)
+      description: |
+        An opaque learner token (`lt_` + 22 random characters) from `POST /api/v1/registrations`
+        or `POST /api/v1/resume/verify`. Valid 30 days, renewed each time it is used. Always
+        sent together with the partner key of the learner's own partner.
     StaffBearer:
       type: http
       scheme: bearer
+      bearerFormat: opaque (st_…)
+      description: An opaque staff token (`st_…`) from `POST /api/v1/auth/staff/login`. Valid 12 hours.
     PartnerServerBearer:
       type: http
       scheme: bearer
+      bearerFormat: opaque (pt_…)
+      description: |
+        An opaque partner-server token (`pt_…`) from `POST /api/v1/oauth/token` (OAuth 2.0
+        client credentials). Valid 1 hour. Needs the scope `learners:read`.
+    TelegramSecret:
+      type: apiKey
+      in: header
+      name: X-Telegram-Bot-Api-Secret-Token
+      description: The value of `TELEGRAM_WEBHOOK_SECRET`, which Telegram sends with every update.
+
+  parameters:
+    RegistrationId:
+      name: id
+      in: path
+      required: true
+      description: Registration ID (from `POST /api/v1/registrations`).
+      schema:
+        type: string
+        format: uuid
+    JobId:
+      name: id
+      in: path
+      required: true
+      description: Job ID.
+      schema:
+        type: string
+        format: uuid
+    QuestionId:
+      name: questionId
+      in: path
+      required: true
+      description: The step ID in the flow file, for example `full_name`, `phone`, `dob`, `id_route`.
+      schema:
+        type: string
+        example: phone
+
+  headers:
+    RetryAfter:
+      description: Seconds to wait before trying again.
+      schema:
+        type: integer
+      example: 42
+
+  responses:
+    InvalidRequest:
+      description: The body or query is unreadable (`invalid_request`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 400
+            code: invalid_request
+    InvalidId:
+      description: An ID in the path is not a UUID (`invalid_id`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 400
+            code: invalid_id
+            errors:
+              - field: id
+                code: invalid
+    BadRequest:
+      description: An ID in the path is not a UUID (`invalid_id`), or the body is unreadable JSON (`invalid_request`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            invalid_id:
+              value:
+                status: 400
+                code: invalid_id
+                errors:
+                  - field: id
+                    code: invalid
+            invalid_request:
+              value:
+                status: 400
+                code: invalid_request
+    WidgetUnauthorized:
+      description: The partner key is missing (`partner_key_missing`) or unknown (`partner_key_invalid`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            partner_key_missing:
+              value:
+                status: 401
+                code: partner_key_missing
+                title: X-Partner-Key header is missing
+            partner_key_invalid:
+              value:
+                status: 401
+                code: partner_key_invalid
+                title: Unknown partner key
+    WidgetForbidden:
+      description: The browser's `Origin` is not one of the partner's allowed origins (`origin_not_allowed`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 403
+            code: origin_not_allowed
+            title: This website may not use this partner key
+    LearnerUnauthorized:
+      description: A partner-key problem (`partner_key_missing`, `partner_key_invalid`), or the learner token is missing, unknown, expired or revoked (`unauthorized`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            unauthorized:
+              value:
+                status: 401
+                code: unauthorized
+                title: Sign-in needed
+            partner_key_missing:
+              value:
+                status: 401
+                code: partner_key_missing
+                title: X-Partner-Key header is missing
+            partner_key_invalid:
+              value:
+                status: 401
+                code: partner_key_invalid
+                title: Unknown partner key
+    LearnerForbidden:
+      description: |
+        `origin_not_allowed`: the browser's origin is not allowed for this partner key.
+        `forbidden`: the token belongs to a learner of another partner, or the registration
+        belongs to another learner, or the action needs a learner token or a finished sign-up.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            forbidden:
+              value:
+                status: 403
+                code: forbidden
+                title: Not allowed
+            other_partner:
+              value:
+                status: 403
+                code: forbidden
+                title: This sign-up belongs to another partner
+            origin_not_allowed:
+              value:
+                status: 403
+                code: origin_not_allowed
+                title: This website may not use this partner key
+    TokenUnauthorized:
+      description: "`unauthorized`: the bearer token is missing, of the wrong kind (`lt_`, `st_`, `pt_`), unknown, expired or revoked; or, for staff sign-in, the email or password is wrong (the same answer for both)."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 401
+            code: unauthorized
+            title: Sign-in needed
+    StaffForbidden:
+      description: Signed in, but the role (or the organisation) is not allowed (`forbidden`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 403
+            code: forbidden
+            title: Not allowed
+    InsufficientScope:
+      description: The partner-server token lacks the scope `learners:read` (`insufficient_scope`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 403
+            code: insufficient_scope
+            title: Not allowed
+    NotFound:
+      description: Nothing with this ID that the caller may see (`not_found`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 404
+            code: not_found
+            title: Not found
+    AlreadySubmitted:
+      description: The registration was already submitted and can't change (`already_submitted`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 409
+            code: already_submitted
+            title: Already submitted
+    ResumeNotFound:
+      description: No resume code or link matches (`resume_not_found`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 404
+            code: resume_not_found
+            title: Resume session not found
+    ResumeExpired:
+      description: The code or link is older than 72 hours or was already used (`resume_expired`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 410
+            code: resume_expired
+            title: Resume token or code has expired
+    ResumeTooManyAttempts:
+      description: "`too_many_attempts`: 5 failed checks locked this code (make a new one). `rate_limited`: the strict rate limit was hit (only this one sends `Retry-After`)."
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            too_many_attempts:
+              value:
+                status: 429
+                code: too_many_attempts
+                title: Too many failed verification attempts
+            rate_limited:
+              value:
+                status: 429
+                code: rate_limited
+    RateLimited:
+      description: Too many requests (`rate_limited`). Wait for `Retry-After` seconds.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 429
+            code: rate_limited
+    InternalError:
+      description: Something went wrong on the server (`internal_error`). Details are logged, never sent.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 500
+            code: internal_error
+            title: Something went wrong
+    SpeechUnavailable:
+      description: No speech provider could do it right now (`speech_unavailable`).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            status: 503
+            code: speech_unavailable
+            title: Speech service unavailable
 
   schemas:
-    ConfigResponse:
+    # ---------------------------------------------------------- errors
+    ErrorResponse:
       type: object
+      required: [status, code]
       properties:
-        partner:
+        status:
+          type: integer
+          description: The HTTP status, repeated.
+          example: 422
+        code:
+          type: string
+          description: Stable error code, for programs.
+          example: validation_failed
+        title:
+          type: string
+          description: A short English hint. May be missing.
+          example: Validation failed
+        errors:
+          type: array
+          description: One entry per field problem (422 only).
+          items:
+            $ref: "#/components/schemas/FieldError"
+    FieldError:
+      type: object
+      required: [field, code]
+      properties:
+        field:
+          type: string
+          description: The JSON field name, or `value` for the answer itself, or a step ID on submit.
+          example: value
+        code:
+          type: string
+          example: phone_invalid
+    AnswerConflict:
+      description: A 409. With `code` `answer_conflict`, `current` holds the answer another device saved.
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          properties:
+            current:
+              $ref: "#/components/schemas/Answer"
+    ResumeCheckFailed:
+      description: A 401. With `code` `resume_check_failed`, `attempts_left` says how many tries remain.
+      allOf:
+        - $ref: "#/components/schemas/ErrorResponse"
+        - type: object
+          properties:
+            attempts_left:
+              type: integer
+              minimum: 0
+              maximum: 4
+              example: 3
+    OAuthError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum: [invalid_request, invalid_client, unsupported_grant_type, invalid_scope]
+
+    # ---------------------------------------------------------- shared
+    Session:
+      type: object
+      required: [token, expires_at]
+      properties:
+        token:
+          type: string
+          description: The learner token (`lt_…`). Shown only once.
+          example: lt_Q2hhbmdlTWVJc1JhbmRvbQ
+        expires_at:
+          type: string
+          format: date-time
+          description: RFC 3339, UTC. Renewed (30 days from now) each time the token is used.
+    PartnerRef:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: AAAPD
+    DateAnswer:
+      description: |
+        A date as stored: the calendar the learner used, the Ethiopian date when they used
+        that calendar, and the Gregorian ISO date.
+      type: object
+      required: [calendar, iso]
+      properties:
+        calendar:
+          type: string
+          enum: [ethiopian, gregorian]
+        ethiopian:
           type: object
           properties:
-            id:
-              type: string
-              format: uuid
-            name:
-              type: string
+            year:
+              type: integer
+              example: 2010
+            month:
+              type: integer
+              minimum: 1
+              maximum: 13
+              example: 1
+            day:
+              type: integer
+              minimum: 1
+              maximum: 30
+              example: 15
+        iso:
+          type: string
+          format: date
+          example: "2017-09-25"
+
+    # ---------------------------------------------------------- config
+    Config:
+      type: object
+      required: [partner, languages, default_language, id_routes, referral_partners, help, theme, speech]
+      properties:
+        partner:
+          $ref: "#/components/schemas/PartnerRef"
         languages:
           type: array
+          description: Language codes the widget offers (only those it has a locale file for).
           items:
             type: string
+          example: [am, en]
         default_language:
           type: string
+          example: am
         id_routes:
           type: array
+          description: The ID routes the partner accepts.
           items:
             type: string
+            enum: [fayda, kebele_id, refugee_id, unhcr_proof, other_document, none]
         referral_partners:
           type: array
+          description: Every referral organisation (partners of kind `referral_org`).
           items:
-            type: object
-            properties:
-              id:
-                type: string
-                format: uuid
-              name:
-                type: string
+            $ref: "#/components/schemas/PartnerRef"
         help:
           type: object
+          description: How to reach a person. Each field is left out when not set.
           properties:
             phone:
               type: string
+              example: "+251 11 000 0000"
             telegram:
               type: string
+              example: "@bridge_help_demo"
         theme:
           type: object
           properties:
             primary:
               type: string
+              example: "#cc3636"
         speech:
           type: object
+          required: [server, cloud_available]
           properties:
             server:
               type: boolean
+              description: The API can turn audio into text (`STT_PROVIDERS` is not empty).
             cloud_available:
               type: boolean
+              description: A cloud provider is configured (it needs the learner's consent).
 
-    TranscriptionResponse:
+    # ---------------------------------------------------------- registrations
+    CreateRegistrationRequest:
+      type: object
+      required: [flow_id, language]
+      properties:
+        flow_id:
+          type: string
+          maxLength: 64
+          description: Only `signup` today.
+          example: signup
+        flow_version:
+          type: integer
+          minimum: 1
+          description: Leave it out (or 0) for the newest version.
+        language:
+          type: string
+          minLength: 2
+          maxLength: 8
+          description: A language code such as `am`, `en` or `om-ET`.
+          example: am
+        simple_mode:
+          type: boolean
+          default: false
+    CreateRegistrationResponse:
+      type: object
+      required: [registration_id, learner_id, status, current_step, session]
+      properties:
+        registration_id:
+          type: string
+          format: uuid
+        learner_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [draft]
+        current_step:
+          type: string
+          description: The flow's first step.
+          example: welcome
+        session:
+          $ref: "#/components/schemas/Session"
+    UpdateProgressRequest:
+      type: object
+      description: Every field is optional; only what is sent changes.
+      properties:
+        current_step:
+          type: string
+          maxLength: 64
+          example: phone
+        language:
+          type: string
+          minLength: 2
+          maxLength: 8
+        simple_mode:
+          type: boolean
+    SaveAnswerRequest:
+      type: object
+      required: [value, input_method]
+      properties:
+        value:
+          description: The answer. A string, a list of strings, or a date (see the operation). `null`, `""` or `[]` clears an optional answer.
+        input_method:
+          type: string
+          enum: [typed, voice, choice, partner]
+        base_version:
+          type: integer
+          minimum: 0
+          default: 0
+          description: The version of this answer you last saw; 0 if none.
+    Answer:
+      type: object
+      required: [question_id, value, input_method, version, updated_at]
+      properties:
+        question_id:
+          type: string
+          example: phone
+        value:
+          description: The cleaned answer as stored (for example a phone number in E.164 form).
+        input_method:
+          type: string
+          enum: [typed, voice, choice, partner]
+        version:
+          type: integer
+          minimum: 1
+          description: Goes up by 1 each time the answer changes.
+        updated_at:
+          type: string
+          format: date-time
+    Registration:
+      type: object
+      required: [registration_id, status, current_step, language, simple_mode, answers, support_request, updated_at]
+      properties:
+        registration_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [draft, submitted]
+        current_step:
+          type: string
+        language:
+          type: string
+        simple_mode:
+          type: boolean
+        answers:
+          type: object
+          description: Every saved answer, keyed by step ID.
+          additionalProperties:
+            $ref: "#/components/schemas/Answer"
+        support_request:
+          type: object
+          required: [submitted]
+          description: Only whether support needs were sent; never the needs.
+          properties:
+            submitted:
+              type: boolean
+        updated_at:
+          type: string
+          format: date-time
+    SubmitResponse:
+      type: object
+      required: [status, learner_id, identity_level]
+      properties:
+        status:
+          type: string
+          description: The learner's status.
+          enum: [registered]
+        learner_id:
+          type: string
+          format: uuid
+        identity_level:
+          type: string
+          enum: [self_declared, partner_attested, verified]
+        referral:
+          $ref: "#/components/schemas/ReferralSummary"
+    ReferralSummary:
+      type: object
+      description: Present only for the "I have no ID" route.
+      required: [id, partner_name, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        partner_name:
+          type: string
+          example: AAAPD
+        status:
+          type: string
+          enum: [requested, in_progress, attested, closed]
+    SupportRequestInput:
       type: object
       properties:
-        transcript:
+        needs:
+          type: array
+          maxItems: 20
+          description: Codes from `shared/vocab/needs.json`.
+          items:
+            type: string
+            maxLength: 64
+            enum: [screen_reader, large_text, sign_language, captions, step_free, accessible_toilet, flexible_hours, remote_work, extra_time, written_instructions, quiet_space, own_device, person_to_help, other]
+        other_text:
           type: string
-          example: "0912345678"
-        confidence:
-          type: number
-          example: 0.85
-        provider:
-          type: string
-          example: "azure"
-
-    Session:
+          maxLength: 500
+        share_with:
+          $ref: "#/components/schemas/ShareWith"
+    ShareWith:
       type: object
       properties:
-        token:
+        courses:
+          type: boolean
+          default: false
+        employers:
+          type: boolean
+          default: false
+    SupportSaved:
+      type: object
+      required: [status, updated_at]
+      properties:
+        status:
           type: string
-        expires_at:
+          enum: [saved]
+        updated_at:
+          type: string
+          format: date-time
+    ConsentRequest:
+      type: object
+      required: [kind, granted, method]
+      properties:
+        kind:
+          type: string
+          enum: [data_processing, cloud_speech, sms, telegram, partner_access]
+        granted:
+          type: boolean
+          description: "`false` is a valid answer (a recorded no)."
+        method:
+          type: string
+          enum: [tap, sms_code, spoken, partner_witnessed]
+    Consent:
+      type: object
+      required: [id, kind, granted, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [data_processing, cloud_speech, sms, telegram, partner_access]
+        granted:
+          type: boolean
+        created_at:
           type: string
           format: date-time
 
-    ErrorResponse:
+    # ---------------------------------------------------------- resume
+    ResumeLinkRequest:
       type: object
       properties:
-        status:
-          type: integer
+        send_via:
+          type: string
+          enum: [none, sms]
+          default: none
+        phone:
+          type: string
+          maxLength: 32
+          description: Where to text it. Defaults to the learner's saved phone number.
+    ResumeLink:
+      type: object
+      required: [url, code, expires_at]
+      properties:
+        url:
+          type: string
+          description: "`PUBLIC_WEB_URL/r/<token>` (no page serves it yet)."
         code:
           type: string
+          example: K7M-9P2
+        expires_at:
+          type: string
+          format: date-time
+        message:
+          type: object
+          properties:
+            channel:
+              type: string
+              enum: [sms]
+            status:
+              type: string
+              enum: [queued]
+    ResumeLookupRequest:
+      type: object
+      description: Send `code` or `token`.
+      properties:
+        code:
+          type: string
+          example: K7M-9P2
+        token:
+          type: string
+          description: The token from the link (the part after `/r/`).
+    ResumeLookupResponse:
+      type: object
+      required: [registration_id, check]
+      properties:
+        registration_id:
+          type: string
+          format: uuid
+        check:
+          type: string
+          enum: [dob, phone]
+          description: Which check `POST /api/v1/resume/verify` needs.
+    ResumeVerifyRequest:
+      type: object
+      description: Send `code` or `token`, and `dob` or `phone_last4`.
+      properties:
+        code:
+          type: string
+        token:
+          type: string
+        dob:
+          type: object
+          description: Year, month and day of the date of birth as stored (Gregorian once the sign-up is submitted). `calendar` is not used yet.
+          properties:
+            calendar:
+              type: string
+            year:
+              type: integer
+            month:
+              type: integer
+            day:
+              type: integer
+        phone_last4:
+          type: string
+          pattern: "^[0-9]{4}$"
+    ResumeVerifyResponse:
+      type: object
+      required: [registration_id, session]
+      properties:
+        registration_id:
+          type: string
+          format: uuid
+        session:
+          $ref: "#/components/schemas/Session"
+
+    # ---------------------------------------------------------- speech
+    TranscriptionRequest:
+      type: object
+      required: [audio, language]
+      properties:
+        audio:
+          type: string
+          format: binary
+          description: One clip (WebM/Opus, MP4/AAC, WAV…), at most 3 MB.
+        language:
+          type: string
+          minLength: 2
+          maxLength: 8
+          example: am
+        step_id:
+          type: string
+          maxLength: 64
+          description: The question being answered (the mock provider uses it to pick a fitting sample).
+          example: phone
+        field_type:
+          type: string
+          maxLength: 32
+          description: The step type, for example `phone`, `digits`, `text`, `long_text`.
+          example: phone
+    Transcription:
+      type: object
+      required: [transcript, confidence, provider]
+      properties:
+        transcript:
+          type: string
+        confidence:
+          type: number
+          minimum: -1
+          maximum: 1
+          description: 0 to 1, or -1 when the provider gives none.
+        provider:
+          type: string
+          enum: [mock, azure, local]
+    SynthesisRequest:
+      type: object
+      required: [text, language]
+      properties:
+        text:
+          type: string
+          maxLength: 600
+          description: Fixed interface text only, never a learner's answer.
+        language:
+          type: string
+          minLength: 2
+          maxLength: 8
+          description: "`am` or `en` have voices today."
+
+    # ---------------------------------------------------------- jobs
+    Job:
+      type: object
+      required: [id, title, description, employer, location_type, location_text, work_hours, employment_type, accommodations, status, published_at]
+      properties:
+        id:
+          type: string
+          format: uuid
         title:
           type: string
-        errors:
+        description:
+          type: string
+        employer:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+              example: Example Co
+        location_type:
+          type: string
+          enum: [onsite, remote, hybrid]
+        location_text:
+          type: string
+          description: Empty for many remote jobs.
+        work_hours:
+          type: string
+        employment_type:
+          type: string
+          enum: [full_time, part_time, contract, internship, temporary]
+        accommodations:
+          type: array
+          description: Codes from `shared/vocab/needs.json` (never `other`).
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, published, closed]
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+    JobList:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+        next_cursor:
+          type: string
+          nullable: true
+    CreateJobRequest:
+      type: object
+      required: [title, description, location_type, employment_type]
+      properties:
+        title:
+          type: string
+          minLength: 2
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 3000
+        location_type:
+          type: string
+          enum: [onsite, remote, hybrid]
+        location_text:
+          type: string
+          maxLength: 200
+          description: Required unless `location_type` is `remote`.
+        work_hours:
+          type: string
+          maxLength: 200
+        employment_type:
+          type: string
+          enum: [full_time, part_time, contract, internship, temporary]
+        accommodations:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            maxLength: 64
+            enum: [screen_reader, large_text, sign_language, captions, step_free, accessible_toilet, flexible_hours, remote_work, extra_time, written_instructions, quiet_space, own_device, person_to_help]
+    PublishJobResponse:
+      type: object
+      required: [id, status, jsonld_url]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [published]
+        jsonld_url:
+          type: string
+          description: "`PUBLIC_WEB_URL/api/v1/jobs/{id}/jobposting.jsonld`"
+    JobPosting:
+      type: object
+      description: |
+        schema.org JobPosting JSON-LD. `acc:offers` is our extension: the accommodation codes
+        of `shared/vocab/needs.json`. `jobBenefits` says the same in English words.
+      required: ["@context", "@type", title, description, hiringOrganization, "acc:offers"]
+      properties:
+        "@context":
+          type: array
+          items: {}
+        "@type":
+          type: string
+          enum: [JobPosting]
+        title:
+          type: string
+        description:
+          type: string
+        hiringOrganization:
+          type: object
+          properties:
+            "@type":
+              type: string
+            name:
+              type: string
+        acc:offers:
+          type: array
+          items:
+            type: string
+        datePosted:
+          type: string
+          format: date
+        employmentType:
+          type: string
+          enum: [FULL_TIME, PART_TIME, CONTRACTOR, INTERN, TEMPORARY]
+        workHours:
+          type: string
+        jobBenefits:
+          type: string
+        jobLocationType:
+          type: string
+          enum: [TELECOMMUTE]
+        jobLocation:
+          type: object
+          properties:
+            "@type":
+              type: string
+            address:
+              type: object
+              properties:
+                "@type":
+                  type: string
+                addressCountry:
+                  type: string
+                addressLocality:
+                  type: string
+        applicantLocationRequirements:
+          type: object
+          properties:
+            "@type":
+              type: string
+            name:
+              type: string
+
+    # ---------------------------------------------------------- applications
+    CreateApplicationRequest:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: object
+          description: The job-application flow's answers keyed by step ID, each `{ value, input_method }`. At most 32 KB.
+          additionalProperties:
+            type: object
+            properties:
+              value: {}
+              input_method:
+                type: string
+                enum: [typed, voice, choice, partner]
+        attach_support_request:
+          type: boolean
+          default: false
+          description: Let this job's employer read the learner's support needs with this application.
+    Application:
+      type: object
+      required: [id, job_id, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [submitted, seen, withdrawn]
+        created_at:
+          type: string
+          format: date-time
+    EmployerApplication:
+      type: object
+      required: [id, status, created_at, answers, attach_support, applicant, support]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [submitted, seen, withdrawn]
+        created_at:
+          type: string
+          format: date-time
+        answers:
+          type: object
+          description: "`{ \"<step>\": { \"value\": …, \"input_method\": \"…\" } }`"
+        attach_support:
+          type: boolean
+        applicant:
+          type: object
+          required: [full_name, preferred_name, contact_method, phone, language]
+          properties:
+            full_name:
+              type: string
+            preferred_name:
+              type: string
+            contact_method:
+              type: string
+            phone:
+              type: string
+              description: E.164, or empty.
+            language:
+              type: string
+        support:
+          type: object
+          nullable: true
+          description: Only when the applicant attached their support request.
+          properties:
+            needs:
+              type: array
+              items:
+                type: string
+            other_text:
+              type: string
+    EmployerApplicationList:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmployerApplication"
+        next_cursor:
+          type: string
+          nullable: true
+
+    # ---------------------------------------------------------- learner profile
+    Me:
+      type: object
+      required: [learner_id, registration_id, status, full_name, preferred_name, contact_method, phone, dob, language, simple_mode, identity, support, referral, registered_at]
+      properties:
+        learner_id:
+          type: string
+          format: uuid
+        registration_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The latest registration (its support request is changed through it).
+        status:
+          type: string
+          enum: [draft, registered]
+        full_name:
+          type: string
+        preferred_name:
+          type: string
+        contact_method:
+          type: string
+          enum: [phone, telegram, partner, none, ""]
+        phone:
+          type: string
+          description: E.164, or empty.
+        dob:
+          type: object
+          nullable: true
+          required: [iso, calendar]
+          properties:
+            iso:
+              type: string
+              format: date
+            calendar:
+              type: string
+              enum: [ethiopian, gregorian]
+        language:
+          type: string
+        simple_mode:
+          type: boolean
+        identity:
+          type: object
+          nullable: true
+          properties:
+            route:
+              type: string
+              enum: [fayda, kebele_id, refugee_id, unhcr_proof, other_document, none]
+            doc_type:
+              type: string
+            level:
+              type: string
+              enum: [self_declared, partner_attested, verified]
+            has_last4:
+              type: boolean
+              description: Whether the last 4 characters were given. They are never shown.
+        support:
+          type: object
+          nullable: true
+          properties:
+            needs:
+              type: array
+              items:
+                type: string
+            other_text:
+              type: string
+            share_with:
+              $ref: "#/components/schemas/ShareWith"
+        referral:
+          type: object
+          nullable: true
+          properties:
+            partner_name:
+              type: string
+            status:
+              type: string
+              enum: [requested, in_progress, attested, closed]
+            contact_preference:
+              type: string
+              enum: [phone, telegram, in_person]
+        registered_at:
+          type: string
+          format: date-time
+          nullable: true
+    UpdateMeRequest:
+      type: object
+      description: Every field is optional; only what is sent changes.
+      properties:
+        full_name:
+          type: string
+        preferred_name:
+          type: string
+        contact_method:
+          type: string
+          enum: [phone, telegram, partner, none]
+        phone:
+          type: string
+        dob:
+          description: The same value as the sign-up `dob` answer (an ISO date, the stored object, or a flat year/month/day); `null` clears it.
+          anyOf:
+            - type: string
+              format: date
+              nullable: true
+            - $ref: "#/components/schemas/DateAnswer"
+            - $ref: "#/components/schemas/FlatDate"
+        language:
+          type: string
+          minLength: 2
+          maxLength: 8
+        simple_mode:
+          type: boolean
+    FlatDate:
+      type: object
+      description: A date given as year, month and day in one calendar; the API works out the ISO date.
+      required: [calendar, year, month, day]
+      properties:
+        calendar:
+          type: string
+          enum: [ethiopian, gregorian]
+        year:
+          type: integer
+          example: 2010
+        month:
+          type: integer
+          minimum: 1
+          maximum: 13
+          example: 1
+        day:
+          type: integer
+          minimum: 1
+          maximum: 31
+          example: 15
+
+    # ---------------------------------------------------------- staff
+    StaffLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          format: password
+          maxLength: 200
+    StaffLoginResponse:
+      type: object
+      required: [token, expires_at, role, partner_id, employer_id, display_name]
+      properties:
+        token:
+          type: string
+          description: The staff token (`st_…`).
+        expires_at:
+          type: string
+          format: date-time
+        role:
+          type: string
+          enum: [partner_staff, employer, support, admin]
+        partner_id:
+          type: string
+          format: uuid
+          nullable: true
+        employer_id:
+          type: string
+          format: uuid
+          nullable: true
+        display_name:
+          type: string
+    StaffUser:
+      type: object
+      required: [id, email, display_name, role, partner_id, employer_id]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        display_name:
+          type: string
+        role:
+          type: string
+          enum: [partner_staff, employer, support, admin]
+        partner_id:
+          type: string
+          format: uuid
+          nullable: true
+        employer_id:
+          type: string
+          format: uuid
+          nullable: true
+    OAuthTokenRequest:
+      type: object
+      required: [grant_type, client_id, client_secret]
+      properties:
+        grant_type:
+          type: string
+          enum: [client_credentials]
+        client_id:
+          type: string
+          maxLength: 128
+        client_secret:
+          type: string
+          maxLength: 256
+        scope:
+          type: string
+          maxLength: 256
+          description: Space-separated scopes. Only `learners:read` exists (the default).
+    OAuthTokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in, scope]
+      properties:
+        access_token:
+          type: string
+          description: The partner-server token (`pt_…`).
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Seconds (3600).
+        scope:
+          type: string
+
+    # ---------------------------------------------------------- partner staff
+    UpdateReferralRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [in_progress, closed]
+    PartnerReferral:
+      type: object
+      required: [id, status, contact_preference, created_at, learner]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [requested, in_progress, attested, closed]
+        contact_preference:
+          type: string
+          enum: [phone, telegram, in_person]
+        created_at:
+          type: string
+          format: date-time
+        learner:
+          type: object
+          description: The learner as the organisation sees them; never ID details or support needs.
+          required: [learner_id, full_name, preferred_name, contact_method, phone, language]
+          properties:
+            learner_id:
+              type: string
+              format: uuid
+            full_name:
+              type: string
+            preferred_name:
+              type: string
+            contact_method:
+              type: string
+            phone:
+              type: string
+            language:
+              type: string
+    PartnerReferralList:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PartnerReferral"
+        next_cursor:
+          type: string
+          nullable: true
+    ConsentCodeResponse:
+      type: object
+      required: [status, phone, expires_in]
+      properties:
+        status:
+          type: string
+          enum: [sent]
+        phone:
+          type: string
+          description: The learner's number, masked.
+        expires_in:
+          type: integer
+          description: Seconds (600).
+
+    # ---------------------------------------------------------- partner API
+    Learner:
+      type: object
+      description: A learner as a partner's server sees them. Never support needs or ID details.
+      required: [learner_id, full_name, preferred_name, language, status, identity_level, contact, registered_at]
+      properties:
+        learner_id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        preferred_name:
+          type: string
+        language:
+          type: string
+        status:
+          type: string
+          enum: [draft, registered]
+        identity_level:
+          type: string
+          enum: [self_declared, partner_attested, verified]
+        contact:
+          type: object
+          required: [method, verified]
+          properties:
+            method:
+              type: string
+              description: phone, telegram, partner, none (empty for a draft).
+            phone:
+              type: string
+              description: E.164. Left out when there is none.
+            verified:
+              type: boolean
+              description: Whether the phone number was checked (it never is today).
+        registered_at:
+          type: string
+          format: date-time
+          nullable: true
+    LearnerList:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Learner"
+        next_cursor:
+          type: string
+          nullable: true
+
+    # ---------------------------------------------------------- messaging and dev
+    TelegramUpdate:
+      type: object
+      description: A Telegram Bot API update (only these fields are read).
+      properties:
+        update_id:
+          type: integer
+        message:
+          type: object
+          properties:
+            message_id:
+              type: integer
+            from:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  format: int64
+                first_name:
+                  type: string
+                username:
+                  type: string
+            chat:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  format: int64
+                type:
+                  type: string
+            date:
+              type: integer
+              format: int64
+            text:
+              type: string
+    TelegramWebhookResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+    DevMessageList:
+      type: object
+      required: [items]
+      properties:
+        items:
           type: array
           items:
             type: object
+            required: [id, channel, to, body, created_at]
             properties:
-              field:
+              id:
                 type: string
-              code:
+                format: uuid
+              channel:
                 type: string
-
-  responses:
-    Unauthorized:
-      description: Unauthorized request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    InvalidID:
-      description: Invalid identifier format
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    ValidationError:
-      description: Validation failure
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    InternalError:
-      description: Internal server error
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
+                enum: [sms, telegram]
+              to:
+                type: string
+              body:
+                type: string
+              created_at:
+                type: string
+                format: date-time

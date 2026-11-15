@@ -17,3 +17,11 @@ WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now();
 UPDATE auth_sessions
 SET revoked_at = now()
 WHERE id = $1;
+
+-- Records that the session was used. Learner sessions also slide their expiry (30 days from now);
+-- pass NULL to keep the expiry (staff and partner-server sessions).
+-- name: TouchAuthSession :exec
+UPDATE auth_sessions
+SET last_used_at = now(),
+    expires_at   = COALESCE(sqlc.narg(new_expires_at)::timestamptz, expires_at)
+WHERE id = sqlc.arg(id);

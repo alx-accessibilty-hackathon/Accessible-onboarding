@@ -33,7 +33,8 @@ func (m *mockConsentRepo) ListConsentsByLearnerID(ctx context.Context, learnerID
 }
 
 type mockRegistrationRepo struct {
-	getRegistrationFn func(ctx context.Context, id uuid.UUID) (*domain.Registration, error)
+	domain.RegistrationRepositoryI // methods these tests don't use
+	getRegistrationFn              func(ctx context.Context, id uuid.UUID) (*domain.Registration, error)
 }
 
 func (m *mockRegistrationRepo) GetRegistrationByID(ctx context.Context, id uuid.UUID) (*domain.Registration, error) {
@@ -85,7 +86,7 @@ func TestCreateConsent_Success(t *testing.T) {
 	}
 
 	uc := NewConsentUsecase(consentRepo, regRepo)
-	created, err := uc.CreateConsent(context.Background(), regID, &domain.Consent{
+	created, err := uc.CreateConsent(context.Background(), domain.Actor{Kind: domain.ActorLearner, ID: learnerID}, regID, &domain.Consent{
 		Kind:    "cloud_speech",
 		Granted: true,
 		Method:  "tap",
@@ -102,40 +103,40 @@ func TestCreateConsent_Success(t *testing.T) {
 
 func TestCreateConsent_NilRegistrationID(t *testing.T) {
 	uc := NewConsentUsecase(&mockConsentRepo{})
-	_, err := uc.CreateConsent(context.Background(), uuid.Nil, &domain.Consent{
+	_, err := uc.CreateConsent(context.Background(), domain.Actor{Kind: domain.ActorLearner, ID: uuid.New()}, uuid.Nil, &domain.Consent{
 		Kind:    "cloud_speech",
 		Granted: true,
 		Method:  "tap",
 	})
-	assert.ErrorIs(t, err, domain.ErrNotFound)
+	assert.Error(t, err) // no registration repository
 }
 
 func TestCreateConsent_NilConsent(t *testing.T) {
 	uc := NewConsentUsecase(&mockConsentRepo{})
-	_, err := uc.CreateConsent(context.Background(), uuid.New(), nil)
+	_, err := uc.CreateConsent(context.Background(), domain.Actor{}, uuid.New(), nil)
 	assert.Error(t, err)
 }
 
 func TestCreateConsent_InvalidKind(t *testing.T) {
 	uc := NewConsentUsecase(&mockConsentRepo{})
-	_, err := uc.CreateConsent(context.Background(), uuid.New(), &domain.Consent{
+	_, err := uc.CreateConsent(context.Background(), domain.Actor{}, uuid.New(), &domain.Consent{
 		Kind:    "unknown_kind",
 		Granted: true,
 		Method:  "tap",
 	})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid consent kind")
+	assert.Contains(t, err.Error(), "kind: invalid_choice")
 }
 
 func TestCreateConsent_InvalidMethod(t *testing.T) {
 	uc := NewConsentUsecase(&mockConsentRepo{})
-	_, err := uc.CreateConsent(context.Background(), uuid.New(), &domain.Consent{
+	_, err := uc.CreateConsent(context.Background(), domain.Actor{}, uuid.New(), &domain.Consent{
 		Kind:    "cloud_speech",
 		Granted: true,
 		Method:  "telepathy",
 	})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid consent method")
+	assert.Contains(t, err.Error(), "method: invalid_choice")
 }
 
 func TestCreateConsent_RegistrationNotFound(t *testing.T) {
@@ -145,7 +146,7 @@ func TestCreateConsent_RegistrationNotFound(t *testing.T) {
 		},
 	}
 	uc := NewConsentUsecase(&mockConsentRepo{}, regRepo)
-	_, err := uc.CreateConsent(context.Background(), uuid.New(), &domain.Consent{
+	_, err := uc.CreateConsent(context.Background(), domain.Actor{Kind: domain.ActorLearner, ID: uuid.New()}, uuid.New(), &domain.Consent{
 		Kind:    "cloud_speech",
 		Granted: true,
 		Method:  "tap",
@@ -154,9 +155,10 @@ func TestCreateConsent_RegistrationNotFound(t *testing.T) {
 }
 
 func TestCreateConsent_RepoError(t *testing.T) {
+	ownerID := uuid.New()
 	regRepo := &mockRegistrationRepo{
 		getRegistrationFn: func(ctx context.Context, id uuid.UUID) (*domain.Registration, error) {
-			return &domain.Registration{ID: id, LearnerID: uuid.New()}, nil
+			return &domain.Registration{ID: id, LearnerID: ownerID}, nil
 		},
 	}
 	consentRepo := &mockConsentRepo{
@@ -165,7 +167,7 @@ func TestCreateConsent_RepoError(t *testing.T) {
 		},
 	}
 	uc := NewConsentUsecase(consentRepo, regRepo)
-	_, err := uc.CreateConsent(context.Background(), uuid.New(), &domain.Consent{
+	_, err := uc.CreateConsent(context.Background(), domain.Actor{Kind: domain.ActorLearner, ID: ownerID}, uuid.New(), &domain.Consent{
 		Kind:    "cloud_speech",
 		Granted: true,
 		Method:  "tap",

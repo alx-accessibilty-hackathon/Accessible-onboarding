@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 
+	domain "bridge/Domain"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
@@ -132,6 +134,67 @@ func uuidParam(c *gin.Context, name string) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return id, true
+}
+
+// respondError answers with the HTTP status and code for a domain error
+// (TECHNICAL_PLAN.md 5.2). Anything unexpected is logged and becomes a plain 500:
+// database or internal details never reach the client.
+func respondError(c *gin.Context, err error) {
+	var verr *domain.ValidationError
+	if errors.As(err, &verr) {
+		fields := make([]FieldError, 0, len(verr.Fields))
+		for _, f := range verr.Fields {
+			fields = append(fields, FieldError{Field: f.Field, Code: f.Code})
+		}
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, ErrorResponse{
+			Status: http.StatusUnprocessableEntity, Code: "validation_failed", Title: "Validation failed", Errors: fields,
+		})
+		return
+	}
+
+	var conflict *domain.ConflictError
+	if errors.As(err, &conflict) && conflict.Current != nil {
+		c.AbortWithStatusJSON(http.StatusConflict, AnswerConflictResponse{
+			ErrorResponse: ErrorResponse{Status: http.StatusConflict, Code: "answer_conflict", Title: "Answer changed on another device"},
+			Current:       toAnswerDTO(conflict.Current),
+		})
+		return
+	}
+
+	status, code, title := http.StatusInternalServerError, "internal_error", "Something went wrong"
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		status, code, title = http.StatusNotFound, "not_found", "Not found"
+	case errors.Is(err, domain.ErrUnauthorized):
+		status, code, title = http.StatusUnauthorized, "unauthorized", "Sign-in needed"
+	case errors.Is(err, domain.ErrForbidden):
+		status, code, title = http.StatusForbidden, "forbidden", "Not allowed"
+	case errors.Is(err, domain.ErrConsentRequired):
+		status, code, title = http.StatusForbidden, "consent_required", "Consent needed"
+	case errors.Is(err, domain.ErrAlreadyExists):
+		status, code, title = http.StatusConflict, "already_exists", "Already exists"
+	case errors.Is(err, domain.ErrAlreadySubmitted):
+		status, code, title = http.StatusConflict, "already_submitted", "Already submitted"
+	case errors.Is(err, domain.ErrNotRegistered):
+		status, code, title = http.StatusConflict, "not_registered", "Finish signing up first"
+	case errors.Is(err, domain.ErrRateLimited):
+		status, code, title = http.StatusTooManyRequests, "rate_limited", "Too many requests"
+	case errors.Is(err, domain.ErrSpeechUnavailable):
+		status, code, title = http.StatusServiceUnavailable, "speech_unavailable", "Speech service unavailable"
+	case errors.Is(err, domain.ErrPayloadTooLarge):
+		status, code, title = http.StatusRequestEntityTooLarge, "payload_too_large", "Too large"
+	case errors.Is(err, domain.ErrResumeExpired):
+		status, code, title = http.StatusGone, "resume_expired", "This link or code has expired"
+	case errors.Is(err, domain.ErrTooManyAttempts):
+		status, code, title = http.StatusTooManyRequests, "too_many_attempts", "Too many failed attempts"
+	case errors.Is(err, domain.ErrResumeCheckFailed):
+		status, code, title = http.StatusUnauthorized, "resume_check_failed", "The check didn't match"
+	case errors.Is(err, domain.ErrInvalidInput):
+		status, code, title = http.StatusBadRequest, "invalid_request", "Invalid request"
+	default:
+		log.Printf("error : %s %s: %v", c.Request.Method, c.FullPath(), err)
+	}
+	c.AbortWithStatusJSON(status, ErrorResponse{Status: status, Code: code, Title: title})
 }
 
 // notImplemented is the placeholder answer for every handler that isn't built yet.

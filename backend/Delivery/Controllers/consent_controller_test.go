@@ -19,10 +19,10 @@ import (
 )
 
 type mockConsentUsecase struct {
-	createConsentFn func(ctx context.Context, registrationID uuid.UUID, consent *domain.Consent) (*domain.Consent, error)
+	createConsentFn func(ctx context.Context, registrationID uuid.UUID, consent *domain.Consent) (*domain.Consent, error) // the actor is not checked here
 }
 
-func (m *mockConsentUsecase) CreateConsent(ctx context.Context, registrationID uuid.UUID, consent *domain.Consent) (*domain.Consent, error) {
+func (m *mockConsentUsecase) CreateConsent(ctx context.Context, _ domain.Actor, registrationID uuid.UUID, consent *domain.Consent) (*domain.Consent, error) {
 	if m.createConsentFn != nil {
 		return m.createConsentFn(ctx, registrationID, consent)
 	}

@@ -24,3 +24,9 @@ type TranscriptionDTO struct {
 func toTranscriptionDTO(t *domain.Transcription) TranscriptionDTO {
 	return TranscriptionDTO{Transcript: t.Text, Confidence: t.Confidence, Provider: t.Provider}
 }
+
+// POST /speech/synthesis: read fixed interface text aloud (never a learner's own answers)
+type SynthesizeRequest struct {
+	Text     string `json:"text" binding:"required,max=2400"` // at most 600 characters, checked in the use case
+	Language string `json:"language" binding:"required,min=2,max=8"`
+}

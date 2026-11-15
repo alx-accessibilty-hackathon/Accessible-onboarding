@@ -44,31 +44,33 @@ func NewConsentUsecase(crp domain.ConsentRepositoryI, rrp ...domain.Registration
 	return uc
 }
 
-func (uc *ConsentUsecase) CreateConsent(ctx context.Context, registrationID uuid.UUID, consent *domain.Consent) (*domain.Consent, error) {
-	if registrationID == uuid.Nil {
-		return nil, domain.ErrNotFound
-	}
+// CreateConsent records a consent for the learner of this registration. Only the learner (or
+// partner staff helping them, E1) may record it (Q7).
+func (uc *ConsentUsecase) CreateConsent(ctx context.Context, actor domain.Actor, registrationID uuid.UUID, consent *domain.Consent) (*domain.Consent, error) {
 	if consent == nil {
-		return nil, errors.New("consent cannot be nil")
+		return nil, domain.NewValidationError("kind", codeRequired)
 	}
-
 	if !validConsentKinds[consent.Kind] {
-		return nil, errors.New("invalid consent kind")
+		return nil, domain.NewValidationError("kind", codeInvalidChoice)
 	}
-
 	if !validConsentMethods[consent.Method] {
-		return nil, errors.New("invalid consent method")
+		return nil, domain.NewValidationError("method", codeInvalidChoice)
 	}
-
-	if uc.RegistrationRepo != nil {
-		reg, err := uc.RegistrationRepo.GetRegistrationByID(ctx, registrationID)
-		if err != nil {
-			return nil, err
+	if uc.RegistrationRepo == nil {
+		return nil, errors.New("consent use case has no registration repository")
+	}
+	reg, err := loadOwnedRegistration(ctx, uc.RegistrationRepo, actor, registrationID)
+	if err != nil {
+		return nil, err
+	}
+	consent.LearnerID = reg.LearnerID
+	if actor.Kind == domain.ActorStaff {
+		staffID := actor.ID
+		consent.StaffID = &staffID
+		if actor.PartnerID != uuid.Nil {
+			partnerID := actor.PartnerID
+			consent.PartnerID = &partnerID
 		}
-		consent.LearnerID = reg.LearnerID
-	} else if consent.LearnerID == uuid.Nil {
-		consent.LearnerID = registrationID
 	}
-
 	return uc.ConsentRepo.CreateConsent(ctx, consent)
 }

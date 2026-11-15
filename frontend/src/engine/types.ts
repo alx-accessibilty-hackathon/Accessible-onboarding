@@ -22,6 +22,10 @@ export interface Option {
   label: string; // language-file key
   icon?: string;
   say?: string[]; // extra words voice input should recognise
+  /** Built in the app, never in a flow file: `label` is shown as it is (e.g. "አማርኛ")… */
+  literal?: boolean;
+  /** …in this language (its `lang` attribute), when it isn't the page's. */
+  lang?: string;
 }
 
 export interface Rule {

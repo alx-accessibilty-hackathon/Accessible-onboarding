@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	domain "bridge/Domain"
 	sqlc "bridge/Repository/sqlc"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -75,4 +77,50 @@ func (r *PartnerRepository) ListReferralPartners(ctx context.Context) ([]*domain
 
 func (r *PartnerRepository) ListAllowedOrigins(ctx context.Context) ([]string, error) {
 	return r.Q.ListAllowedOrigins(ctx)
+}
+
+func (r *PartnerRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Partner, error) {
+	row, err := r.Q.GetPartnerByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toPartner(row.ID, row.Slug, row.Name, row.Kind, row.PublishableKey, row.AllowedOrigins, row.ClientID, row.Config, row.CreatedAt)
+}
+
+func (r *PartnerRepository) GetByClientID(ctx context.Context, clientID string) (*domain.Partner, []byte, error) {
+	row, err := r.Q.GetPartnerByClientID(ctx, &clientID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	p, err := toPartner(row.ID, row.Slug, row.Name, row.Kind, row.PublishableKey, row.AllowedOrigins, row.ClientID, row.Config, row.CreatedAt)
+	if err != nil {
+		return nil, nil, err
+	}
+	return p, row.ClientSecretHash, nil
+}
+
+func toPartner(id uuid.UUID, slug, name, kind, key string, origins []string, clientID *string, config json.RawMessage, createdAt time.Time) (*domain.Partner, error) {
+	var cfg map[string]any
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			return nil, err
+		}
+	}
+	return &domain.Partner{
+		ID:             id,
+		Slug:           slug,
+		Name:           name,
+		Kind:           kind,
+		PublishableKey: key,
+		AllowedOrigins: origins,
+		ClientID:       deref(clientID),
+		Config:         cfg,
+		CreatedAt:      createdAt,
+	}, nil
 }

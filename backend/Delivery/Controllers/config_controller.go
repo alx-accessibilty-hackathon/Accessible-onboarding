@@ -43,6 +43,9 @@ func (cc *ConfigController) GetConfigController(c *gin.Context) {
 	if partnerKey == "" {
 		partnerKey = strings.TrimSpace(c.Query("partner_key"))
 	}
+	if partnerKey == "" {
+		partnerKey = strings.TrimSpace(c.Query("key"))
+	}
 
 	if partnerKey == "" {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{

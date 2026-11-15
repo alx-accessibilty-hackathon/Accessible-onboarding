@@ -1,0 +1,43 @@
+# Everything for a demo: `docker compose up --build`, then open http://localhost:8081
+# Put the keys in a .env file next to this one (see .env.example); compose reads it.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bridge
+      POSTGRES_PASSWORD: bridge
+      POSTGRES_DB: bridge
+    ports: ["5432:5432"]
+    volumes: ["dbdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bridge"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      DATABASE_URL: postgres://bridge:bridge@db:5432/bridge?sslmode=disable
+      PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-http://localhost:8081}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?Set DATA_ENCRYPTION_KEY in .env (openssl rand -base64 32)}
+      CODE_HASH_KEY: ${CODE_HASH_KEY:?Set CODE_HASH_KEY in .env (openssl rand -base64 32)}
+      STT_PROVIDERS: ${STT_PROVIDERS:-mock}
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-}
+      SMS_PROVIDER: console
+      EXTRA_ALLOWED_ORIGINS: ${EXTRA_ALLOWED_ORIGINS:-}
+      SEED_STAFF_PASSWORD: ${SEED_STAFF_PASSWORD:?Set SEED_STAFF_PASSWORD in .env (password of the demo staff accounts)}
+      SEED_CLIENT_SECRET: ${SEED_CLIENT_SECRET:-}
+    depends_on:
+      db: { condition: service_healthy }
+    command: ["sh", "-c", "/app/bridge migrate && /app/bridge seed --if-empty && /app/bridge serve"]
+    ports: ["8080:8080"]
+
+  web:
+    build: { context: ., dockerfile: docker/web.Dockerfile }
+    depends_on: [api]
+    ports: ["8081:80"]
+
+volumes:
+  dbdata: {}

@@ -14,6 +14,7 @@ import (
 )
 
 type mockSessionRepo struct {
+	domain.SessionRepositoryI                 // methods these tests don't use
 	createAuthSessionFn                       func(ctx context.Context, session *domain.AuthSession) (*domain.AuthSession, error)
 	getAuthSessionByTokenHashFn               func(ctx context.Context, tokenHash []byte) (*domain.AuthSession, error)
 	revokeAuthSessionFn                       func(ctx context.Context, id uuid.UUID) error
@@ -158,7 +159,7 @@ func TestRegistrationUsecase_ResumeLookup_SuccessCode(t *testing.T) {
 		},
 	}
 
-	uc := NewRegistrationUsecase(learnerRepo, regRepo, sessionRepo, sec, nil)
+	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
 
 	res, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
 	require.NoError(t, err)
@@ -182,7 +183,7 @@ func TestRegistrationUsecase_ResumeLookup_Expired(t *testing.T) {
 		},
 	}
 
-	uc := NewRegistrationUsecase(nil, nil, sessionRepo, sec, nil)
+	uc := NewRegistrationUsecase(nil, nil, nil, nil, nil, nil, sessionRepo, sec, nil)
 
 	_, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
 	require.ErrorIs(t, err, domain.ErrResumeExpired)
@@ -205,7 +206,7 @@ func TestRegistrationUsecase_ResumeLookup_TooManyAttempts(t *testing.T) {
 		},
 	}
 
-	uc := NewRegistrationUsecase(nil, nil, sessionRepo, sec, nil)
+	uc := NewRegistrationUsecase(nil, nil, nil, nil, nil, nil, sessionRepo, sec, nil)
 
 	_, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
 	require.ErrorIs(t, err, domain.ErrTooManyAttempts)
@@ -263,7 +264,7 @@ func TestRegistrationUsecase_ResumeVerify_SuccessDOB(t *testing.T) {
 		},
 	}
 
-	uc := NewRegistrationUsecase(learnerRepo, regRepo, sessionRepo, sec, nil)
+	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
 
 	res, attemptsLeft, err := uc.ResumeVerify(context.Background(), "K7M-9P2", &domain.ResumeDOB{
 		Year:  2000,
@@ -327,7 +328,7 @@ func TestRegistrationUsecase_ResumeVerify_FailedCheck(t *testing.T) {
 		},
 	}
 
-	uc := NewRegistrationUsecase(learnerRepo, regRepo, sessionRepo, sec, nil)
+	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
 
 	// Wrong DOB
 	res, attemptsLeft, err := uc.ResumeVerify(context.Background(), "K7M-9P2", &domain.ResumeDOB{
@@ -346,6 +347,7 @@ func TestRegistrationUsecase_SendConsentCode_Success(t *testing.T) {
 	sec := infrastructure.InitSecurityService("testdatakey1234567890123456789012", "testcodekey1234567890123456789012")
 	regID := uuid.New()
 	learnerID := uuid.New()
+	partnerID := uuid.New()
 	phone := "+251912345678"
 
 	codeCreated := false
@@ -384,17 +386,19 @@ func TestRegistrationUsecase_SendConsentCode_Success(t *testing.T) {
 		getByIDFn: func(ctx context.Context, id uuid.UUID) (*domain.Learner, error) {
 			return &domain.Learner{
 				ID:        learnerID,
+				PartnerID: partnerID,
 				PhoneE164: phone,
 			}, nil
 		},
 	}
 
 	msgSvc := &mockMessageService{}
-	uc := NewRegistrationUsecase(learnerRepo, regRepo, sessionRepo, sec, msgSvc)
+	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, msgSvc)
 
-	sentPhone, err := uc.SendConsentCode(context.Background(), regID, "")
+	staff := domain.Actor{Kind: domain.ActorStaff, ID: uuid.New(), Role: domain.RolePartnerStaff, PartnerID: partnerID}
+	sentPhone, err := uc.SendConsentCode(context.Background(), staff, regID)
 	require.NoError(t, err)
-	assert.Equal(t, phone, sentPhone)
+	assert.Equal(t, "+2519•••••678", sentPhone, "the number is masked")
 	assert.True(t, codeCreated)
 	assert.True(t, outboxCreated)
 	require.Len(t, msgSvc.sent, 1)
@@ -412,7 +416,7 @@ func TestRegistrationUsecase_HandleTelegramWebhook(t *testing.T) {
 	}
 
 	msgSvc := &mockMessageService{}
-	uc := NewRegistrationUsecase(nil, nil, sessionRepo, sec, msgSvc)
+	uc := NewRegistrationUsecase(nil, nil, nil, nil, nil, nil, sessionRepo, sec, msgSvc)
 
 	update := &domain.TelegramUpdate{
 		UpdateID: 1001,

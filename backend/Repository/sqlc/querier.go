@@ -6,44 +6,136 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type Querier interface {
+	// Job applications (Dev A). UNIQUE (job_id, learner_id): applying twice fails with 23505.
+	// After editing, run `sqlc generate` (from backend/).
+	CreateApplication(ctx context.Context, arg CreateApplicationParams) (Application, error)
+	// The audit log: who read or deleted personal data.
+	// After editing, run `sqlc generate` (from backend/).
+	// One audit row. meta never holds personal data (IDs only).
+	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error
 	// Queries for auth sessions. Table: auth_sessions.
 	CreateAuthSession(ctx context.Context, arg CreateAuthSessionParams) (AuthSession, error)
 	// Queries for consents. Table: consents.
 	CreateConsent(ctx context.Context, arg CreateConsentParams) (Consent, error)
+	// ---- identity evidence and referrals ----
+	CreateIdentityEvidence(ctx context.Context, arg CreateIdentityEvidenceParams) (IdentityEvidence, error)
+	CreateJob(ctx context.Context, arg CreateJobParams) (CreateJobRow, error)
+	// Learners, registrations, answers, identity evidence and referrals.
+	// Reads of a single learner are in learners.sql (GetLearnerByID).
+	// Each query needs a "-- name: <GoMethodName> :one|:many|:exec|:execrows" line.
+	// After editing, run `sqlc generate` (from backend/).
+	// ---- learners ----
+	CreateLearner(ctx context.Context, arg CreateLearnerParams) (Learner, error)
 	CreateOutboxMessage(ctx context.Context, arg CreateOutboxMessageParams) (MessagesOutbox, error)
+	CreateReferral(ctx context.Context, arg CreateReferralParams) (Referral, error)
+	// ---- registrations ----
+	CreateRegistration(ctx context.Context, arg CreateRegistrationParams) (Registration, error)
 	// Queries for resume tokens, verification codes and outbox messages.
 	CreateResumeToken(ctx context.Context, arg CreateResumeTokenParams) (ResumeToken, error)
 	CreateVerificationCode(ctx context.Context, arg CreateVerificationCodeParams) (VerificationCode, error)
+	// Everything else about the learner goes with it (ON DELETE CASCADE): registrations → answers
+	// and resume tokens, identity evidence, referrals, the support request, consents,
+	// applications and verification codes.
+	DeleteLearner(ctx context.Context, id uuid.UUID) (int64, error)
+	// auth_sessions has no foreign key (subject_id can be a learner, staff or partner), so the
+	// learner's sessions, and staff sessions acting for them (E1), are deleted here.
+	DeleteLearnerSessions(ctx context.Context, subjectID uuid.UUID) error
+	// Data minimisation: when the learner stops sharing a phone number, the copy in their saved
+	// sign-up answers goes too.
+	DeletePhoneAnswersByLearner(ctx context.Context, learnerID uuid.UUID) error
 	GetActiveVerificationCode(ctx context.Context, arg GetActiveVerificationCodeParams) (VerificationCode, error)
+	// ---- answers ----
 	GetAnswer(ctx context.Context, arg GetAnswerParams) (Answer, error)
 	GetAuthSessionByTokenHash(ctx context.Context, tokenHash []byte) (AuthSession, error)
+	// The latest consent of this kind, revoked or not: the caller checks granted and revoked_at.
+	// (Filtering revoked rows first would bring back an older consent after a revoke.)
 	GetConsentByLearnerAndKind(ctx context.Context, arg GetConsentByLearnerAndKindParams) (Consent, error)
+	GetLatestIdentityEvidenceByLearner(ctx context.Context, learnerID uuid.UUID) (IdentityEvidence, error)
+	GetLatestReferralByLearner(ctx context.Context, learnerID uuid.UUID) (Referral, error)
+	// The learner's own data for /me: see, change, delete (Q4).
+	// After editing, run `sqlc generate` (from backend/).
+	// The learner's newest registration (draft or submitted).
+	GetLatestRegistrationByLearner(ctx context.Context, learnerID uuid.UUID) (Registration, error)
 	// Queries for learners. Table: learners.
 	GetLearnerByID(ctx context.Context, id uuid.UUID) (Learner, error)
 	GetLearnerByIDAndPartnerID(ctx context.Context, arg GetLearnerByIDAndPartnerIDParams) (Learner, error)
+	// For OAuth client credentials: the partner and the SHA-256 hash of its client secret.
+	GetPartnerByClientID(ctx context.Context, clientID *string) (Partner, error)
+	GetPartnerByID(ctx context.Context, id uuid.UUID) (GetPartnerByIDRow, error)
 	// Queries for partners. Each query needs a "-- name: <GoMethodName> :one|:many|:exec" line.
 	// After editing, run `sqlc generate` (from backend/).
 	GetPartnerByPublishableKey(ctx context.Context, publishableKey string) (GetPartnerByPublishableKeyRow, error)
-	// Queries for registrations. Table: registrations.
+	GetPartnerReferral(ctx context.Context, arg GetPartnerReferralParams) (GetPartnerReferralRow, error)
+	GetPublishedJob(ctx context.Context, id uuid.UUID) (GetPublishedJobRow, error)
 	GetRegistrationByID(ctx context.Context, id uuid.UUID) (Registration, error)
 	GetResumeTokenByCodeHash(ctx context.Context, codeHash []byte) (ResumeToken, error)
 	GetResumeTokenByTokenHash(ctx context.Context, tokenHash []byte) (ResumeToken, error)
+	// Staff accounts (partner staff, employers, support, admin). Table: staff_users.
+	// After editing, run `sqlc generate` (from backend/).
+	// Emails are compared without case: "Employer@Example.org" signs in as employer@example.org.
+	GetStaffByEmail(ctx context.Context, lower string) (StaffUser, error)
+	GetStaffByID(ctx context.Context, id uuid.UUID) (StaffUser, error)
+	// For the support inbox (Should). Returns the encrypted payload; decrypt with the learner ID.
+	GetSupportRequestByLearner(ctx context.Context, learnerID uuid.UUID) (GetSupportRequestByLearnerRow, error)
 	IncrementResumeTokenFailedAttempts(ctx context.Context, id uuid.UUID) (ResumeToken, error)
 	IncrementVerificationCodeFailedAttempts(ctx context.Context, id uuid.UUID) (VerificationCode, error)
 	ListAllowedOrigins(ctx context.Context) ([]string, error)
 	ListAnswersByRegistrationID(ctx context.Context, registrationID uuid.UUID) ([]Answer, error)
+	// Applications to one job, only if the job belongs to this employer (Q7), newest first.
+	// The applicant's support request comes only when they attached it to this application,
+	// and stays encrypted here (the use case decrypts it and writes the audit log).
+	ListApplicationsForEmployerJob(ctx context.Context, arg ListApplicationsForEmployerJobParams) ([]ListApplicationsForEmployerJobRow, error)
 	ListConsentsByLearnerID(ctx context.Context, learnerID uuid.UUID) ([]Consent, error)
+	ListJobsByEmployer(ctx context.Context, employerID *uuid.UUID) ([]ListJobsByEmployerRow, error)
 	ListLearnersByPartnerID(ctx context.Context, partnerID uuid.UUID) ([]Learner, error)
+	// Jobs (Dev A). Public queries only ever return published jobs.
+	// After editing, run `sqlc generate` (from backend/).
+	// Newest first. The cursor is the (published_at, id) of the last job on the previous page;
+	// both are NULL for the first page.
+	ListPublishedJobs(ctx context.Context, arg ListPublishedJobsParams) ([]ListPublishedJobsRow, error)
 	ListQueuedOutboxMessages(ctx context.Context) ([]MessagesOutbox, error)
 	ListReferralPartners(ctx context.Context) ([]ListReferralPartnersRow, error)
+	// The referral queue of a referral organisation (R7): referrals with the learner's name,
+	// contact and language. Never ID details or support needs.
+	// After editing, run `sqlc generate` (from backend/).
+	// The partner's referrals, newest first.
+	ListReferralsByPartner(ctx context.Context, partnerID uuid.UUID) ([]ListReferralsByPartnerRow, error)
+	// Only a draft can be submitted. 0 rows affected means it was already submitted
+	// (the row lock also stops two submits running at the same time).
+	MarkRegistrationSubmitted(ctx context.Context, id uuid.UUID) (int64, error)
 	MarkResumeTokenUsed(ctx context.Context, id uuid.UUID) error
 	MarkVerificationCodeUsed(ctx context.Context, id uuid.UUID) error
+	// Only the employer who owns the job can publish it. Publishing twice keeps the first date.
+	// No row returned: the job doesn't exist, belongs to another employer, or is closed.
+	PublishJob(ctx context.Context, arg PublishJobParams) (PublishJobRow, error)
 	RevokeAuthSession(ctx context.Context, id uuid.UUID) error
+	// Saves an answer only if the client saw the latest version (R15, TECHNICAL_PLAN.md 5.2).
+	// base_version 0 means "nothing saved yet". No row returned means another device saved first.
+	SaveAnswerIfVersion(ctx context.Context, arg SaveAnswerIfVersionParams) (Answer, error)
+	SupportRequestExists(ctx context.Context, learnerID uuid.UUID) (bool, error)
+	// Records that the session was used. Learner sessions also slide their expiry (30 days from now);
+	// pass NULL to keep the expiry (staff and partner-server sessions).
+	TouchAuthSession(ctx context.Context, arg TouchAuthSessionParams) error
+	// PATCH /me: the use case sends every value (the current one when it doesn't change).
+	// A different phone number is not verified any more.
+	UpdateLearnerContact(ctx context.Context, arg UpdateLearnerContactParams) (Learner, error)
+	// Only the values that were sent change (NULL keeps the current value).
+	UpdateLearnerPreferences(ctx context.Context, arg UpdateLearnerPreferencesParams) (int64, error)
+	// Copies the submitted answers into the learner record (submit, inside a transaction).
+	UpdateLearnerProfile(ctx context.Context, arg UpdateLearnerProfileParams) (Learner, error)
+	// 0 rows affected: the referral doesn't exist or belongs to another partner.
+	UpdateReferralStatus(ctx context.Context, arg UpdateReferralStatusParams) (int64, error)
+	UpdateRegistrationProgress(ctx context.Context, arg UpdateRegistrationProgressParams) (int64, error)
+	// Support requests (Dev A). The needs are stored only as AES-GCM ciphertext.
+	// After editing, run `sqlc generate` (from backend/).
+	// One support request per learner: saving again replaces it.
+	UpsertSupportRequest(ctx context.Context, arg UpsertSupportRequestParams) (time.Time, error)
 }
 
 var _ Querier = (*Queries)(nil)
