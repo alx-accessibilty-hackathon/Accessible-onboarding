@@ -2,11 +2,13 @@ package usecase
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"testing"
 
 	domain "bridge/Domain"
+	infrastructure "bridge/Infrastructure"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -194,6 +196,44 @@ func TestSaveAnswerValidatesAgainstTheFlow(t *testing.T) {
 
 	// Nothing was saved.
 	assert.Empty(t, f.store.answers[reg.ID])
+}
+
+func TestPhotoAnswerIsStoredEncryptedAndNeverReturned(t *testing.T) {
+	f := newRegFixture(t)
+	sec := infrastructure.InitSecurityService(testKey, testKey)
+	f.uc.Security = sec
+	reg, actor := f.start(t)
+	ctx := context.Background()
+
+	photo := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"))
+	body, _ := json.Marshal(map[string]string{"name": "id.png", "data": photo})
+
+	saved := f.save(t, actor, reg.ID, "id_upload", string(body))
+	assert.JSONEq(t, `{"name":"id.png"}`, string(saved.Value), "the answer to the device is the name only")
+
+	// In the database the photo is ciphertext, and only the right learner and step open it.
+	stored := f.store.answers[reg.ID]["id_upload"].Value
+	assert.NotContains(t, string(stored), "base64")
+	var sealed sealedFile
+	require.NoError(t, json.Unmarshal(stored, &sealed))
+	plain, err := sec.Decrypt(sealed.Nonce, sealed.Ciphertext, reg.LearnerID.String()+":id_upload")
+	require.NoError(t, err)
+	assert.Equal(t, photo, string(plain))
+	_, err = sec.Decrypt(sealed.Nonce, sealed.Ciphertext, uuid.NewString()+":id_upload")
+	assert.Error(t, err)
+
+	// Reading the registration, and a version conflict, also give the name only.
+	view, err := f.uc.Get(ctx, actor, reg.ID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"name":"id.png"}`, string(view.Answers[0].Value))
+	_, err = f.uc.SaveAnswer(ctx, actor, reg.ID, "id_upload", body, "typed", 0)
+	var conflict *domain.ConflictError
+	require.ErrorAs(t, err, &conflict)
+	assert.JSONEq(t, `{"name":"id.png"}`, string(conflict.Current.Value))
+
+	// The photo can be removed.
+	cleared := f.save(t, actor, reg.ID, "id_upload", `""`)
+	assert.JSONEq(t, `""`, string(cleared.Value))
 }
 
 func TestSaveAnswerStoresCleanValues(t *testing.T) {

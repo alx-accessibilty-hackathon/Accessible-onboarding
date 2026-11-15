@@ -8,12 +8,14 @@ import { isValueEmpty } from '../engine/validate';
 import { ChoiceCards } from '../fields/ChoiceCards';
 import { DateField, type DateFieldValue } from '../fields/DateField';
 import { DigitsField } from '../fields/DigitsField';
+import { FileField } from '../fields/FileField';
 import { LongTextField } from '../fields/LongTextField';
 import { MultiChoiceCards } from '../fields/MultiChoiceCards';
 import { PhoneField } from '../fields/PhoneField';
 import { TextField } from '../fields/TextField';
 import { ListenButton } from '../i18n/ReadAloud';
 import { t } from '../i18n/t';
+import type { FileValue } from '../lib/image';
 import type { VoiceChoice, VoiceClipOutcome } from '../voice/types';
 import { VoiceInput } from '../voice/VoiceInput';
 import { ErrorSummary } from './ErrorSummary';
@@ -29,6 +31,7 @@ const INPUT_TYPES = new Set([
   'digits',
   'single_choice',
   'multi_choice',
+  'file',
 ]);
 
 export function isInputStep(step: Step): boolean {
@@ -203,6 +206,14 @@ export function QuestionScreen({
             value={Array.isArray(value) ? (value as string[]) : []}
             isEmployer={optionContext?.audience === 'employer'}
             onChange={(v) => onChange(v, 'choice')}
+          />
+        );
+      case 'file':
+        return (
+          <FileField
+            {...common}
+            value={(value as FileValue | null) || null}
+            onChange={(v) => onChange(v, 'typed')}
           />
         );
       case 'consent':
