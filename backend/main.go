@@ -150,6 +150,9 @@ func serve(cfg config.Config) {
 	sessionRepo := repository.NewSessionRepo(db)
 	jobRepo := repository.NewJobRepo(db)
 	applicationRepo := repository.NewApplicationRepo(db)
+	profileRepo := repository.NewProfileRepo(db)
+	referralRepo := repository.NewReferralRepo(db)
+	auditRepo := repository.NewAuditRepo(db)
 
 	// Use cases
 	configUsecase := usecase.NewConfigUsecase(partnerRepo, speech)
@@ -163,6 +166,9 @@ func serve(cfg config.Config) {
 	jobUsecase := usecase.NewJobUsecase(jobRepo, flows, cfg.PublicWebURL)
 	applicationUsecase := usecase.NewApplicationUsecase(applicationRepo, jobRepo, learnerRepo)
 	learnerUsecase := usecase.NewLearnerUsecase(learnerRepo)
+	meUsecase := usecase.NewMeUsecase(learnerRepo, profileRepo, partnerRepo, flows, security)
+	referralUsecase := usecase.NewReferralUsecase(referralRepo)
+	employerApplicationUsecase := usecase.NewEmployerApplicationUsecase(jobRepo, applicationRepo, auditRepo, security)
 
 	// Controllers
 	ctrls := &routers.Controllers{
@@ -175,6 +181,10 @@ func serve(cfg config.Config) {
 		Job:          controllers.NewJobController(jobUsecase),
 		Application:  controllers.NewApplicationController(applicationUsecase),
 		Learner:      controllers.NewLearnerController(learnerUsecase),
+
+		Me:                  controllers.NewMeController(meUsecase),
+		Referral:            controllers.NewReferralController(referralUsecase),
+		EmployerApplication: controllers.NewEmployerApplicationController(employerApplicationUsecase),
 	}
 
 	// Middleware

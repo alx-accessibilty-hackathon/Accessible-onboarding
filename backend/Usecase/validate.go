@@ -298,9 +298,18 @@ func validateDate(step *domain.FlowStep, raw json.RawMessage) (json.RawMessage, 
 		return json.Marshal(iso)
 	}
 
-	var d dateAnswer
-	if err := json.Unmarshal(raw, &d); err != nil {
+	var in dateInput
+	if err := json.Unmarshal(raw, &in); err != nil {
 		return nil, invalidValue(code)
+	}
+	d := in.dateAnswer
+	if d.ISO == "" {
+		// No ISO date: work it out from the Ethiopian part or the flat year/month/day.
+		iso, eth, ok := in.isoFromParts()
+		if !ok {
+			return nil, invalidValue(code)
+		}
+		d.ISO, d.Ethiopian = iso, eth
 	}
 	day, ok := parseISODate(d.ISO)
 	if !ok {
@@ -329,6 +338,41 @@ func validateDate(step *domain.FlowStep, raw json.RawMessage) (json.RawMessage, 
 		}
 	}
 	return json.Marshal(d)
+}
+
+// dateInput is what a client may send for a date: the canonical dateAnswer, or, without
+// "iso", a flat { "calendar": "ethiopian" | "gregorian", "year", "month", "day" }. Only the
+// canonical form { calendar, ethiopian?, iso } is stored.
+type dateInput struct {
+	dateAnswer
+	Year  int `json:"year"`
+	Month int `json:"month"`
+	Day   int `json:"day"`
+}
+
+// isoFromParts computes the ISO date when the client sent none: from the Ethiopian part, or
+// from the flat year/month/day in the given calendar (Gregorian if none). It also returns the
+// Ethiopian part to store, if any.
+func (in dateInput) isoFromParts() (string, *ethiopianDay, bool) {
+	eth := in.Ethiopian
+	if eth == nil && in.Calendar == calendarEthiopian && in.Year != 0 {
+		eth = &ethiopianDay{Year: in.Year, Month: in.Month, Day: in.Day}
+	}
+	if eth != nil {
+		g, ok := ethiopianToGregorian(eth.Year, eth.Month, eth.Day)
+		if !ok {
+			return "", nil, false
+		}
+		return g.Format("2006-01-02"), eth, true
+	}
+	if in.Year == 0 || (in.Calendar != "" && in.Calendar != calendarGregorian) {
+		return "", nil, false
+	}
+	t := time.Date(in.Year, time.Month(in.Month), in.Day, 0, 0, 0, 0, time.UTC)
+	if in.Month < 1 || in.Month > 12 || t.Year() != in.Year || int(t.Month()) != in.Month || t.Day() != in.Day {
+		return "", nil, false // e.g. 30 February
+	}
+	return t.Format("2006-01-02"), nil, true
 }
 
 // parseISODate reads "YYYY-MM-DD" (a real Gregorian date between 1900 and 2100) as midnight UTC.

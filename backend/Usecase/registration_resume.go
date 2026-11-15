@@ -89,10 +89,9 @@ func (u *RegistrationUsecase) ResumeVerify(ctx context.Context, codeOrToken stri
 
 	matched := false
 	if dob != nil && dob.Year > 0 {
-		if learner != nil && learner.DOB != nil {
-			if learner.DOB.Year() == dob.Year && int(learner.DOB.Month()) == dob.Month && learner.DOB.Day() == dob.Day {
-				matched = true
-			}
+		if want, ok := resumeDOBDay(dob); ok && learner != nil && learner.DOB != nil {
+			d := learner.DOB.UTC()
+			matched = time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC).Equal(want)
 		}
 		if !matched {
 			if ans, _ := u.RegistrationRepo.GetAnswer(ctx, reg.ID, "dob"); ans != nil {
@@ -363,29 +362,27 @@ func (u *RegistrationUsecase) findResumeToken(ctx context.Context, input string)
 	return nil, domain.ErrNotFound
 }
 
+// resumeDOBDay turns the date the person typed (Ethiopian or Gregorian) into one calendar day.
+func resumeDOBDay(d *domain.ResumeDOB) (time.Time, bool) {
+	if strings.EqualFold(d.Calendar, calendarEthiopian) {
+		return ethiopianToGregorian(d.Year, d.Month, d.Day)
+	}
+	t := time.Date(d.Year, time.Month(d.Month), d.Day, 0, 0, 0, 0, time.UTC)
+	if t.Year() != d.Year || int(t.Month()) != d.Month || t.Day() != d.Day {
+		return time.Time{}, false // e.g. 30 February
+	}
+	return t, true
+}
+
+// checkDOBAnswerMatch compares the typed date with the saved dob answer, which is stored as
+// {calendar, ethiopian?, iso} (or a plain ISO string). Both sides are compared as one day.
 func checkDOBAnswerMatch(data []byte, expected *domain.ResumeDOB) bool {
-	var obj struct {
-		Calendar string `json:"calendar"`
-		Year     int    `json:"year"`
-		Month    int    `json:"month"`
-		Day      int    `json:"day"`
+	want, ok := resumeDOBDay(expected)
+	if !ok {
+		return false
 	}
-	if err := json.Unmarshal(data, &obj); err == nil {
-		if obj.Year == expected.Year && obj.Month == expected.Month && obj.Day == expected.Day {
-			return true
-		}
-	}
-
-	var str string
-	if err := json.Unmarshal(data, &str); err == nil {
-		if parsed, err := time.Parse("2006-01-02", str); err == nil {
-			if parsed.Year() == expected.Year && int(parsed.Month()) == expected.Month && parsed.Day() == expected.Day {
-				return true
-			}
-		}
-	}
-
-	return false
+	saved, _ := answerDate(data)
+	return saved != nil && saved.Equal(want)
 }
 
 // DevMessages lists the simulated messages, newest last (GET /dev/messages, development only).

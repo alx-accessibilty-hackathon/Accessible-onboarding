@@ -11,11 +11,21 @@ import {
   type DateAnswerValue,
 } from '../lib/ethiopianCalendar';
 
+/** What was typed, kept while the date is incomplete or doesn't exist (so it can be checked). */
+export interface EnteredDate {
+  day: string;
+  month: string;
+  year: string;
+}
+
+/** A complete, real date; or (iso "") what was typed so far, which validation then reports. */
+export type DateFieldValue = DateAnswerValue | (DateAnswerValue & { entered: EnteredDate });
+
 export interface DateFieldProps {
   step: Step;
   lang: string;
-  value: DateAnswerValue | null;
-  onChange: (value: DateAnswerValue | null) => void;
+  value: DateFieldValue | null;
+  onChange: (value: DateFieldValue | null) => void;
   error?: string;
   headingRef?: RefObject<HTMLHeadingElement>;
 }
@@ -27,24 +37,29 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
     value?.calendar || defaultCal,
   );
 
-  // Initial internal state from value
-  const initialYear =
-    calendar === 'ethiopian'
+  // Initial internal state from value (a typed-but-unfinished date comes back as typed)
+  const entered = value && 'entered' in value ? value.entered : null;
+  const [isoYear, isoMonth, isoDay] = (value?.iso ?? '').split('-').map(Number);
+  const initialYear = entered
+    ? entered.year
+    : calendar === 'ethiopian'
       ? (value?.ethiopian?.year ?? '')
       : value?.iso
-        ? new Date(value.iso).getUTCFullYear()
+        ? isoYear
         : '';
-  const initialMonth =
-    calendar === 'ethiopian'
+  const initialMonth = entered
+    ? entered.month
+    : calendar === 'ethiopian'
       ? (value?.ethiopian?.month ?? '')
       : value?.iso
-        ? new Date(value.iso).getUTCMonth() + 1
+        ? isoMonth
         : '';
-  const initialDay =
-    calendar === 'ethiopian'
+  const initialDay = entered
+    ? entered.day
+    : calendar === 'ethiopian'
       ? (value?.ethiopian?.day ?? '')
       : value?.iso
-        ? new Date(value.iso).getUTCDate()
+        ? isoDay
         : '';
 
   const [day, setDay] = useState<string | number>(initialDay);
@@ -66,17 +81,30 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
     const d = Number(newDay);
     const m = Number(newMonth);
     const y = Number(newYear);
+    const typed: EnteredDate = {
+      day: String(newDay).trim(),
+      month: String(newMonth).trim(),
+      year: String(newYear).trim(),
+    };
 
-    if (!d || !m || !y || isNaN(d) || isNaN(m) || isNaN(y)) {
-      // Partial or empty
+    // Nothing typed: no answer (an optional question can be skipped).
+    if (!typed.day && !typed.month && !typed.year) {
       onChange(null);
+      return;
+    }
+    // Typed in part, or a day that doesn't exist: keep what was typed, so Continue can say
+    // what is wrong on this step (instead of the server, at the very end).
+    const unfinished = () => onChange({ calendar: c, iso: '', entered: typed });
+
+    if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y) || !d || !m || !y) {
+      unfinished();
       return;
     }
 
     if (c === 'ethiopian') {
       const maxDays = ethiopianMonthDays(y, m);
       if (d < 1 || d > maxDays || m < 1 || m > 13 || y < 1) {
-        onChange(null);
+        unfinished();
         return;
       }
       const gr = ethiopianToGregorian(y, m, d);
@@ -87,8 +115,9 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
         iso,
       });
     } else {
-      if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900) {
-        onChange(null);
+      const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate(); // day 0 = last of month m
+      if (d < 1 || d > daysInMonth || m < 1 || m > 12 || y < 1000 || y > 9999) {
+        unfinished();
         return;
       }
       const et = gregorianToEthiopian(y, m, d);
@@ -123,6 +152,8 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
         setYear(et.year);
         updateDate('ethiopian', et.day, et.month, et.year);
       }
+    } else {
+      updateDate(targetCal, day, month, year); // unfinished: keep what was typed
     }
   };
 
@@ -153,9 +184,16 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
         </p>
       )}
 
-      {/* Calendar Switch */}
+      {/* Calendar Switch: a named group of two toggles (read as one choice in Read aloud mode) */}
       <div
-        style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--bo-space-2)', marginTop: '4px' }}
+        role="group"
+        aria-label={t(lang, 'date.calendar')}
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'var(--bo-space-2)',
+          marginTop: 'var(--bo-space-1)',
+        }}
       >
         <button
           type="button"
@@ -192,18 +230,26 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
         </p>
       )}
 
-      {/* 3 Input controls: Day, Month, Year */}
+      {/* 3 Input controls: Day, Month, Year (side by side when there is room, else stacked) */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(60px, 1fr) minmax(140px, 2fr) minmax(80px, 1.2fr)',
+          display: 'flex',
+          flexWrap: 'wrap',
           gap: 'var(--bo-space-3)',
-          alignItems: 'end',
+          alignItems: 'flex-end',
           marginTop: 'var(--bo-space-2)',
         }}
       >
         {/* Day */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--bo-space-1)',
+            flex: '1 1 4.5em',
+            minWidth: 0,
+          }}
+        >
           <label
             htmlFor={`${fieldsetId}-day`}
             style={{ fontSize: '0.9em', fontWeight: 600, color: 'var(--bo-text)' }}
@@ -225,6 +271,7 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
               updateDate(calendar, val, month, year);
             }}
             style={{
+              width: '100%',
               minHeight: 'var(--bo-target)',
               padding: '0.5em',
               fontSize: 'inherit',
@@ -237,7 +284,15 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
         </div>
 
         {/* Month */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--bo-space-1)',
+            flex: '2 1 8em',
+            minWidth: 0,
+          }}
+        >
           <label
             htmlFor={`${fieldsetId}-month`}
             style={{ fontSize: '0.9em', fontWeight: 600, color: 'var(--bo-text)' }}
@@ -255,6 +310,7 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
               updateDate(calendar, day, val, year);
             }}
             style={{
+              width: '100%',
               minHeight: 'var(--bo-target)',
               padding: '0.5em',
               fontSize: 'inherit',
@@ -274,7 +330,15 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
         </div>
 
         {/* Year */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--bo-space-1)',
+            flex: '1.2 1 5em',
+            minWidth: 0,
+          }}
+        >
           <label
             htmlFor={`${fieldsetId}-year`}
             style={{ fontSize: '0.9em', fontWeight: 600, color: 'var(--bo-text)' }}
@@ -296,6 +360,7 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
               updateDate(calendar, day, month, val);
             }}
             style={{
+              width: '100%',
               minHeight: 'var(--bo-target)',
               padding: '0.5em',
               fontSize: 'inherit',

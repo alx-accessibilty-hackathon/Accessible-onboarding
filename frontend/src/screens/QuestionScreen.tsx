@@ -1,17 +1,20 @@
-import type { FormEvent, ReactNode, RefObject } from 'react';
+import { useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useAutoRead, useModes } from '../a11y/modes';
+import { stepParts } from '../a11y/readParts';
 import { Button } from '../components/Button';
-import type { OptionContext } from '../engine/options';
+import { resolveOptions, type OptionContext } from '../engine/options';
 import type { AnswerState, Step } from '../engine/types';
+import { isValueEmpty } from '../engine/validate';
 import { ChoiceCards } from '../fields/ChoiceCards';
-import { DateField } from '../fields/DateField';
+import { DateField, type DateFieldValue } from '../fields/DateField';
 import { DigitsField } from '../fields/DigitsField';
 import { LongTextField } from '../fields/LongTextField';
 import { MultiChoiceCards } from '../fields/MultiChoiceCards';
 import { PhoneField } from '../fields/PhoneField';
 import { TextField } from '../fields/TextField';
-import { ReadAloud } from '../i18n/ReadAloud';
+import { ListenButton } from '../i18n/ReadAloud';
 import { t } from '../i18n/t';
-import type { DateAnswerValue } from '../lib/ethiopianCalendar';
+import type { VoiceChoice, VoiceClipOutcome } from '../voice/types';
 import { VoiceInput } from '../voice/VoiceInput';
 import { ErrorSummary } from './ErrorSummary';
 
@@ -33,7 +36,8 @@ export function isInputStep(step: Step): boolean {
 }
 
 export interface VoiceHandlers {
-  onPending: (clipId: string) => void;
+  /** A recorded clip: the flow turns it into text (and fills the field); the result comes back. */
+  onPending: (clipId: string) => Promise<VoiceClipOutcome | null> | void;
   onSpeechConsent?: (granted: boolean) => void;
 }
 
@@ -53,6 +57,12 @@ export interface QuestionScreenProps {
   voice?: VoiceHandlers | null;
   /** Extra content under the question (e.g. the contact details to confirm). */
   extra?: ReactNode;
+  /** "Question 3 of 9", said first in Read aloud mode. */
+  progressText?: string;
+  /** Shown instead of a dead end when a choice question has no options (e.g. none loaded). */
+  noOptions?: ReactNode;
+  /** The main button's text (default "Continue"; the profile page says "Save"). */
+  submitLabel?: string;
 }
 
 // One step = one screen (W4 markup). Questions with one input put the label inside the h1;
@@ -70,9 +80,41 @@ export function QuestionScreen({
   onSkip,
   voice,
   extra,
+  progressText,
+  noOptions,
+  submitLabel,
 }: QuestionScreenProps) {
   const fieldId = `q-${step.id}`;
   const input = isInputStep(step);
+  const { readAloud, answerBySpeaking, active } = useModes();
+
+  const choices: VoiceChoice[] =
+    step.type === 'single_choice'
+      ? resolveOptions(step, optionContext).map((o) => ({
+          value: o.value,
+          label: o.literal ? o.label : t(lang, o.label),
+          say: o.say,
+        }))
+      : [];
+  // Answer by speaking also covers single choices (matched against the labels on screen).
+  const canSpeak =
+    !!voice &&
+    (VOICE_TYPES.has(step.type) ||
+      (answerBySpeaking && step.type === 'single_choice' && choices.length > 0));
+  // Listen by itself only on an unanswered question: never talk over an answer already given.
+  const [emptyAtStart] = useState(() => isValueEmpty(value));
+  const autoListen = answerBySpeaking && canSpeak && emptyAtStart;
+
+  // Read aloud mode: read the new screen; then (Answer by speaking) start listening.
+  const [readDone, setReadDone] = useState(false);
+  const parts = (sayNow: boolean) =>
+    stepParts(step, lang, value, { ctx: optionContext, progress: progressText, sayNow });
+  useAutoRead(
+    `step:${step.id}`,
+    () => parts(autoListen),
+    lang,
+    () => setReadDone(true),
+  );
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -94,28 +136,25 @@ export function QuestionScreen({
       {extra}
 
       <div>
-        <ReadAloud
-          stringKey={step.title}
-          lang={lang}
-          fallbackText={[t(lang, step.title), step.hint ? t(lang, step.hint) : '']
-            .filter(Boolean)
-            .join('. ')}
-        />
+        <ListenButton lang={lang} parts={() => parts(false)} />
       </div>
 
-      {voice && VOICE_TYPES.has(step.type) && (
+      {voice && canSpeak && (
         <VoiceInput
           step={step}
           lang={lang}
           onConfirm={(v) => onChange(v, 'voice')}
           onPending={voice.onPending}
           onSpeechConsent={voice.onSpeechConsent}
+          mode={answerBySpeaking}
+          autoStart={autoListen && active && (!readAloud || readDone)}
+          choices={choices}
         />
       )}
 
       <div className="bo-actions">
         <Button variant="primary" type="submit">
-          {t(lang, 'common.continue')}
+          {submitLabel ?? t(lang, 'common.continue')}
         </Button>
         {input && !step.required && onSkip && (
           <Button variant="secondary" onClick={onSkip}>
@@ -143,7 +182,7 @@ export function QuestionScreen({
         return (
           <DateField
             {...common}
-            value={(value as DateAnswerValue | null) ?? null}
+            value={(value as DateFieldValue | null) ?? null}
             onChange={(v) => onChange(v, 'typed')}
           />
         );
@@ -154,6 +193,7 @@ export function QuestionScreen({
             value={asText}
             referralPartners={optionContext?.referralPartners}
             onChange={(v) => onChange(v, 'choice')}
+            noOptions={noOptions}
           />
         );
       case 'multi_choice':

@@ -44,6 +44,35 @@ export async function publishEmployerJob(
   });
 }
 
+/** One application to the employer's job. `support` only when the applicant shared it. */
+export interface JobApplication {
+  id: string;
+  status: string;
+  created_at: string;
+  answers: Record<string, { value: unknown; input_method?: string }>;
+  attach_support: boolean;
+  applicant: {
+    full_name: string;
+    preferred_name: string;
+    contact_method: string;
+    phone: string;
+    language: string;
+  };
+  support: { needs: string[]; other_text: string } | null;
+}
+
+/** Applications to one of the employer's own jobs (another employer's job: 404). */
+export async function fetchJobApplications(
+  cfg: ApiConfig,
+  jobId: string,
+): Promise<JobApplication[]> {
+  const res = await apiFetch<{ items: JobApplication[]; next_cursor: string | null }>(
+    cfg,
+    `/employer/jobs/${encodeURIComponent(jobId)}/applications`,
+  );
+  return res.items ?? [];
+}
+
 /**
  * The public JobPosting JSON-LD of a published job. Read through our own API origin (the
  * jsonld_url from publish may point at the public host, which this page can't always reach).

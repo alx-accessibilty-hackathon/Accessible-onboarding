@@ -119,8 +119,8 @@ export function MultiChoiceCards({
                 aria-invalid={!!error}
                 onChange={() => handleToggle(opt.value)}
                 style={{
-                  width: '22px',
-                  height: '22px',
+                  width: '1.25em',
+                  height: '1.25em',
                   accentColor: 'var(--bo-primary)',
                   cursor: 'pointer',
                   flexShrink: 0,
@@ -132,6 +132,7 @@ export function MultiChoiceCards({
                   fontWeight: isSelected ? 700 : 500,
                   color: 'var(--bo-text)',
                   flexGrow: 1,
+                  minWidth: 0,
                 }}
               >
                 {labelText}

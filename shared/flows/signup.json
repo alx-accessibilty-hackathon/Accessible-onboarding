@@ -111,6 +111,7 @@
       "id": "id_doc_type",
       "type": "single_choice",
       "title": "signup.id_doc_type.title",
+      "hint": "signup.id_doc_type.hint",
       "icon": "description",
       "required": true,
       "storage": "answer",
@@ -123,17 +124,21 @@
         { "value": "passport", "label": "signup.id_doc_type.passport" },
         { "value": "other", "label": "signup.id_doc_type.other" }
       ],
-      "next": "id_last4"
+      "next": [
+        { "when": { "step": "id_doc_type", "in": ["kebele_letter", "other"] }, "goto": "support_needs" },
+        { "goto": "id_last4" }
+      ]
     },
     {
       "id": "id_last4",
-      "type": "digits",
+      "type": "text",
       "title": "signup.id_last4.title",
       "hint": "signup.id_last4.hint",
       "icon": "pin",
+      "autocomplete": "off",
       "required": false,
       "storage": "answer",
-      "validate": [{ "rule": "digits", "value": 4, "error": "digits_invalid" }],
+      "validate": [{ "rule": "pattern", "value": "^[0-9A-Za-z]{4}$", "error": "last4_invalid" }],
       "next": "support_needs"
     },
     {

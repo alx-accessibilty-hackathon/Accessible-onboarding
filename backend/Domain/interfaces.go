@@ -67,6 +67,8 @@ type AuthUsecaseI interface {
 }
 type SpeechUsecaseI interface {
 	Transcribe(ctx context.Context, audio []byte, language string, stepID string, fieldType string, learnerID *uuid.UUID) (*Transcription, error)
+	// Synthesize reads fixed interface text aloud (MP3). ErrSpeechUnavailable when no voice exists.
+	Synthesize(ctx context.Context, text, language string) ([]byte, error)
 }
 
 // JobUsecaseI: public job list and detail, JobPosting JSON-LD, and the employer's own jobs.
@@ -91,6 +93,29 @@ type ApplicationUsecaseI interface {
 type LearnerUsecaseI interface {
 	GetPartnerLearner(ctx context.Context, partnerID *uuid.UUID, learnerID uuid.UUID) (*Learner, error)
 	ListPartnerLearners(ctx context.Context, partnerID *uuid.UUID, updatedSince *time.Time, limit int) ([]*Learner, error)
+}
+
+// MeUsecaseI: the signed-in learner's own data: see, change, delete (Q4).
+type MeUsecaseI interface {
+	Get(ctx context.Context, actor Actor) (*LearnerProfile, error)
+	// Update changes only the values that are not nil; ErrNotRegistered if a draft learner
+	// sends anything but language and simple mode.
+	Update(ctx context.Context, actor Actor, changes *ProfileChanges) (*LearnerProfile, error)
+	// Delete removes the learner and everything about them, and ends all their sessions.
+	Delete(ctx context.Context, actor Actor) error
+}
+
+// ReferralUsecaseI: the referral queue of a referral organisation's staff (R7).
+type ReferralUsecaseI interface {
+	ListPartnerReferrals(ctx context.Context, actor Actor) ([]*PartnerReferral, error)
+	// UpdatePartnerReferral: another partner's referral is ErrNotFound.
+	UpdatePartnerReferral(ctx context.Context, actor Actor, id uuid.UUID, status string) (*PartnerReferral, error)
+}
+
+// EmployerApplicationUsecaseI: applications to the signed-in employer's own jobs (C3, Q7).
+type EmployerApplicationUsecaseI interface {
+	// ListJobApplications: another employer's job is ErrNotFound.
+	ListJobApplications(ctx context.Context, actor Actor, jobID uuid.UUID) ([]*EmployerApplication, error)
 }
 
 // ---- Repositories (implemented in Repository/) ----
@@ -185,6 +210,37 @@ type ApplicationRepositoryI interface {
 	Create(ctx context.Context, app *Application) (*Application, error) // ErrAlreadyExists if applied before
 }
 
+// ProfileRepositoryI: what /me reads, changes and deletes. ErrNotFound when there is no row.
+type ProfileRepositoryI interface {
+	GetLatestRegistration(ctx context.Context, learnerID uuid.UUID) (*Registration, error)
+	GetLatestIdentityEvidence(ctx context.Context, learnerID uuid.UUID) (*IdentityEvidence, error)
+	GetSealedSupportRequest(ctx context.Context, learnerID uuid.UUID) (*SealedSupportRequest, error)
+	// UpdateProfile writes the learner's name, contact, phone, date of birth, language and
+	// simple mode. A cleared phone is also removed from the learner's saved answers.
+	UpdateProfile(ctx context.Context, l *Learner) (*Learner, error)
+	// DeleteLearner, in one transaction: deletes the learner (the rest cascades), their
+	// sessions, and writes the audit entry.
+	DeleteLearner(ctx context.Context, learnerID uuid.UUID, audit *AuditEntry) error
+}
+
+// ReferralRepositoryI: referrals with their learner, for the referral partner's staff.
+type ReferralRepositoryI interface {
+	ListByPartner(ctx context.Context, partnerID uuid.UUID) ([]*PartnerReferral, error) // newest first
+	// UpdateStatus returns ErrNotFound if the referral doesn't exist or isn't this partner's.
+	UpdateStatus(ctx context.Context, id, partnerID uuid.UUID, status string) (*PartnerReferral, error)
+}
+
+// EmployerApplicationRepositoryI: applications to one job of one employer, newest first,
+// with the applicant and (only when attach_support) the sealed support request.
+type EmployerApplicationRepositoryI interface {
+	ListForEmployerJob(ctx context.Context, jobID, employerID uuid.UUID) ([]*EmployerApplication, error)
+}
+
+// AuditRepositoryI writes audit_log rows.
+type AuditRepositoryI interface {
+	Log(ctx context.Context, e *AuditEntry) error
+}
+
 // ---- Services (implemented in Infrastructure/ or by another use case) ----
 
 // SecurityService: tokens, hashing, encryption, passwords.
@@ -222,6 +278,8 @@ type SpeechService interface {
 	HasServerSpeech() bool
 	HasCloudSpeech() bool
 	Transcribe(ctx context.Context, audio []byte, language string, cloudConsent bool) (*Transcription, error)
+	// Synthesize turns text into speech (MP3) with a cloud voice. ErrSpeechUnavailable if none.
+	Synthesize(ctx context.Context, text, language string) ([]byte, error)
 }
 type MessageService interface {
 	SendMessage(ctx context.Context, msg *Message) error

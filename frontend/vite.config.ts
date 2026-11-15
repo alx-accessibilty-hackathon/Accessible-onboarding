@@ -1,9 +1,46 @@
+import fs from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
-import { loadEnv } from 'vite';
+import { loadEnv, type Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 const path = (p: string) => fileURLToPath(new URL(p, import.meta.url));
+
+/**
+ * Unknown pages get the friendly 404 page (with a 404 status) instead of the sign-up page.
+ * Vite's 'mpa' mode already stops sending index.html for every address; this serves 404.html
+ * for page requests that match no file. (In production nginx does it: error_page 404.)
+ */
+function notFoundPage(): Plugin {
+  const root = path('./');
+  return {
+    name: 'bridge-404',
+    configureServer(server) {
+      // Returned: runs after Vite's own middlewares have had their chance (files, modules).
+      return () => {
+        server.middlewares.use(async (req, res, next) => {
+          const url = new URL(req.url ?? '/', 'http://localhost');
+          const wantsPage = (req.headers.accept ?? '').includes('text/html');
+          const isPage = url.pathname.endsWith('/') || /\.html?$|\/[^.]*$/.test(url.pathname);
+          let exists = false;
+          try {
+            exists = fs.statSync(path(`.${decodeURIComponent(url.pathname)}`)).isFile();
+          } catch {
+            exists = false;
+          }
+          if (req.method !== 'GET' || !wantsPage || !isPage || exists) return next();
+          const html = await server.transformIndexHtml(
+            '/404.html',
+            fs.readFileSync(`${root}404.html`, 'utf8'),
+          );
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.end(html);
+        });
+      };
+    },
+  };
+}
 
 // App build: our hosted sign-up page, the staff pages and the demo host pages.
 // The widget file itself is built by vite.widget.config.ts.
@@ -11,7 +48,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react()],
+    plugins: [react(), notFoundPage()],
+    // Multi-page: an unknown address is a 404, never the sign-up page (SPA fallback).
+    appType: 'mpa',
     resolve: {
       alias: { '@shared': path('../shared') },
     },
@@ -29,11 +68,13 @@ export default defineConfig(({ mode }) => {
         input: {
           main: path('./index.html'),
           staff: path('./staff.html'),
+          notFound: path('./404.html'),
           plain: path('./demo/plain.html'),
           'demo-components': path('./demo/components.html'),
           'savanna-signup': path('./demo/savanna/signup.html'),
           'savanna-home': path('./demo/savanna/home.html'),
           'savanna-jobs': path('./demo/savanna/jobs.html'),
+          'savanna-profile': path('./demo/savanna/profile.html'),
         },
       },
     },

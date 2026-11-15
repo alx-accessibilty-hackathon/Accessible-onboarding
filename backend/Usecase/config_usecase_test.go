@@ -41,8 +41,9 @@ func (m *mockPartnerRepo) ListAllowedOrigins(ctx context.Context) ([]string, err
 }
 
 type mockSpeechService struct {
-	serverSpeech bool
-	cloudSpeech  bool
+	domain.SpeechService // methods these tests don't use
+	serverSpeech         bool
+	cloudSpeech          bool
 }
 
 func (m *mockSpeechService) HasServerSpeech() bool {

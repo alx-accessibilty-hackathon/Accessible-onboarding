@@ -181,7 +181,7 @@ func TestSaveAnswerValidatesAgainstTheFlow(t *testing.T) {
 	assert.Equal(t, map[string]string{"value": "phone_invalid"}, fieldCodes(t, save("phone", `"12345"`)))
 	assert.Equal(t, map[string]string{"value": "invalid_choice"}, fieldCodes(t, save("contact_method", `"email"`)))
 	assert.Equal(t, map[string]string{"value": "invalid_choice"}, fieldCodes(t, save("referral_partner", `"`+uuid.NewString()+`"`)))
-	assert.Equal(t, map[string]string{"value": "digits_invalid"}, fieldCodes(t, save("id_last4", `"12a4"`)))
+	assert.Equal(t, map[string]string{"value": "last4_invalid"}, fieldCodes(t, save("id_last4", `"12-4"`)))
 	assert.Equal(t, map[string]string{"value": "date_invalid"}, fieldCodes(t, save("dob", `{"calendar":"gregorian","iso":"2010-02-30"}`)))
 
 	// Support needs and the consent screen have no answer endpoint; unknown steps neither.

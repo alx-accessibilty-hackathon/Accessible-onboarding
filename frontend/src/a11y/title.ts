@@ -13,6 +13,8 @@ export function setStepTitle(text: string): void {
 }
 
 export function restoreHostTitle(): void {
-  if (hostTitle !== null) document.title = hostTitle;
+  // With manage-title="false" we never changed the title: leave the page's own title alone
+  // (it may have changed meanwhile, e.g. the staff page naming the open form).
+  if (hostTitle !== null && enabled) document.title = hostTitle;
   hostTitle = null;
 }

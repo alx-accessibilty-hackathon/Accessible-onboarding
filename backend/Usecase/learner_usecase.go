@@ -35,7 +35,14 @@ func (u *LearnerUsecase) GetPartnerLearner(ctx context.Context, partnerID *uuid.
 	if partnerID == nil || *partnerID == uuid.Nil {
 		return nil, domain.ErrForbidden
 	}
-	return u.LearnerRepo.GetByIDAndPartnerID(ctx, learnerID, *partnerID)
+	l, err := u.LearnerRepo.GetByIDAndPartnerID(ctx, learnerID, *partnerID)
+	if err != nil {
+		return nil, err
+	}
+	if l.Status != domain.LearnerStatusRegistered {
+		return nil, domain.ErrNotFound // like the list: unfinished sign-ups are not shared
+	}
+	return l, nil
 }
 
 // ListPartnerLearners returns the calling partner's registered learners, newest first,

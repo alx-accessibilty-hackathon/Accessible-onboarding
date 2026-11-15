@@ -7,8 +7,12 @@ test.describe('End-to-end Onboarding and Accessibility Journey', () => {
   }) => {
     await page.goto('/');
 
+    // 0. Language screen (first, until a language is chosen on this device)
+    await page.getByLabel('English').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+
     // 1. Welcome Screen
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign up to learn with us');
 
     let axeResults = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -50,7 +54,7 @@ test.describe('End-to-end Onboarding and Accessibility Journey', () => {
 
     // 8. ID last 4
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      'What are the last 4 numbers on it?',
+      'What are the last 4 letters or numbers on it?',
     );
     await page.getByRole('button', { name: 'Skip this question' }).click();
 

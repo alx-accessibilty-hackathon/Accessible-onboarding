@@ -1,8 +1,12 @@
 import type { RefObject } from 'react';
+import { useAutoRead } from '../a11y/modes';
+import { answerParts, keyPart } from '../a11y/readParts';
+import type { Part } from '../a11y/speaker';
 import { Button } from '../components/Button';
 import { VisuallyHidden } from '../components/VisuallyHidden';
 import { resolveOptions, type OptionContext } from '../engine/options';
 import type { AnswerState, Flow, Step } from '../engine/types';
+import { ListenButton } from '../i18n/ReadAloud';
 import { t } from '../i18n/t';
 import { formatEthiopianPhoneDisplay } from '../lib/phone';
 import { ErrorSummary, type ErrorItem } from './ErrorSummary';
@@ -101,6 +105,25 @@ export function CheckAnswers({
 
   const hasPendingVoice = answeredSteps.some((s) => !!answers[s.id]?.pendingClipId);
 
+  // Each question, then its answer. Typed answers are personal (device voice only); chosen
+  // options are the labels on screen.
+  const readParts = (): Part[] => {
+    const parts: Part[] = [keyPart(lang, titleKey)];
+    if (hasPendingVoice) parts.push(keyPart(lang, 'check.voice_pending'));
+    for (const s of answeredSteps) {
+      parts.push(keyPart(lang, s.title));
+      const ans = answers[s.id];
+      if (ans?.pendingClipId) {
+        parts.push(keyPart(lang, 'check.voice_waiting'));
+        continue;
+      }
+      const said = answerParts(s, ans?.value, lang, optionContext, 'speech.answer_on_screen');
+      parts.push(...(said.length > 0 ? said : [keyPart(lang, 'speech.not_answered')]));
+    }
+    return parts;
+  };
+  useAutoRead(`check:${titleKey}`, readParts, lang);
+
   return (
     <section
       aria-labelledby="check-answers-heading"
@@ -111,6 +134,10 @@ export function CheckAnswers({
       <h1 id="check-answers-heading" tabIndex={-1} ref={headingRef} style={{ margin: 0 }}>
         {t(lang, titleKey)}
       </h1>
+
+      <div>
+        <ListenButton lang={lang} parts={readParts} />
+      </div>
 
       {hasPendingVoice && (
         <div
@@ -166,6 +193,7 @@ export function CheckAnswers({
                 {stepTitle}
               </dt>
               <dd
+                data-bo-private=""
                 style={{
                   margin: 0,
                   flexGrow: 1,

@@ -8,6 +8,7 @@ package sqlc
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -46,4 +47,77 @@ func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationPa
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listApplicationsForEmployerJob = `-- name: ListApplicationsForEmployerJob :many
+SELECT a.id, a.job_id, a.learner_id, a.answers, a.attach_support, a.status, a.created_at,
+       l.full_name, l.preferred_name, l.contact_method, l.phone_e164, l.language,
+       s.nonce AS support_nonce, s.ciphertext AS support_ciphertext
+FROM applications a
+JOIN jobs j ON j.id = a.job_id
+JOIN learners l ON l.id = a.learner_id
+LEFT JOIN support_requests s ON s.learner_id = a.learner_id AND a.attach_support
+WHERE a.job_id = $1
+  AND j.employer_id = $2
+ORDER BY a.created_at DESC, a.id DESC
+`
+
+type ListApplicationsForEmployerJobParams struct {
+	JobID      uuid.UUID
+	EmployerID *uuid.UUID
+}
+
+type ListApplicationsForEmployerJobRow struct {
+	ID                uuid.UUID
+	JobID             uuid.UUID
+	LearnerID         uuid.UUID
+	Answers           json.RawMessage
+	AttachSupport     bool
+	Status            string
+	CreatedAt         time.Time
+	FullName          *string
+	PreferredName     *string
+	ContactMethod     *string
+	PhoneE164         *string
+	Language          string
+	SupportNonce      []byte
+	SupportCiphertext []byte
+}
+
+// Applications to one job, only if the job belongs to this employer (Q7), newest first.
+// The applicant's support request comes only when they attached it to this application,
+// and stays encrypted here (the use case decrypts it and writes the audit log).
+func (q *Queries) ListApplicationsForEmployerJob(ctx context.Context, arg ListApplicationsForEmployerJobParams) ([]ListApplicationsForEmployerJobRow, error) {
+	rows, err := q.db.Query(ctx, listApplicationsForEmployerJob, arg.JobID, arg.EmployerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListApplicationsForEmployerJobRow{}
+	for rows.Next() {
+		var i ListApplicationsForEmployerJobRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.LearnerID,
+			&i.Answers,
+			&i.AttachSupport,
+			&i.Status,
+			&i.CreatedAt,
+			&i.FullName,
+			&i.PreferredName,
+			&i.ContactMethod,
+			&i.PhoneE164,
+			&i.Language,
+			&i.SupportNonce,
+			&i.SupportCiphertext,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

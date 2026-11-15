@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { t } from '../i18n/t';
@@ -9,6 +10,11 @@ export interface ReviewCardProps {
   onKeep: () => void;
   onSayAgain: () => void;
   onTypeInstead: () => void;
+  /** Focus goes to Keep when the card appears (the button that was pressed is gone). */
+  keepRef?: RefObject<HTMLButtonElement>;
+  /** Other guesses, when the speech service wasn't sure. */
+  alternatives?: string[];
+  onAlternative?: (index: number) => void;
 }
 
 export function ReviewCard({
@@ -18,6 +24,9 @@ export function ReviewCard({
   onKeep,
   onSayAgain,
   onTypeInstead,
+  keepRef,
+  alternatives = [],
+  onAlternative,
 }: ReviewCardProps) {
   const displayValue = Array.isArray(normalizedValue)
     ? normalizedValue.join(', ')
@@ -25,7 +34,8 @@ export function ReviewCard({
 
   return (
     <Card className="bo-voice-review-card" style={{ marginTop: 'var(--bo-space-3)' }}>
-      <div style={{ marginBottom: 'var(--bo-space-3)' }}>
+      {/* What the learner said: personal, never sent to a speech service (data-bo-private). */}
+      <div data-bo-private="" style={{ marginBottom: 'var(--bo-space-3)' }}>
         <p className="bo-hint" style={{ margin: 0, fontWeight: 600 }}>
           {t(lang, 'voice.heard')}
         </p>
@@ -34,7 +44,7 @@ export function ReviewCard({
         </p>
       </div>
 
-      <div style={{ marginBottom: 'var(--bo-space-4)' }}>
+      <div data-bo-private="" style={{ marginBottom: 'var(--bo-space-4)' }}>
         <p className="bo-hint" style={{ margin: 0, fontWeight: 600 }}>
           {t(lang, 'voice.filled')}
         </p>
@@ -50,8 +60,23 @@ export function ReviewCard({
         </p>
       </div>
 
+      {alternatives.length > 0 && onAlternative && (
+        <div data-bo-private="" style={{ marginBottom: 'var(--bo-space-4)' }}>
+          <p className="bo-hint" style={{ margin: '0 0 var(--bo-space-2)', fontWeight: 600 }}>
+            {t(lang, 'voice.did_you_mean')}
+          </p>
+          <div className="bo-actions">
+            {alternatives.map((alt, i) => (
+              <Button key={alt} variant="secondary" onClick={() => onAlternative(i)}>
+                {alt}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bo-actions">
-        <Button variant="primary" onClick={onKeep}>
+        <Button ref={keepRef} variant="primary" onClick={onKeep}>
           {t(lang, 'voice.keep')}
         </Button>
         <Button variant="secondary" onClick={onSayAgain}>

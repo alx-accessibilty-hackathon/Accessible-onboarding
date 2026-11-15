@@ -1,9 +1,10 @@
 import r2wc from '@r2wc/react-to-web-component';
-import { setAudioBase } from '../i18n/ReadAloud';
+import { setAudioBase } from '../a11y/speaker';
 import { App } from './App';
 
-// Recorded read-aloud clips are published next to the widget script (…/audio/<lang>/<key>.mp3).
-// A classic <script src> knows its own address; a dev module script doesn't (then: /audio/).
+// Recorded read-aloud clips are published next to the widget script (…/audio/<lang>/<key>.mp3),
+// so a partner site loads them from our server, not its own. A classic <script src> knows its
+// own address; a dev module script doesn't (then: /audio/ on this site).
 const script = typeof document !== 'undefined' ? document.currentScript : null;
 if (script instanceof HTMLScriptElement && script.src) {
   setAudioBase(new URL('audio/', script.src).href);

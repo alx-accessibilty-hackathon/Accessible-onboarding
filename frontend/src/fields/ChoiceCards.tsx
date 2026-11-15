@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { resolveOptions, type ReferralPartner } from '../engine/options';
 import type { Step } from '../engine/types';
 import { t } from '../i18n/t';
@@ -11,6 +11,8 @@ export interface ChoiceCardsProps {
   error?: string;
   headingRef?: RefObject<HTMLHeadingElement>;
   referralPartners?: ReferralPartner[];
+  /** What to show when there are no options (instead of a dead end). */
+  noOptions?: ReactNode;
 }
 
 export function ChoiceCards({
@@ -21,6 +23,7 @@ export function ChoiceCards({
   error,
   headingRef,
   referralPartners = [],
+  noOptions,
 }: ChoiceCardsProps) {
   const fieldsetId = `q-${step.id}`;
   const hintId = `${fieldsetId}-hint`;
@@ -70,15 +73,16 @@ export function ChoiceCards({
         </p>
       )}
 
-      {options.length === 0 && (
-        <p className="bo-hint" style={{ margin: 0 }}>
-          {t(lang, 'errors.options_unavailable')}
-        </p>
-      )}
+      {options.length === 0 &&
+        (noOptions ?? (
+          <p className="bo-hint" style={{ margin: 0 }}>
+            {t(lang, 'errors.options_unavailable')}
+          </p>
+        ))}
 
       <div
-        role="radiogroup"
-        aria-invalid={!!error}
+        role={options.length > 0 ? 'radiogroup' : undefined}
+        aria-invalid={options.length > 0 ? !!error : undefined}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -115,19 +119,21 @@ export function ChoiceCards({
                 checked={isSelected}
                 onChange={() => onChange(opt.value)}
                 style={{
-                  width: '22px',
-                  height: '22px',
+                  width: '1.25em',
+                  height: '1.25em',
                   accentColor: 'var(--bo-primary)',
                   cursor: 'pointer',
                   flexShrink: 0,
                 }}
               />
               <span
+                lang={opt.lang}
                 style={{
                   fontSize: '1em',
                   fontWeight: isSelected ? 700 : 500,
                   color: 'var(--bo-text)',
                   flexGrow: 1,
+                  minWidth: 0,
                 }}
               >
                 {labelText}

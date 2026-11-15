@@ -32,7 +32,9 @@ import { t } from '../i18n/t';
 import { enqueue, moveOutbox, pendingCount } from '../offline/outbox';
 import { loadSnapshot, saveNeeds, saveSnapshot } from '../offline/snapshot';
 import { syncOutbox } from '../offline/sync';
+import { PhoneLink, TelegramLink, type HelpContacts } from '../shell/HelpPanel';
 import { LOCAL_OUTBOX } from '../shell/StatusBar';
+import { Button } from '../components/Button';
 import { transcribeClip } from '../voice/transcribeClip';
 import type { WidgetEvent } from './emit';
 
@@ -41,6 +43,8 @@ export interface SignupFlowProps {
   lang: string;
   simple: boolean;
   config: WidgetConfig | null;
+  /** Ask GET /config again (the organisations list didn't load). */
+  onReloadConfig?: () => void;
   manageTitle: boolean;
   emit: (name: WidgetEvent, detail?: object) => void;
   /** The learner session changed (created, restored or dropped). */
@@ -63,6 +67,7 @@ export function SignupFlow({
   lang,
   simple,
   config,
+  onReloadConfig,
   manageTitle,
   emit,
   onSession,
@@ -490,10 +495,10 @@ export function SignupFlow({
         const res = s
           ? await transcribeClip(learnerApi(s), clipId, step, langRef.current)
           : { code: createErrorRef.current };
-        if ('text' in res) return res.text;
+        if ('text' in res) return res; // with `provider`: "mock" is the test voice service
         announce(t(langRef.current, `errors.${res.code}`));
         if (res.code !== 'speech_unclear') propsRef.current.emit('error', { code: res.code });
-        return null;
+        return res;
       },
 
       onSpeechConsent: (granted) => {
@@ -517,6 +522,68 @@ export function SignupFlow({
       manageTitle={manageTitle}
       referralOrg={referralOrg}
       renderDone={() => doneExtra}
+      renderNoOptions={(step) =>
+        step.options_from === 'config:referral_partners' ? (
+          <NoReferralOptions lang={lang} help={config?.help} onRetry={onReloadConfig} />
+        ) : null
+      }
     />
+  );
+}
+
+/**
+ * "Which organisation can help you?" with no organisation to show (GET /config failed, or the
+ * partner has none): not a dead end. Say so, try loading again, and give the help contacts;
+ * Back (above) leads to the other ways to sign up.
+ */
+function NoReferralOptions({
+  lang,
+  help,
+  onRetry,
+}: {
+  lang: string;
+  help?: HelpContacts | null;
+  onRetry?: () => void;
+}) {
+  const phone = help?.phone?.trim();
+  const telegram = help?.telegram?.trim();
+
+  // Try once more as soon as this question shows: the list may have failed earlier.
+  useEffect(() => {
+    onRetry?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--bo-space-3)',
+        padding: 'var(--bo-space-4)',
+        border: '2px solid var(--bo-border-strong)',
+        borderRadius: 'var(--bo-radius)',
+        background: 'var(--bo-surface)',
+      }}
+    >
+      <p style={{ margin: 0, fontWeight: 600 }}>{t(lang, 'signup.referral_partner.empty')}</p>
+      {phone && (
+        <p style={{ margin: 0 }}>
+          <strong>{t(lang, 'help_panel.phone')}</strong> <PhoneLink phone={phone} lang={lang} />
+        </p>
+      )}
+      {telegram && (
+        <p style={{ margin: 0 }}>
+          <strong>{t(lang, 'help_panel.telegram')}</strong> <TelegramLink telegram={telegram} />
+        </p>
+      )}
+      {onRetry && (
+        <div>
+          <Button variant="secondary" onClick={onRetry}>
+            {t(lang, 'common.try_again')}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

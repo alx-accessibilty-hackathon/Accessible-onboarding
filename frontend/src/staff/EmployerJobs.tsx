@@ -1,6 +1,8 @@
 import needsVocab from '@shared/vocab/needs.json';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announce } from '../a11y/announce';
+import { useAutoRead } from '../a11y/modes';
+import type { Part } from '../a11y/speaker';
 import type { StaffUser } from '../api/auth';
 import { apiUrl, ApiError, errorCode, type ApiConfig } from '../api/client';
 import {
@@ -17,6 +19,7 @@ import { Card } from '../components/Card';
 import { FlowRunner, type FlowHooks, type SubmitOutcome } from '../engine/FlowRunner';
 import type { EngineState } from '../engine/types';
 import { t } from '../i18n/t';
+import { EmployerApplications } from './EmployerApplications';
 
 export interface EmployerJobsProps {
   user: StaffUser;
@@ -73,9 +76,36 @@ export function EmployerJobs({
   const [jsonLd, setJsonLd] = useState<object | null>(null);
   const [publishingId, setPublishingId] = useState<string | null>(null);
   const [listMessage, setListMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [applicationsFor, setApplicationsFor] = useState<Job | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const formTitleRef = useRef<HTMLHeadingElement>(null);
+  const baseTitle = useRef(typeof document !== 'undefined' ? document.title : '');
 
   const isEmployer = user.role === 'employer';
+
+  // The page title names the form while it is open (C3: easy to find).
+  useEffect(() => {
+    const base = baseTitle.current;
+    if (isCreatingJob) document.title = `${t(lang, 'staff.job_form_title')} | ${base}`;
+    else if (applicationsFor) {
+      document.title = `${t(lang, 'staff.applications_title', { title: applicationsFor.title })} | ${base}`;
+    } else document.title = base;
+  }, [isCreatingJob, applicationsFor, lang]);
+
+  // Read aloud mode: the list and how many jobs there are.
+  const listParts = (): Part[] => [
+    t(lang, 'staff.jobs_title'),
+    jobs && jobs.length === 0
+      ? t(lang, 'staff.no_jobs')
+      : jobs
+        ? t(lang, 'staff.jobs_count', { count: jobs.length })
+        : '',
+  ];
+  useAutoRead(
+    isEmployer && !isCreatingJob && !applicationsFor && jobs ? 'staff-jobs' : null,
+    listParts,
+    lang,
+  );
 
   useEffect(() => {
     if (!isEmployer) return;
@@ -100,12 +130,16 @@ export function EmployerJobs({
     setPublished(null);
     setJsonLd(null);
     setListMessage(null);
+    setApplicationsFor(null);
     setFormKey((k) => k + 1);
     setIsCreatingJob(true);
+    // The button pressed goes away: start at the form's title.
+    window.setTimeout(() => formTitleRef.current?.focus(), 0);
   };
 
   const backToList = () => {
     setIsCreatingJob(false);
+    setApplicationsFor(null);
     setReload((n) => n + 1);
     window.setTimeout(() => headingRef.current?.focus(), 0);
   };
@@ -185,16 +219,11 @@ export function EmployerJobs({
         </div>
 
         <div className="bo-actions">
-          {isEmployer &&
-            (!isCreatingJob ? (
-              <Button variant="primary" onClick={startCreate}>
-                {t(lang, 'staff.create_job')}
-              </Button>
-            ) : (
-              <Button variant="secondary" onClick={backToList}>
-                {t(lang, 'staff.back_to_jobs')}
-              </Button>
-            ))}
+          {isEmployer && (isCreatingJob || applicationsFor) && (
+            <Button variant="secondary" onClick={backToList}>
+              {t(lang, 'staff.back_to_jobs')}
+            </Button>
+          )}
 
           <Button variant="secondary" onClick={onLogout}>
             {t(lang, 'staff.signout_button')}
@@ -207,8 +236,25 @@ export function EmployerJobs({
           <h1 style={{ fontSize: '1.4em' }}>{t(lang, 'staff.jobs_title')}</h1>
           <p>{t(lang, 'staff.not_employer', { role: user.role })}</p>
         </Card>
+      ) : applicationsFor ? (
+        <EmployerApplications
+          job={applicationsFor}
+          api={api}
+          lang={lang}
+          onBack={backToList}
+          onUnauthorized={onLogout}
+        />
       ) : isCreatingJob ? (
         <Card style={{ padding: 'var(--bo-space-5)' }}>
+          {/* C3: the employer accommodations form, named as such */}
+          <div style={{ marginBottom: 'var(--bo-space-5)' }}>
+            <h1 tabIndex={-1} ref={formTitleRef} style={{ margin: 0, fontSize: '1.5em' }}>
+              {t(lang, 'staff.job_form_title')}
+            </h1>
+            <p className="bo-hint" style={{ marginTop: 'var(--bo-space-2)' }}>
+              {t(lang, 'staff.job_form_intro')}
+            </p>
+          </div>
           <FlowRunner
             key={formKey}
             flowId="employer-job"
@@ -250,6 +296,26 @@ export function EmployerJobs({
             {t(lang, 'staff.jobs_title')}
           </h1>
 
+          {/* C3: the accommodations form is the main thing on this page */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--bo-space-2)',
+              padding: 'var(--bo-space-4)',
+              border: '2px solid var(--bo-primary)',
+              borderRadius: 'var(--bo-radius)',
+              background: 'var(--bo-selected-bg)',
+            }}
+          >
+            <p style={{ margin: 0 }}>{t(lang, 'staff.job_form_intro')}</p>
+            <div>
+              <Button variant="primary" onClick={startCreate}>
+                {t(lang, 'staff.create_job')}
+              </Button>
+            </div>
+          </div>
+
           {listMessage && (
             <Banner variant={listMessage.ok ? 'success' : 'error'}>{listMessage.text}</Banner>
           )}
@@ -267,12 +333,7 @@ export function EmployerJobs({
 
           {jobs && jobs.length === 0 && (
             <Card style={{ textAlign: 'center', padding: 'var(--bo-space-6)' }}>
-              <p style={{ margin: '0 0 var(--bo-space-4) 0', color: 'var(--bo-text-muted)' }}>
-                {t(lang, 'staff.no_jobs')}
-              </p>
-              <Button variant="primary" onClick={startCreate}>
-                {t(lang, 'staff.create_job')}
-              </Button>
+              <p style={{ margin: 0, color: 'var(--bo-text-muted)' }}>{t(lang, 'staff.no_jobs')}</p>
             </Card>
           )}
 
@@ -356,6 +417,15 @@ export function EmployerJobs({
                       )}
 
                       <div className="bo-actions">
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setListMessage(null);
+                            setApplicationsFor(job);
+                          }}
+                        >
+                          {t(lang, 'staff.view_applications_for', { title: job.title })}
+                        </Button>
                         {isPublished ? (
                           <a
                             href={apiUrl(apiOrigin, `/jobs/${job.id}/jobposting.jsonld`)}

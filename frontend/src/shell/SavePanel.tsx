@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
 import { announce } from '../a11y/announce';
+import { keyPart } from '../a11y/readParts';
+import type { Part } from '../a11y/speaker';
 import { forgetEverything, logout } from '../api/auth';
-import { ApiError, errorCode, type ApiConfig } from '../api/client';
-import { createResumeLink, type ResumeLink } from '../api/registrations';
-import { Banner } from '../components/Banner';
+import type { ApiConfig } from '../api/client';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Dialog } from '../components/Dialog';
@@ -18,13 +18,22 @@ export interface SavePanelProps {
   registrationId?: string;
   /** Called after "Forget me on this phone" deleted everything (start again, no page reload). */
   onForget?: () => void;
+  /** "See or change my details": the profile page (shown once a registration exists). */
+  onOpenProfile?: () => void;
 }
 
-export function SavePanel({ open, lang, onClose, api, registrationId, onForget }: SavePanelProps) {
+// "Continue on another device" (a link and a code) is not offered: the link would open a page
+// that can't resume a sign-up yet (/r/<token> has no resume screen), so the promise wasn't true.
+export function SavePanel({
+  open,
+  lang,
+  onClose,
+  api,
+  registrationId,
+  onForget,
+  onOpenProfile,
+}: SavePanelProps) {
   const [confirmingForget, setConfirmingForget] = useState(false);
-  const [link, setLink] = useState<ResumeLink | null>(null);
-  const [linkError, setLinkError] = useState<string | null>(null);
-  const [linkLoading, setLinkLoading] = useState(false);
 
   const handleForget = useCallback(async () => {
     if (api?.token) {
@@ -41,29 +50,19 @@ export function SavePanel({ open, lang, onClose, api, registrationId, onForget }
     }
     announce(t(lang, 'save_panel.forgot_done'));
     setConfirmingForget(false);
-    setLink(null);
     onClose();
     onForget?.();
   }, [api, lang, onClose, onForget]);
 
-  const handleGetLink = useCallback(async () => {
-    if (!api || !registrationId) return;
-    setLinkLoading(true);
-    setLinkError(null);
-    try {
-      const res = await createResumeLink(api, registrationId, { send_via: 'none' });
-      setLink(res);
-      announce(t(lang, 'save_panel.link_ready'));
-    } catch (err) {
-      const code =
-        err instanceof ApiError && (err.status === 404 || err.status === 501)
-          ? 'not_implemented'
-          : errorCode(err);
-      setLinkError(code);
-    } finally {
-      setLinkLoading(false);
-    }
-  }, [api, registrationId, lang]);
+  const canOpenProfile = !!(onOpenProfile && registrationId);
+  const readParts = (): Part[] => [
+    keyPart(lang, 'save_panel.title'),
+    keyPart(lang, 'save_panel.explanation'),
+    canOpenProfile && keyPart(lang, 'save_panel.profile_title'),
+    canOpenProfile && keyPart(lang, 'save_panel.profile_explanation'),
+    keyPart(lang, 'save_panel.forget_title'),
+    keyPart(lang, 'save_panel.forget_explanation'),
+  ];
 
   return (
     <Dialog
@@ -74,6 +73,8 @@ export function SavePanel({ open, lang, onClose, api, registrationId, onForget }
       }}
       title={t(lang, 'save_panel.title')}
       className="bo-save-panel-dialog"
+      lang={lang}
+      readParts={readParts}
     >
       <div
         className="bo-save-panel-content"
@@ -81,59 +82,23 @@ export function SavePanel({ open, lang, onClose, api, registrationId, onForget }
       >
         <p style={{ margin: 0 }}>{t(lang, 'save_panel.explanation')}</p>
 
-        {api?.token && registrationId && (
+        {canOpenProfile && (
           <Card style={{ background: 'var(--bo-surface)' }}>
             <h3 style={{ margin: '0 0 var(--bo-space-2) 0', fontSize: '1em', fontWeight: 700 }}>
-              {t(lang, 'save_panel.other_device_title')}
+              {t(lang, 'save_panel.profile_title')}
             </h3>
             <p className="bo-hint" style={{ margin: '0 0 var(--bo-space-3) 0' }}>
-              {t(lang, 'save_panel.other_device_explanation')}
+              {t(lang, 'save_panel.profile_explanation')}
             </p>
-            {linkError && (
-              <div style={{ marginBottom: 'var(--bo-space-3)' }}>
-                <Banner variant="error">{t(lang, `errors.${linkError}`)}</Banner>
-              </div>
-            )}
-            {link ? (
-              <dl
-                style={{
-                  margin: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'var(--bo-space-2)',
-                }}
-              >
-                <dt style={{ fontWeight: 700 }}>{t(lang, 'save_panel.code')}</dt>
-                <dd
-                  style={{
-                    margin: 0,
-                    fontSize: '1.5em',
-                    fontFamily: 'monospace',
-                    letterSpacing: '0.1em',
-                  }}
-                >
-                  {link.code}
-                </dd>
-                <dt style={{ fontWeight: 700 }}>{t(lang, 'save_panel.link')}</dt>
-                <dd style={{ margin: 0, overflowWrap: 'anywhere' }}>
-                  <a href={link.url} style={{ color: 'var(--bo-primary)' }}>
-                    {link.url}
-                  </a>
-                </dd>
-                <dt className="bo-hint">{t(lang, 'save_panel.expires')}</dt>
-                <dd className="bo-hint" style={{ margin: 0 }}>
-                  {new Date(link.expires_at).toLocaleString(lang === 'am' ? 'am-ET' : 'en-GB')}
-                </dd>
-              </dl>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() => void handleGetLink()}
-                disabled={linkLoading}
-              >
-                {t(lang, linkLoading ? 'common.sending' : 'save_panel.get_link')}
-              </Button>
-            )}
+            <Button
+              variant="link"
+              onClick={() => {
+                onClose();
+                onOpenProfile?.();
+              }}
+            >
+              {t(lang, 'profile.open')}
+            </Button>
           </Card>
         )}
 

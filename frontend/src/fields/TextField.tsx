@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import type { Step } from '../engine/types';
+import { isCodeStep } from '../engine/validate';
 import { t } from '../i18n/t';
 
 export interface FieldProps<T = string> {
@@ -19,6 +20,8 @@ export function TextField({ step, lang, value, onChange, error, headingRef }: Fi
   const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
   const titleText = t(lang, step.title);
+  // A short code (e.g. the last 4 letters or numbers of a document), not words.
+  const code = isCodeStep(step);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-3)' }}>
@@ -55,6 +58,8 @@ export function TextField({ step, lang, value, onChange, error, headingRef }: Fi
         type="text"
         value={value ?? ''}
         autoComplete={step.autocomplete || 'off'}
+        autoCapitalize={code ? 'characters' : undefined}
+        spellCheck={code ? false : undefined}
         aria-describedby={describedBy || undefined}
         aria-invalid={!!error}
         onChange={(e) => onChange(e.target.value)}

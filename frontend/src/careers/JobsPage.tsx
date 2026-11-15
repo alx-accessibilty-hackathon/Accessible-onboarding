@@ -1,17 +1,24 @@
 import needsVocab from '@shared/vocab/needs.json';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { announce } from '../a11y/announce';
+import { useAutoRead, useModes } from '../a11y/modes';
+import { keyPart } from '../a11y/readParts';
+import { speak, stopSpeaking, type Part } from '../a11y/speaker';
 import { rememberHostTitle, restoreHostTitle, setStepTitle } from '../a11y/title';
 import { errorCode, type ApiConfig } from '../api/client';
 import { fetchAllJobs } from '../api/jobs';
 import { Banner } from '../components/Banner';
 import { Button } from '../components/Button';
+import { ListenButton } from '../i18n/ReadAloud';
 import { t } from '../i18n/t';
 import { loadNeeds } from '../offline/snapshot';
 import { JobCard } from './JobCard';
-import { JobDetail } from './JobDetail';
+import { JobDetail, jobDetailParts } from './JobDetail';
 import { JobFilter } from './JobFilter';
+import { jobSummary } from './jobText';
 import { matchJobs, type Job } from './match';
+
+const FILTER_READING = 'jobs-filter';
 
 export interface JobsPageProps {
   lang: string;
@@ -36,6 +43,7 @@ export function JobsPage({ lang, api, manageTitle = true, onApply }: JobsPagePro
   const navigatedRef = useRef(false);
   const listHeadingRef = useRef<HTMLHeadingElement>(null);
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Load every published job (following next_cursor).
   useEffect(() => {
@@ -77,17 +85,71 @@ export function JobsPage({ lang, api, manageTitle = true, onApply }: JobsPagePro
   const activeNeeds = selectedNeeds.filter((n) => n !== 'other').length;
   const fullMatches = matched.filter((m) => m.isFullMatch).length;
   const countText =
-    activeNeeds > 0
+    activeNeeds > 1
       ? t(lang, 'jobs.result_count', { count: fullMatches, needs: activeNeeds })
-      : t(lang, 'jobs.result_count_all', { count: jobs?.length ?? 0 });
+      : activeNeeds === 1
+        ? t(lang, 'jobs.result_count_one', { count: fullMatches })
+        : t(lang, 'jobs.result_count_all', { count: jobs?.length ?? 0 });
 
-  // Announce the result count when the filter changes (not on first load).
+  const { readAloud, active } = useModes();
+
+  // One job as it is read: "Job 1 of 4", then title, employer, place, type of work, supports.
+  const jobParts = (i: number): Part[] => [
+    t(lang, 'jobs.job_n', { n: i + 1, total: matched.length }),
+    ...jobSummary(matched[i], lang),
+  ];
+  // The count, then the first job (read by itself in Read aloud mode).
+  const firstParts = (): Part[] =>
+    jobs?.length === 0 ? [keyPart(lang, 'jobs.none')] : [countText, ...jobParts(0)];
+  // "Read the jobs aloud": the count, then every listed job.
+  const allParts = (): Part[] =>
+    jobs?.length === 0
+      ? [keyPart(lang, 'jobs.none')]
+      : [countText, ...matched.flatMap((_, i) => jobParts(i))];
+
+  // Announce the result count when the filter changes (not on first load). Read aloud mode
+  // says it too (with the first job), after "Checked …".
   useEffect(() => {
-    if (touchedRef.current && jobs) announce(countText);
+    if (!touchedRef.current || !jobs) return;
+    announce(countText);
+    if (!readAloud || !active) return;
+    // After the browser's change event (which says "Checked …"), then once that is said.
+    const parts = firstParts();
+    const timer = window.setTimeout(
+      () => void speak(parts, lang, { after: true, owner: FILTER_READING }),
+      0,
+    );
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNeeds]);
 
   const openJob = jobs?.find((j) => j.id === openJobId) ?? null;
+
+  // Read aloud mode: the list (its count and the first job) when it shows, a job when opened.
+  const listParts = (): Part[] => [
+    keyPart(lang, 'jobs.title'),
+    ...(loadError
+      ? [t(lang, `errors.${loadError}`)]
+      : jobs
+        ? firstParts()
+        : [keyPart(lang, 'common.loading')]),
+  ];
+  const listKey = openJob ? `job:${openJob.id}` : jobs || loadError ? 'jobs-list' : null;
+  useAutoRead(listKey, () => (openJob ? jobDetailParts(openJob, lang) : listParts()), lang);
+
+  // The person moves on (Tab, a tap): the list reading stops (focus speech says where they are).
+  useEffect(() => {
+    const root = containerRef.current?.getRootNode() as Document | ShadowRoot | undefined;
+    if (!root || openJob) return;
+    const stop = (e: Event) => {
+      // Not when the page itself moved focus (to a heading, tabindex="-1").
+      if ((e.target as Element | null)?.getAttribute?.('tabindex') === '-1') return;
+      stopSpeaking('jobs-list');
+      stopSpeaking(FILTER_READING);
+    };
+    root.addEventListener('focusin', stop);
+    return () => root.removeEventListener('focusin', stop);
+  }, [openJob]);
 
   // Focus the heading of the screen the person moved to; the title follows.
   useEffect(() => {
@@ -128,10 +190,25 @@ export function JobsPage({ lang, api, manageTitle = true, onApply }: JobsPagePro
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-4)' }}>
+    <div
+      ref={containerRef}
+      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-4)' }}
+    >
       <h1 tabIndex={-1} ref={listHeadingRef}>
         {t(lang, 'jobs.title')}
       </h1>
+
+      <div className="bo-actions">
+        <ListenButton lang={lang} parts={listParts} />
+        {jobs && jobs.length > 0 && (
+          <ListenButton
+            lang={lang}
+            parts={allParts}
+            label={t(lang, 'jobs.read_all')}
+            stopOnFocusMove
+          />
+        )}
+      </div>
 
       <JobFilter lang={lang} selectedNeeds={selectedNeeds} onChange={handleFilter} />
 

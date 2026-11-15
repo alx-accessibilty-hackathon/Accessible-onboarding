@@ -12,7 +12,8 @@ import (
 )
 
 type mockSpeechServ struct {
-	transcribeFn func(ctx context.Context, audio []byte, language string, cloudConsent bool) (*domain.Transcription, error)
+	domain.SpeechService // methods these tests don't use
+	transcribeFn         func(ctx context.Context, audio []byte, language string, cloudConsent bool) (*domain.Transcription, error)
 }
 
 func (m *mockSpeechServ) HasServerSpeech() bool {
@@ -78,7 +79,7 @@ func TestSpeechUsecase_Transcribe_WithoutConsent(t *testing.T) {
 			return &domain.Transcription{
 				Text:       "0912345678",
 				Confidence: 0.95,
-				Provider:   "mock",
+				Provider:   "local", // a real on-device provider: its text passes through (the "mock" one returns field samples)
 			}, nil
 		},
 	}
@@ -88,7 +89,7 @@ func TestSpeechUsecase_Transcribe_WithoutConsent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "0912345678", result.Text)
-	assert.Equal(t, "mock", result.Provider)
+	assert.Equal(t, "local", result.Provider)
 }
 
 func TestSpeechUsecase_Transcribe_WithConsent(t *testing.T) {
