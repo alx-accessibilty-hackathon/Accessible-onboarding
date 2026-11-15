@@ -32,7 +32,7 @@
   "check.voice_pending": "የድምፅ መልሶችዎ ማረጋገጫ እየጠበቁ ነው። እባክዎ ከመላክዎ በፊት ያረጋግጧቸው።",
   "check.voice_waiting": "የድምፅ መልስ ማረጋገጫ ይጠብቃል…",
   "done.referral_title": "የሪፈራል ሁኔታ",
-  "done.referral_body": "ጥያቄዎ አሁን በ{org} ዝርዝር ውስጥ ነው። ሰራተኞቻቸው ምዝገባዎን እንዲጨርሱ ለመርዳት ያገኙዎታል።",
+  "done.referral_body": "ጥያቄዎ አሁን በ{org} ዝርዝር ውስጥ ነው። ሰራተኞቻቸው ማንነትዎን እንዲያረጋግጡ ለመርዳት ያገኙዎታል።",
   "done.copy_jsonld": "JSON-LD ቅዳ",
   "done.copied": "ተቀድቷል",
 
@@ -236,6 +236,7 @@
   "signup.check.submit": "መልሶቼን ላክ",
   "signup.done.title": "ተመዝግበዋል",
   "signup.done.hint": "ምዝገባዎ ተጠናቋል። አሁን ስራ መፈለግ ይችላሉ። ዝርዝሮችዎን በመገለጫ ገጽዎ ላይ ማየት ወይም መቀየር ይችላሉ።",
+  "signup.done.referred_hint": "ዝርዝሮችዎ ተመዝግበዋል። {org} ማንነትዎን እንዲያረጋግጡ በሚረዱበት ጊዜ፣ የሚገኙ ስራዎችን ማየት እና መገለጫዎን ማስተዳደር ይችላሉ።",
 
   "needs.screen_reader.learner": "ስክሪን አንባቢ እጠቀማለሁ ወይም ነገሮች ጮክ ተብለው እንዲነበቡልኝ እፈልጋለሁ",
   "needs.screen_reader.employer": "መሳሪያዎች እና ሰነዶች ከስክሪን አንባቢዎች ጋር ይሰራሉ",

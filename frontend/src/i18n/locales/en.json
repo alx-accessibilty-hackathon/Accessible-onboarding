@@ -32,7 +32,7 @@
   "check.voice_pending": "You have voice answers waiting for confirmation. Please check them before you send.",
   "check.voice_waiting": "Voice answer waiting for confirmation…",
   "done.referral_title": "Referral status",
-  "done.referral_body": "Your request is now in {org}'s list. Their staff will contact you to help you finish signing up.",
+  "done.referral_body": "Your request is now in {org}'s list. Their staff will contact you to help verify your identity.",
   "done.copy_jsonld": "Copy JSON-LD",
   "done.copied": "Copied",
 
@@ -236,6 +236,7 @@
   "signup.check.submit": "Send my answers",
   "signup.done.title": "You are signed up",
   "signup.done.hint": "Your sign-up is complete. You can now look for jobs. You can see or change your details on your profile page.",
+  "signup.done.referred_hint": "Your details are registered. While {org} helps verify your identity, you can explore available jobs and manage your profile.",
 
   "needs.screen_reader.learner": "I use a screen reader or need things read aloud",
   "needs.screen_reader.employer": "Tools and documents work with screen readers",
