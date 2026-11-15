@@ -22,6 +22,16 @@ function notFoundPage(): Plugin {
           const url = new URL(req.url ?? '/', 'http://localhost');
           const wantsPage = (req.headers.accept ?? '').includes('text/html');
           const isPage = url.pathname.endsWith('/') || /\.html?$|\/[^.]*$/.test(url.pathname);
+          if (req.method === 'GET' && wantsPage && url.pathname.startsWith('/r/')) {
+            const html = await server.transformIndexHtml(
+              '/index.html',
+              fs.readFileSync(`${root}index.html`, 'utf8'),
+            );
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.end(html);
+            return;
+          }
           let exists = false;
           try {
             exists = fs.statSync(path(`.${decodeURIComponent(url.pathname)}`)).isFile();

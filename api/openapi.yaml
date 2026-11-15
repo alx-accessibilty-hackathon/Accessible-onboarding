@@ -239,7 +239,15 @@ paths:
                   name: Savanna (demo)
                 languages: [am, en]
                 default_language: am
-                id_routes: [fayda, kebele_id, refugee_id, unhcr_proof, other_document, none]
+                id_routes:
+                  [
+                    fayda,
+                    kebele_id,
+                    refugee_id,
+                    unhcr_proof,
+                    other_document,
+                    none,
+                  ]
                 referral_partners:
                   - id: 2c9e8f71-5a3b-4d6e-9f10-1a2b3c4d5e6f
                     name: AAAPD
@@ -724,10 +732,9 @@ paths:
         they are also texted to `phone` (or to the learner's saved phone number). The body is
         optional.
 
-        **Not built yet:** the page at `/r/<token>` that uses the link, so the widget does
-        not offer this today. The code can be used with `POST /api/v1/resume/lookup` and
-        `POST /api/v1/resume/verify`. SMS is simulated: messages are logged and listed by
-        `GET /api/v1/dev/messages`.
+        The link opens the hosted page at `/r/<token>` which resumes the sign-up. The code can be
+        used with `POST /api/v1/resume/lookup` and `POST /api/v1/resume/verify`. SMS is simulated:
+        messages are logged and listed by `GET /api/v1/dev/messages`.
       security:
         - PartnerKey: []
           LearnerBearer: []
@@ -1187,7 +1194,14 @@ paths:
                     location_text: ""
                     work_hours: Mon–Fri, flexible hours
                     employment_type: full_time
-                    accommodations: [remote_work, screen_reader, large_text, own_device, flexible_hours]
+                    accommodations:
+                      [
+                        remote_work,
+                        screen_reader,
+                        large_text,
+                        own_device,
+                        flexible_hours,
+                      ]
                     status: published
                     published_at: "2026-11-14T15:00:00Z"
                 next_cursor: MjAyNi0xMS0xNFQxNTowMDowMFp8NWU2ZjdhOGItOWMwZC00ZTFmLWEyYjMtYzRkNWU2ZjdhOGI5
@@ -1287,7 +1301,14 @@ paths:
                   - https://schema.org
                   - acc: http://localhost:5173/ns/accommodations#
                 "@type": JobPosting
-                acc:offers: [remote_work, screen_reader, large_text, own_device, flexible_hours]
+                acc:offers:
+                  [
+                    remote_work,
+                    screen_reader,
+                    large_text,
+                    own_device,
+                    flexible_hours,
+                  ]
                 applicantLocationRequirements:
                   "@type": Country
                   name: Ethiopia
@@ -1559,6 +1580,40 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/me/export:
+    get:
+      operationId: exportMe
+      tags: [Learner profile]
+      summary: Export all data stored for the learner
+      description: |
+        **Who:** a learner, with the partner key and their own learner token.
+
+        Streams formatted JSON of all data stored for the learner: profile, registration,
+        answers, identity evidence, support request (decrypted), referral, and consents (Q4).
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "200":
+          description: Formatted JSON export of learner data.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: 'attachment; filename="bridge-data-9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d.json"'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeExport"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   # ------------------------------------------------------------------ Auth
   /api/v1/auth/staff/login:
     post:
@@ -1767,7 +1822,8 @@ paths:
                     location_text: Adama
                     work_hours: Mon–Fri, 9:00–16:00
                     employment_type: contract
-                    accommodations: [step_free, large_text, extra_time, quiet_space]
+                    accommodations:
+                      [step_free, large_text, extra_time, quiet_space]
                     status: draft
                     published_at: null
                 next_cursor: null
@@ -2727,7 +2783,13 @@ components:
       properties:
         error:
           type: string
-          enum: [invalid_request, invalid_client, unsupported_grant_type, invalid_scope]
+          enum:
+            [
+              invalid_request,
+              invalid_client,
+              unsupported_grant_type,
+              invalid_scope,
+            ]
 
     # ---------------------------------------------------------- shared
     Session:
@@ -2786,7 +2848,17 @@ components:
     # ---------------------------------------------------------- config
     Config:
       type: object
-      required: [partner, languages, default_language, id_routes, referral_partners, help, theme, speech]
+      required:
+        [
+          partner,
+          languages,
+          default_language,
+          id_routes,
+          referral_partners,
+          help,
+          theme,
+          speech,
+        ]
       properties:
         partner:
           $ref: "#/components/schemas/PartnerRef"
@@ -2804,7 +2876,8 @@ components:
           description: The ID routes the partner accepts.
           items:
             type: string
-            enum: [fayda, kebele_id, refugee_id, unhcr_proof, other_document, none]
+            enum:
+              [fayda, kebele_id, refugee_id, unhcr_proof, other_document, none]
         referral_partners:
           type: array
           description: Every referral organisation (partners of kind `referral_org`).
@@ -2928,7 +3001,17 @@ components:
           format: date-time
     Registration:
       type: object
-      required: [registration_id, status, current_step, language, simple_mode, answers, support_request, updated_at]
+      required:
+        [
+          registration_id,
+          status,
+          current_step,
+          language,
+          simple_mode,
+          answers,
+          support_request,
+          updated_at,
+        ]
       properties:
         registration_id:
           type: string
@@ -2997,7 +3080,23 @@ components:
           items:
             type: string
             maxLength: 64
-            enum: [screen_reader, large_text, sign_language, captions, step_free, accessible_toilet, flexible_hours, remote_work, extra_time, written_instructions, quiet_space, own_device, person_to_help, other]
+            enum:
+              [
+                screen_reader,
+                large_text,
+                sign_language,
+                captions,
+                step_free,
+                accessible_toilet,
+                flexible_hours,
+                remote_work,
+                extra_time,
+                written_instructions,
+                quiet_space,
+                own_device,
+                person_to_help,
+                other,
+              ]
         other_text:
           type: string
           maxLength: 500
@@ -3069,7 +3168,7 @@ components:
       properties:
         url:
           type: string
-          description: "`PUBLIC_WEB_URL/r/<token>` (no page serves it yet)."
+          description: "`PUBLIC_WEB_URL/r/<token>` which opens the resume screen."
         code:
           type: string
           example: K7M-9P2
@@ -3194,7 +3293,20 @@ components:
     # ---------------------------------------------------------- jobs
     Job:
       type: object
-      required: [id, title, description, employer, location_type, location_text, work_hours, employment_type, accommodations, status, published_at]
+      required:
+        [
+          id,
+          title,
+          description,
+          employer,
+          location_type,
+          location_text,
+          work_hours,
+          employment_type,
+          accommodations,
+          status,
+          published_at,
+        ]
       properties:
         id:
           type: string
@@ -3274,7 +3386,22 @@ components:
           items:
             type: string
             maxLength: 64
-            enum: [screen_reader, large_text, sign_language, captions, step_free, accessible_toilet, flexible_hours, remote_work, extra_time, written_instructions, quiet_space, own_device, person_to_help]
+            enum:
+              [
+                screen_reader,
+                large_text,
+                sign_language,
+                captions,
+                step_free,
+                accessible_toilet,
+                flexible_hours,
+                remote_work,
+                extra_time,
+                written_instructions,
+                quiet_space,
+                own_device,
+                person_to_help,
+              ]
     PublishJobResponse:
       type: object
       required: [id, status, jsonld_url]
@@ -3293,7 +3420,15 @@ components:
       description: |
         schema.org JobPosting JSON-LD. `acc:offers` is our extension: the accommodation codes
         of `shared/vocab/needs.json`. `jobBenefits` says the same in English words.
-      required: ["@context", "@type", title, description, hiringOrganization, "acc:offers"]
+      required:
+        [
+          "@context",
+          "@type",
+          title,
+          description,
+          hiringOrganization,
+          "acc:offers",
+        ]
       properties:
         "@context":
           type: array
@@ -3388,7 +3523,8 @@ components:
           format: date-time
     EmployerApplication:
       type: object
-      required: [id, status, created_at, answers, attach_support, applicant, support]
+      required:
+        [id, status, created_at, answers, attach_support, applicant, support]
       properties:
         id:
           type: string
@@ -3401,7 +3537,7 @@ components:
           format: date-time
         answers:
           type: object
-          description: "`{ \"<step>\": { \"value\": …, \"input_method\": \"…\" } }`"
+          description: '`{ "<step>": { "value": …, "input_method": "…" } }`'
         attach_support:
           type: boolean
         applicant:
@@ -3445,7 +3581,23 @@ components:
     # ---------------------------------------------------------- learner profile
     Me:
       type: object
-      required: [learner_id, registration_id, status, full_name, preferred_name, contact_method, phone, dob, language, simple_mode, identity, support, referral, registered_at]
+      required:
+        [
+          learner_id,
+          registration_id,
+          status,
+          full_name,
+          preferred_name,
+          contact_method,
+          phone,
+          dob,
+          language,
+          simple_mode,
+          identity,
+          support,
+          referral,
+          registered_at,
+        ]
       properties:
         learner_id:
           type: string
@@ -3489,7 +3641,15 @@ components:
           properties:
             route:
               type: string
-              enum: [fayda, kebele_id, refugee_id, unhcr_proof, other_document, none]
+              enum:
+                [
+                  fayda,
+                  kebele_id,
+                  refugee_id,
+                  unhcr_proof,
+                  other_document,
+                  none,
+                ]
             doc_type:
               type: string
             level:
@@ -3526,6 +3686,97 @@ components:
           type: string
           format: date-time
           nullable: true
+    MeExport:
+      type: object
+      required: [exported_at, learner]
+      properties:
+        exported_at:
+          type: string
+          format: date-time
+        learner:
+          $ref: "#/components/schemas/Me"
+        registration:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            flow_id:
+              type: string
+            flow_version:
+              type: integer
+            status:
+              type: string
+            current_step:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+        answers:
+          type: array
+          items:
+            type: object
+            required: [question_id, value, input_method, version]
+            properties:
+              question_id:
+                type: string
+              value: {}
+              input_method:
+                type: string
+              version:
+                type: integer
+              updated_at:
+                type: string
+                format: date-time
+        identity_evidence:
+          type: object
+          properties:
+            route:
+              type: string
+            doc_type:
+              type: string
+            level:
+              type: string
+            has_last4:
+              type: boolean
+        support_request:
+          type: object
+          properties:
+            needs:
+              type: array
+              items:
+                type: string
+            other_text:
+              type: string
+            share_with:
+              $ref: "#/components/schemas/ShareWith"
+        referral:
+          type: object
+          properties:
+            partner_name:
+              type: string
+            status:
+              type: string
+            contact_preference:
+              type: string
+        consents:
+          type: array
+          items:
+            type: object
+            required: [kind, granted, method, recorded_at]
+            properties:
+              kind:
+                type: string
+              granted:
+                type: boolean
+              method:
+                type: string
+              recorded_at:
+                type: string
+                format: date-time
     UpdateMeRequest:
       type: object
       description: Every field is optional; only what is sent changes.
@@ -3693,7 +3944,15 @@ components:
         learner:
           type: object
           description: The learner as the organisation sees them; never ID details or support needs.
-          required: [learner_id, full_name, preferred_name, contact_method, phone, language]
+          required:
+            [
+              learner_id,
+              full_name,
+              preferred_name,
+              contact_method,
+              phone,
+              language,
+            ]
           properties:
             learner_id:
               type: string
@@ -3737,7 +3996,17 @@ components:
     Learner:
       type: object
       description: A learner as a partner's server sees them. Never support needs or ID details.
-      required: [learner_id, full_name, preferred_name, language, status, identity_level, contact, registered_at]
+      required:
+        [
+          learner_id,
+          full_name,
+          preferred_name,
+          language,
+          status,
+          identity_level,
+          contact,
+          registered_at,
+        ]
       properties:
         learner_id:
           type: string

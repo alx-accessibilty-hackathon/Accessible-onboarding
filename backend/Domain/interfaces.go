@@ -98,6 +98,8 @@ type LearnerUsecaseI interface {
 // MeUsecaseI: the signed-in learner's own data: see, change, delete (Q4).
 type MeUsecaseI interface {
 	Get(ctx context.Context, actor Actor) (*LearnerProfile, error)
+	// Export returns all personal data and history stored for the learner.
+	Export(ctx context.Context, actor Actor) (*LearnerExport, error)
 	// Update changes only the values that are not nil; ErrNotRegistered if a draft learner
 	// sends anything but language and simple mode.
 	Update(ctx context.Context, actor Actor, changes *ProfileChanges) (*LearnerProfile, error)

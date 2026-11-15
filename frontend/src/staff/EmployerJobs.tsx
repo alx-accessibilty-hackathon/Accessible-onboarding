@@ -18,6 +18,7 @@ import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { FlowRunner, type FlowHooks, type SubmitOutcome } from '../engine/FlowRunner';
 import type { EngineState } from '../engine/types';
+import { ListenButton } from '../i18n/ReadAloud';
 import { t } from '../i18n/t';
 import { EmployerApplications } from './EmployerApplications';
 
@@ -254,6 +255,12 @@ export function EmployerJobs({
             <p className="bo-hint" style={{ marginTop: 'var(--bo-space-2)' }}>
               {t(lang, 'staff.job_form_intro')}
             </p>
+            <div style={{ marginTop: 'var(--bo-space-3)' }}>
+              <ListenButton
+                lang={lang}
+                parts={() => [t(lang, 'staff.job_form_title'), t(lang, 'staff.job_form_intro')]}
+              />
+            </div>
           </div>
           <FlowRunner
             key={formKey}
@@ -295,6 +302,10 @@ export function EmployerJobs({
           <h1 tabIndex={-1} ref={headingRef} style={{ margin: 0, fontSize: '1.5em' }}>
             {t(lang, 'staff.jobs_title')}
           </h1>
+
+          <div>
+            <ListenButton lang={lang} parts={listParts} />
+          </div>
 
           {/* C3: the accommodations form is the main thing on this page */}
           <div
