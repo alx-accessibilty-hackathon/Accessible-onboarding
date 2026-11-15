@@ -70,6 +70,7 @@ export interface FlowRunnerProps {
   hooks?: FlowHooks;
   audience?: Audience;
   referralPartners?: ReferralPartner[];
+  idRoutes?: string[];
   /** manage-title: the page title follows the step (default true). */
   manageTitle?: boolean;
   /** Offer "Answer by voice" on text-like questions (default true). */
@@ -109,6 +110,7 @@ function FlowRunnerInner({
   hooks,
   audience,
   referralPartners,
+  idRoutes,
   manageTitle = true,
   voice = true,
   submitLabelKey,
@@ -134,8 +136,9 @@ function FlowRunnerInner({
     () => ({
       audience: audience ?? (flow.id === 'employer-job' ? 'employer' : 'learner'),
       referralPartners,
+      idRoutes,
     }),
-    [audience, flow.id, referralPartners],
+    [audience, flow.id, referralPartners, idRoutes],
   );
   const progressText = t(lang, 'common.progress', { n: progress.n, total: progress.total });
 

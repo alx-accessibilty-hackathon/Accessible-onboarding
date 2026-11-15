@@ -11,6 +11,7 @@ export interface ChoiceCardsProps {
   error?: string;
   headingRef?: RefObject<HTMLHeadingElement>;
   referralPartners?: ReferralPartner[];
+  idRoutes?: string[];
   /** What to show when there are no options (instead of a dead end). */
   noOptions?: ReactNode;
 }
@@ -23,6 +24,7 @@ export function ChoiceCards({
   error,
   headingRef,
   referralPartners = [],
+  idRoutes,
   noOptions,
 }: ChoiceCardsProps) {
   const fieldsetId = `q-${step.id}`;
@@ -31,7 +33,7 @@ export function ChoiceCards({
 
   const describedBy = [step.hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
 
-  const options = resolveOptions(step, { referralPartners });
+  const options = resolveOptions(step, { referralPartners, idRoutes });
 
   return (
     <fieldset

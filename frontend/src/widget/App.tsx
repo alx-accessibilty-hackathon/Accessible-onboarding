@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useFocusSpeech } from '../a11y/focusSpeech';
 import { ModesProvider, ReadScope, useModes } from '../a11y/modes';
 import {
@@ -18,6 +18,7 @@ import type { Job } from '../careers/match';
 import { Button } from '../components/Button';
 import { LanguageProvider, useLanguage } from '../i18n/LanguageContext';
 import { hasLanguage, offeredLanguages } from '../i18n/registry';
+import { darkenHex, isAccessibleAgainstWhite } from '../lib/color';
 import { ProfilePage } from '../profile/ProfilePage';
 import { LanguageScreen } from '../shell/LanguageScreen';
 import { WidgetFrame } from '../shell/WidgetFrame';
@@ -107,6 +108,37 @@ function WidgetInner(props: WidgetProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Apply partner primary theme color if it passes WCAG AA 4.5:1 contrast against white.
+  const themeStyle = useMemo<CSSProperties>(() => {
+    const primary = config?.theme?.primary?.trim();
+    if (!primary) return {};
+    if (!isAccessibleAgainstWhite(primary)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[theme] Partner primary color "${primary}" fails WCAG AA 4.5:1 contrast against white; using default accessible color.`,
+      );
+      return {};
+    }
+    const hover = darkenHex(primary, 0.15);
+    return {
+      '--bo-primary': primary,
+      ...(hover ? { '--bo-primary-hover': hover } : {}),
+    } as CSSProperties;
+  }, [config?.theme?.primary]);
+
+  // Use partner default_language as initial fallback before 'en' when the user hasn't chosen a language.
+  useEffect(() => {
+    if (
+      config?.default_language &&
+      !getChosenLanguage() &&
+      !props.lang &&
+      hasLanguage(config.default_language) &&
+      lang !== config.default_language
+    ) {
+      setLang(config.default_language);
+    }
+  }, [config?.default_language, props.lang, lang, setLang]);
+
   // Only one language offered: there is nothing to choose.
   useEffect(() => {
     if (languageOpen && !languageByPerson && languages.length === 1 && config) {
@@ -151,7 +183,7 @@ function WidgetInner(props: WidgetProps) {
       className={(simple ? 'bo-root bo-simple' : 'bo-root') + scaleClass(textSize)}
       lang={lang}
       dir={dir}
-      style={scaleStyle(textSize)}
+      style={{ ...scaleStyle(textSize), ...themeStyle }}
     >
       <WidgetFrame
         help={config?.help}
