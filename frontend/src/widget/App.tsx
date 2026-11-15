@@ -53,21 +53,32 @@ function detectResumeToken(): string | null {
   }
 }
 
+function detectResumeCode(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('code') || params.get('resume_code') || params.get('c');
+  } catch {
+    return null;
+  }
+}
+
 function initialView(
   flow: string | undefined,
   jobId: string | undefined,
   resumeToken: string | undefined,
 ): View {
   const urlToken = detectResumeToken();
-  if (urlToken || resumeToken || flow === 'resume') {
-    return { name: 'resume', token: resumeToken || urlToken };
+  const urlCode = detectResumeCode();
+  if (urlToken || resumeToken || urlCode || flow === 'resume') {
+    return { name: 'resume', token: resumeToken || urlToken, code: urlCode };
   }
   switch (flow || 'signup') {
     case 'signup':
     case 'language': // the language screen, then sign-up
       return { name: 'signup' };
     case 'resume':
-      return { name: 'resume', token: resumeToken || urlToken };
+      return { name: 'resume', token: resumeToken || urlToken, code: urlCode };
     case 'jobs':
       return { name: 'jobs' };
     case 'job-application':
@@ -100,8 +111,11 @@ function WidgetInner(props: WidgetProps) {
   const [pendingJob, setPendingJob] = useState<{ jobId: string; job?: Job | null } | null>(null);
 
   // Language first: until a language has been chosen on this device, nothing else shows.
+  // When resuming on another device, show the ResumeScreen immediately without blocking.
   const [languageOpen, setLanguageOpen] = useState(
-    () => props.flow === 'language' || !getChosenLanguage(),
+    () =>
+      (props.flow === 'language' || !getChosenLanguage()) &&
+      initialView(props.flow, props.jobId, props.resumeToken).name !== 'resume',
   );
   const [languageByPerson, setLanguageByPerson] = useState(false); // opened from the header
   const focusContentRef = useRef(false);
