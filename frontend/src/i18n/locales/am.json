@@ -375,6 +375,7 @@
   "staff.email_label": "የኢሜይል አድራሻ",
   "staff.password_label": "የይለፍ ቃል",
   "staff.signin_button": "ግባ",
+  "staff.login_success": "በተሳካ ሁኔታ ገብተዋል",
   "staff.signout_button": "ውጣ",
   "staff.jobs_title": "የለጠፏቸው ስራዎች",
   "staff.create_job": "ስራ እና የሚሰጣቸውን ድጋፎች ይለጥፉ (የማመቻቻ ቅጽ)",

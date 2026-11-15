@@ -48,6 +48,10 @@ export function DoneScreen({
     step.hint && keyPart(lang, step.hint),
     referralOrg && keyPart(lang, 'done.referral_title'),
     referralOrg && t(lang, 'done.referral_body', { org: referralOrg }),
+    flow.id === 'signup' && keyPart(lang, 'jobs.title'),
+    flow.id === 'signup' && keyPart(lang, 'profile.open'),
+    flow.id === 'employer-job' && keyPart(lang, 'staff.back_to_jobs'),
+    jobPostingJsonLd && keyPart(lang, 'done.copy_jsonld'),
   ];
   useAutoRead(`done:${titleKey}:${referralOrg ?? ''}`, readParts, lang);
 

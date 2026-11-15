@@ -375,6 +375,7 @@
   "staff.email_label": "Email address",
   "staff.password_label": "Password",
   "staff.signin_button": "Sign in",
+  "staff.login_success": "Sign-in successful",
   "staff.signout_button": "Sign out",
   "staff.jobs_title": "Your posted jobs",
   "staff.create_job": "Post a job and the supports it offers (accommodations form)",
