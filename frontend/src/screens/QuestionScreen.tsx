@@ -195,6 +195,7 @@ export function QuestionScreen({
             {...common}
             value={asText}
             referralPartners={optionContext?.referralPartners}
+            idRoutes={optionContext?.idRoutes}
             onChange={(v) => onChange(v, 'choice')}
             noOptions={noOptions}
           />

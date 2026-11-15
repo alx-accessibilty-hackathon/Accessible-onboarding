@@ -11,6 +11,7 @@ export interface ReferralPartner {
 export interface OptionContext {
   audience?: Audience;
   referralPartners?: ReferralPartner[];
+  idRoutes?: string[];
 }
 
 /**
@@ -22,6 +23,10 @@ export function resolveOptions(
   step: Step,
   ctx: OptionContext = {},
 ): Array<Option & { literal?: boolean }> {
+  if (step.id === 'id_route' && ctx.idRoutes && ctx.idRoutes.length > 0) {
+    const allowed = new Set(ctx.idRoutes);
+    return (step.options ?? []).filter((o) => o.value === 'none' || allowed.has(o.value));
+  }
   if (step.options_from === 'vocab:needs') {
     const employer = ctx.audience === 'employer';
     return needsVocab.items

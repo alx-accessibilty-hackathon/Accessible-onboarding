@@ -40,6 +40,13 @@ export function LanguageScreen({
     if (focusOnMount) headingRef.current?.focus();
   }, [focusOnMount]);
 
+  // Sync initial selection if default language arrives from config
+  useEffect(() => {
+    if (!focusOnMount && languages.includes(initialLang)) {
+      setSelectedLang(initialLang);
+    }
+  }, [initialLang, languages, focusOnMount]);
+
   // Read aloud: the heading in each language, then each language's name in that language.
   // (Read when the screen opens; picking a language says "Selected …", not the whole screen.)
   const readParts = (): Part[] => [
