@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 
@@ -110,6 +111,43 @@ func TestValidateTextCountsCharactersNotBytes(t *testing.T) {
 	assert.Equal(t, map[string]string{"value": "too_long"}, fieldCodes(t, err))
 	_, err = validateAnswer(step, json.RawMessage(`123`), nil)
 	assert.Equal(t, map[string]string{"value": "invalid"}, fieldCodes(t, err))
+}
+
+func TestValidateFile(t *testing.T) {
+	step := &domain.FlowStep{ID: "id_upload", Type: domain.StepFile}
+	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+	dataURL := func(mime string, b []byte) string {
+		return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(b)
+	}
+	body := func(name, data string) json.RawMessage {
+		b, _ := json.Marshal(fileAnswer{Name: name, Data: data})
+		return b
+	}
+
+	got, err := validateAnswer(step, body(" id.png ", dataURL("image/png", png)), nil)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(body("id.png", dataURL("image/png", png))), string(got))
+
+	bad := map[string]json.RawMessage{
+		"not an object":     json.RawMessage(`"hello"`),
+		"not a data URL":    body("a.png", "https://example.com/a.png"),
+		"not an image type": body("a.pdf", dataURL("application/pdf", png)),
+		"label lies":        body("a.jpg", dataURL("image/jpeg", png)),
+		"bad base64":        body("a.png", "data:image/png;base64,***"),
+		"empty file":        body("a.png", "data:image/png;base64,"),
+	}
+	for name, in := range bad {
+		_, err := validateAnswer(step, in, nil)
+		assert.Equal(t, map[string]string{"value": codeFileInvalid}, fieldCodes(t, err), name)
+	}
+
+	big := append(append([]byte{}, png...), make([]byte, maxFileBytes)...)
+	_, err = validateAnswer(step, body("big.png", dataURL("image/png", big)), nil)
+	assert.Equal(t, map[string]string{"value": codeFileTooLarge}, fieldCodes(t, err))
+
+	got, err = validateAnswer(step, json.RawMessage(`""`), nil)
+	require.NoError(t, err, "an optional photo can be cleared")
+	assert.JSONEq(t, `""`, string(got))
 }
 
 func TestValidateDigits(t *testing.T) {

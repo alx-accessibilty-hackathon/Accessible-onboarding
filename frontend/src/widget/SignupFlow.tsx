@@ -29,6 +29,7 @@ import { nextStepId } from '../engine/next';
 import type { AnswerState, Step } from '../engine/types';
 import { isValueEmpty } from '../engine/validate';
 import { t } from '../i18n/t';
+import type { FileValue } from '../lib/image';
 import { enqueue, moveOutbox, pendingCount } from '../offline/outbox';
 import { loadSnapshot, saveNeeds, saveSnapshot } from '../offline/snapshot';
 import { syncOutbox } from '../offline/sync';
@@ -417,6 +418,8 @@ export function SignupFlow({
           return;
         }
         if (step.storage === 'answer') {
+          // A photo already sent comes back as its name only: nothing new to send.
+          if (step.type === 'file' && value && !(value as Partial<FileValue>).data) return;
           const previous = before.answers[step.id]?.value;
           const neverSaved = versionsRef.current[step.id] === undefined;
           if (isValueEmpty(value) && neverSaved && isValueEmpty(previous)) return;

@@ -2,7 +2,9 @@ package usecase
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -20,7 +22,10 @@ const (
 	valueField   = "value"
 	maxTextRunes = 5000 // hard limit for any text answer, whatever the flow says
 	maxChoices   = 50
+	maxFileBytes = 1_500_000 // decoded photo; the widget shrinks photos well below this (nginx allows 4 MB)
 
+	codeFileInvalid   = "file_invalid"
+	codeFileTooLarge  = "file_too_large"
 	codeRequired      = "required"
 	codeInvalid       = "invalid"
 	codeInvalidChoice = "invalid_choice"
@@ -54,6 +59,8 @@ func validateAnswer(step *domain.FlowStep, raw json.RawMessage, isOption func(st
 		return validateSingleChoice(raw, isOption)
 	case domain.StepMultiChoice:
 		return validateMultiChoice(raw, isOption)
+	case domain.StepFile:
+		return validateFile(raw)
 	default:
 		return nil, invalidValue(codeInvalid) // info, consent, check_answers and done have no answer
 	}
@@ -259,6 +266,36 @@ func validateMultiChoice(raw json.RawMessage, isOption func(string) bool) (json.
 		}
 	}
 	return json.Marshal(clean)
+}
+
+// fileAnswer is a photo answer: { "name": "id.jpg", "data": "data:image/jpeg;base64,…" }.
+type fileAnswer struct {
+	Name string `json:"name"`
+	Data string `json:"data"`
+}
+
+var fileDataURL = regexp.MustCompile(`^data:(image/(?:jpeg|png|webp));base64,`)
+
+// validateFile accepts a JPEG, PNG or WebP photo as a data URL. The bytes themselves are
+// checked, not just the label, because staff may open the file later.
+func validateFile(raw json.RawMessage) (json.RawMessage, error) {
+	var f fileAnswer
+	if err := json.Unmarshal(raw, &f); err != nil || utf8.RuneCountInString(f.Name) > 255 {
+		return nil, invalidValue(codeFileInvalid)
+	}
+	m := fileDataURL.FindStringSubmatch(f.Data)
+	if m == nil {
+		return nil, invalidValue(codeFileInvalid)
+	}
+	payload := f.Data[len(m[0]):]
+	if base64.StdEncoding.DecodedLen(len(payload)) > maxFileBytes {
+		return nil, invalidValue(codeFileTooLarge)
+	}
+	b, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil || len(b) == 0 || http.DetectContentType(b) != m[1] {
+		return nil, invalidValue(codeFileInvalid)
+	}
+	return json.Marshal(fileAnswer{Name: strings.TrimSpace(f.Name), Data: f.Data})
 }
 
 // ---- dates ----

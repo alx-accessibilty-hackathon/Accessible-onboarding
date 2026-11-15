@@ -3,13 +3,19 @@ package infrastructure
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -26,11 +32,15 @@ type SpeechService struct {
 	azureKey    string
 	azureRegion string
 	localURL    string
+	geminiKey   string // Google AI Studio key — used only for TTS (Synthesize), not STT
+	cacheDir    string // directory for persistent on-disk TTS audio cache
 	httpClient  *http.Client
 
 	mu        sync.Mutex
+	geminiMu  sync.Mutex // serializes Gemini TTS calls to prevent burst 429 errors
 	fails     map[string]int
 	openUntil map[string]time.Time
+	ttsCache  sync.Map // in-memory cache: cacheKey (lang|text) -> []byte (mp3)
 }
 
 var _ domain.SpeechService = (*SpeechService)(nil)
@@ -55,6 +65,71 @@ func (s *SpeechService) SetAzure(key, region string) {
 
 func (s *SpeechService) SetLocalURL(url string) {
 	s.localURL = url
+}
+
+func (s *SpeechService) SetGemini(key string) {
+	s.geminiKey = key
+}
+
+func (s *SpeechService) SetCacheDir(dir string) {
+	s.cacheDir = dir
+	if dir != "" {
+		_ = os.MkdirAll(dir, 0755)
+	}
+}
+
+func (s *SpeechService) cacheFilePath(lang, text string) string {
+	if s.cacheDir == "" {
+		return ""
+	}
+	h := sha256.Sum256([]byte(lang + ":" + strings.TrimSpace(text)))
+	hashHex := hex.EncodeToString(h[:16])
+	return filepath.Join(s.cacheDir, fmt.Sprintf("%s_%s.mp3", lang, hashHex))
+}
+
+func (s *SpeechService) loadCachedAudio(lang, text string) ([]byte, string) {
+	memKey := lang + "|" + text
+	if cached, ok := s.ttsCache.Load(memKey); ok {
+		return cached.([]byte), "RAM"
+	}
+
+	path := s.cacheFilePath(lang, text)
+	if path == "" {
+		return nil, ""
+	}
+
+	data, err := os.ReadFile(path)
+	if err == nil && len(data) > 0 {
+		s.ttsCache.Store(memKey, data)
+		return data, "DISK"
+	}
+	return nil, ""
+}
+
+func (s *SpeechService) storeCachedAudio(lang, text string, audio []byte) {
+	if len(audio) == 0 {
+		return
+	}
+	memKey := lang + "|" + text
+	s.ttsCache.Store(memKey, audio)
+
+	path := s.cacheFilePath(lang, text)
+	if path == "" {
+		return
+	}
+	if err := os.WriteFile(path, audio, 0644); err != nil {
+		log.Printf("warning: could not write tts audio cache to %s: %v", path, err)
+	} else {
+		log.Printf("[TTS CACHED TO DISK] %s (%d bytes): %s", lang, len(audio), path)
+	}
+}
+
+func truncateForLog(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	return string(runes[:maxRunes]) + "…"
 }
 
 // HasServerSpeech returns true if at least one speech provider is configured.
@@ -301,19 +376,74 @@ var ttsVoices = map[string]struct{ locale, voice string }{
 	"en": {"en-US", "en-US-JennyNeural"},
 }
 
-// Synthesize reads text aloud with Azure text-to-speech (needs AZURE_SPEECH_KEY and
-// AZURE_SPEECH_REGION) and returns MP3 audio. The widget only sends fixed interface text here,
-// never a learner's own answers.
+// geminiTTSVoices: a natural, expressive Gemini voice per language.
+// Gemini TTS auto-detects the script, so the same voice works for Amharic text.
+// "Aoede" is warm and clear; suitable for an onboarding assistant.
+var geminiTTSVoices = map[string]string{
+	"am": "Aoede",
+	"en": "Aoede",
+}
+
+// geminiTTSModel is the lightweight Gemini Flash-Lite TTS model supporting Amharic.
+const geminiTTSModel = "gemini-3.8-flash-lite-tts"
+
+// Synthesize reads text aloud and returns MP3 audio.
+// It checks persistent cache first (memory + disk), then Azure (if configured), then Gemini (if configured).
+// The widget only sends fixed interface text here — never a learner's own answers.
 func (s *SpeechService) Synthesize(ctx context.Context, text, language string) ([]byte, error) {
-	v, ok := ttsVoices[strings.ToLower(strings.SplitN(language, "-", 2)[0])]
-	if !ok || s.azureKey == "" || s.azureRegion == "" || s.isBreakerOpen("azure-tts") {
-		return nil, domain.ErrSpeechUnavailable
+	lang := strings.ToLower(strings.SplitN(language, "-", 2)[0])
+	trimmed := strings.TrimSpace(text)
+
+	// Serve from persistent cache if already synthesized (memory or disk, 0ms, 0 API quota).
+	if cached, source := s.loadCachedAudio(lang, trimmed); cached != nil {
+		log.Printf("[TTS HIT - %s] %s (%d bytes): %q", source, lang, len(cached), truncateForLog(trimmed, 35))
+		return cached, nil
 	}
+
+	log.Printf("[TTS MISS - API CALL] %s: %q", lang, truncateForLog(trimmed, 35))
+
+	// 1. Azure TTS
+	if v, ok := ttsVoices[lang]; ok && s.azureKey != "" && s.azureRegion != "" && !s.isBreakerOpen("azure-tts") {
+		audio, err := s.callAzureTTS(ctx, trimmed, v.locale, v.voice)
+		if err == nil {
+			s.recordSuccess("azure-tts")
+			s.storeCachedAudio(lang, trimmed, audio)
+			return audio, nil
+		}
+		log.Printf("azure tts failed: %v", err)
+		s.recordFailure("azure-tts")
+	}
+
+	// 2. Gemini TTS (Google AI Studio key — free tier, supports Amharic)
+	if s.geminiKey != "" && !s.isBreakerOpen("gemini-tts") {
+		voice := geminiTTSVoices[lang]
+		if voice == "" {
+			voice = "Aoede" // safe default for unlisted languages
+		}
+		audio, err := s.callGeminiTTS(ctx, trimmed, voice)
+		if err == nil {
+			s.recordSuccess("gemini-tts")
+			s.storeCachedAudio(lang, trimmed, audio)
+			return audio, nil
+		}
+		log.Printf("gemini tts failed: %v", err)
+		if errors.Is(err, domain.ErrRateLimited) {
+			// Don't trip breaker on transient rate limits, return ErrRateLimited directly
+			return nil, domain.ErrRateLimited
+		}
+		s.recordFailure("gemini-tts")
+	}
+
+	return nil, domain.ErrSpeechUnavailable
+}
+
+// callAzureTTS calls the Azure neural TTS REST endpoint and returns MP3 bytes.
+func (s *SpeechService) callAzureTTS(ctx context.Context, text, locale, voice string) ([]byte, error) {
 	var escaped bytes.Buffer
 	if err := xml.EscapeText(&escaped, []byte(text)); err != nil {
 		return nil, err
 	}
-	ssml := fmt.Sprintf(`<speak version="1.0" xml:lang="%s"><voice name="%s">%s</voice></speak>`, v.locale, v.voice, escaped.String())
+	ssml := fmt.Sprintf(`<speak version="1.0" xml:lang="%s"><voice name="%s">%s</voice></speak>`, locale, voice, escaped.String())
 
 	url := fmt.Sprintf("https://%s.tts.speech.microsoft.com/cognitiveservices/v1", s.azureRegion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(ssml))
@@ -327,18 +457,141 @@ func (s *SpeechService) Synthesize(ctx context.Context, text, language string) (
 
 	res, err := s.httpClient.Do(req)
 	if err != nil {
-		s.recordFailure("azure-tts")
 		return nil, domain.ErrSpeechUnavailable
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		s.recordFailure("azure-tts")
 		return nil, domain.ErrSpeechUnavailable
 	}
-	audio, err := io.ReadAll(io.LimitReader(res.Body, 5<<20))
+	return io.ReadAll(io.LimitReader(res.Body, 5<<20))
+}
+
+// callGeminiTTS calls the Gemini API generateContent endpoint with audio output modality.
+// It receives base64-encoded audio (WAV or raw PCM), decodes it, then converts to MP3 with ffmpeg.
+func (s *SpeechService) callGeminiTTS(ctx context.Context, text, voice string) ([]byte, error) {
+	s.geminiMu.Lock()
+	defer s.geminiMu.Unlock()
+
+	// Gentle pacing between calls prevents burst 429 errors from Google's rate limiter.
+	time.Sleep(300 * time.Millisecond)
+
+	body := map[string]any{
+		"contents": []map[string]any{
+			{"parts": []map[string]any{{"text": text}}},
+		},
+		"generationConfig": map[string]any{
+			"responseModalities": []string{"AUDIO"},
+			"speechConfig": map[string]any{
+				"voiceConfig": map[string]any{
+					"prebuiltVoiceConfig": map[string]any{
+						"voiceName": voice,
+					},
+				},
+			},
+		},
+	}
+	payload, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
-	s.recordSuccess("azure-tts")
-	return audio, nil
+
+	url := fmt.Sprintf(
+		"https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s",
+		geminiTTSModel, s.geminiKey,
+	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("gemini tts request: %w", err)
+	}
+	defer res.Body.Close()
+
+	// If rate-limited (429), back off briefly and retry once
+	if res.StatusCode == http.StatusTooManyRequests {
+		res.Body.Close()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(1200 * time.Millisecond):
+		}
+
+		reqRetry, errRetry := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		if errRetry == nil {
+			reqRetry.Header.Set("Content-Type", "application/json")
+			if resRetry, errRetry2 := s.httpClient.Do(reqRetry); errRetry2 == nil {
+				res = resRetry
+				defer res.Body.Close()
+			}
+		}
+	}
+
+	if res.StatusCode == http.StatusTooManyRequests {
+		return nil, domain.ErrRateLimited
+	}
+
+	if res.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(io.LimitReader(res.Body, 2<<10))
+		return nil, fmt.Errorf("gemini tts status %d: %s", res.StatusCode, string(bodyBytes))
+	}
+
+	var geminiRes struct {
+		Candidates []struct {
+			FinishReason string `json:"finishReason"`
+			Content      struct {
+				Parts []struct {
+					InlineData struct {
+						MimeType string `json:"mimeType"`
+						Data     string `json:"data"` // base64-encoded audio
+					} `json:"inlineData"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&geminiRes); err != nil {
+		return nil, fmt.Errorf("gemini tts decode: %w", err)
+	}
+	if len(geminiRes.Candidates) == 0 || len(geminiRes.Candidates[0].Content.Parts) == 0 {
+		finishReason := "unknown"
+		if len(geminiRes.Candidates) > 0 {
+			finishReason = geminiRes.Candidates[0].FinishReason
+		}
+		return nil, fmt.Errorf("gemini tts empty response (finishReason: %s)", finishReason)
+	}
+
+	part := geminiRes.Candidates[0].Content.Parts[0]
+	audioBytes, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
+	if err != nil {
+		return nil, fmt.Errorf("gemini tts base64 decode: %w", err)
+	}
+
+	// Convert audio (WAV or PCM) → MP3 so client receives consistent audio/mpeg.
+	return audioToMP3(ctx, audioBytes, part.InlineData.MimeType)
+}
+
+// audioToMP3 uses ffmpeg to transcode audio bytes to MP3, handling both WAV and raw PCM.
+func audioToMP3(ctx context.Context, input []byte, mimeType string) ([]byte, error) {
+	args := []string{"-hide_banner", "-loglevel", "error"}
+	if strings.Contains(mimeType, "pcm") || strings.Contains(mimeType, "L16") {
+		args = append(args, "-f", "s16le", "-ar", "24000", "-ac", "1")
+	}
+	args = append(args,
+		"-i", "pipe:0",
+		"-codec:a", "libmp3lame", "-b:a", "48k",
+		"-f", "mp3", "pipe:1",
+	)
+
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd.Stdin = bytes.NewReader(input)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("ffmpeg to mp3: %w (stderr: %s)", err, stderr.String())
+	}
+	return stdout.Bytes(), nil
 }

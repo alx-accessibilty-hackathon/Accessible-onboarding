@@ -11,6 +11,7 @@ export type StepType =
   | 'digits'
   | 'single_choice'
   | 'multi_choice'
+  | 'file'
   | 'check_answers'
   | 'done';
 

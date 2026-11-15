@@ -74,8 +74,14 @@ func TestFlowPathFollowsTheAnswers(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"welcome", "consent_data", "full_name", "preferred_name", "contact_method", "phone", "dob", "id_route",
-		"id_doc_type", "id_last4", "support_needs", "support_other", "support_share", "check", "done",
+		"id_doc_type", "id_upload", "id_last4", "support_needs", "support_other", "support_share", "check", "done",
 	}, ids(map[string]string{"contact_method": "telegram", "id_route": "other_document"}))
+
+	// A document without a number skips the last-4 question but still offers the upload.
+	assert.Equal(t, []string{
+		"welcome", "consent_data", "full_name", "preferred_name", "contact_method", "dob", "id_route",
+		"id_doc_type", "id_upload", "support_needs", "support_other", "support_share", "check", "done",
+	}, ids(map[string]string{"contact_method": "none", "id_route": "other_document", "id_doc_type": "kebele_letter"}))
 
 	assert.Equal(t, []string{
 		"welcome", "consent_data", "full_name", "preferred_name", "contact_method", "dob", "id_route",

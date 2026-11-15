@@ -129,7 +129,7 @@ var (
 	knownStepTypes = map[string]bool{
 		domain.StepInfo: true, domain.StepConsent: true, domain.StepText: true, domain.StepLongText: true,
 		domain.StepPhone: true, domain.StepDate: true, domain.StepDigits: true, domain.StepSingleChoice: true,
-		domain.StepMultiChoice: true, domain.StepCheckAnswers: true, domain.StepDone: true,
+		domain.StepMultiChoice: true, domain.StepFile: true, domain.StepCheckAnswers: true, domain.StepDone: true,
 	}
 	knownStorage     = map[string]bool{"": true, domain.StorageAnswer: true, domain.StorageSupport: true, domain.StorageNone: true}
 	knownOptionsFrom = map[string]bool{"": true, domain.OptionsFromNeeds: true, domain.OptionsFromReferralPartners: true}
