@@ -113,7 +113,6 @@ function WidgetInner(props: WidgetProps) {
     const primary = config?.theme?.primary?.trim();
     if (!primary) return {};
     if (!isAccessibleAgainstWhite(primary)) {
-      // eslint-disable-next-line no-console
       console.warn(
         `[theme] Partner primary color "${primary}" fails WCAG AA 4.5:1 contrast against white; using default accessible color.`,
       );
