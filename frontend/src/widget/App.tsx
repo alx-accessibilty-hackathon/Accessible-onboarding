@@ -9,7 +9,7 @@ import {
   useTextSize,
 } from '../a11y/settings';
 import { configureSpeaker } from '../a11y/speaker';
-import { loadSession, type LearnerSession } from '../api/auth';
+import { loadSession, saveSession, type LearnerSession } from '../api/auth';
 import type { ApiConfig } from '../api/client';
 import { patchRegistration } from '../api/registrations';
 import { ApplyFlow } from '../careers/ApplyFlow';
@@ -21,6 +21,7 @@ import { hasLanguage, offeredLanguages } from '../i18n/registry';
 import { darkenHex, isAccessibleAgainstWhite } from '../lib/color';
 import { ProfilePage } from '../profile/ProfilePage';
 import { LanguageScreen } from '../shell/LanguageScreen';
+import { ResumeScreen } from '../shell/ResumeScreen';
 import { WidgetFrame } from '../shell/WidgetFrame';
 import { emit, type WidgetEvent } from './emit';
 import { SignupFlow } from './SignupFlow';
@@ -33,17 +34,51 @@ const DEFAULT_LANG = 'en';
 
 type View =
   | { name: 'signup' }
+  | { name: 'resume'; token?: string | null; code?: string | null }
   | { name: 'jobs' }
   | { name: 'apply'; jobId: string; job?: Job | null }
   /** `opened`: the person came here with a button (focus moves to its heading). */
   | { name: 'profile'; opened?: boolean }
   | { name: 'unknown' };
 
-function initialView(flow: string | undefined, jobId: string | undefined): View {
+function detectResumeToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  const match = window.location.pathname.match(/\/r\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('token') || params.get('resume_token') || params.get('r');
+  } catch {
+    return null;
+  }
+}
+
+function detectResumeCode(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('code') || params.get('resume_code') || params.get('c');
+  } catch {
+    return null;
+  }
+}
+
+function initialView(
+  flow: string | undefined,
+  jobId: string | undefined,
+  resumeToken: string | undefined,
+): View {
+  const urlToken = detectResumeToken();
+  const urlCode = detectResumeCode();
+  if (urlToken || resumeToken || urlCode || flow === 'resume') {
+    return { name: 'resume', token: resumeToken || urlToken, code: urlCode };
+  }
   switch (flow || 'signup') {
     case 'signup':
     case 'language': // the language screen, then sign-up
       return { name: 'signup' };
+    case 'resume':
+      return { name: 'resume', token: resumeToken || urlToken, code: urlCode };
     case 'jobs':
       return { name: 'jobs' };
     case 'job-application':
@@ -66,7 +101,9 @@ function WidgetInner(props: WidgetProps) {
   const { lang, simple, dir, t, setLang, setSimple } = useLanguage();
   const { readAloud } = useModes();
   const textSize = useTextSize();
-  const [view, setView] = useState<View>(() => initialView(props.flow, props.jobId));
+  const [view, setView] = useState<View>(() =>
+    initialView(props.flow, props.jobId, props.resumeToken),
+  );
   const [session, setSession] = useState<LearnerSession | null>(null);
   const [saveKey, setSaveKey] = useState(0);
   const [signupKey, setSignupKey] = useState(0);
@@ -74,8 +111,11 @@ function WidgetInner(props: WidgetProps) {
   const [pendingJob, setPendingJob] = useState<{ jobId: string; job?: Job | null } | null>(null);
 
   // Language first: until a language has been chosen on this device, nothing else shows.
+  // When resuming on another device, show the ResumeScreen immediately without blocking.
   const [languageOpen, setLanguageOpen] = useState(
-    () => props.flow === 'language' || !getChosenLanguage(),
+    () =>
+      (props.flow === 'language' || !getChosenLanguage()) &&
+      initialView(props.flow, props.jobId, props.resumeToken).name !== 'resume',
   );
   const [languageByPerson, setLanguageByPerson] = useState(false); // opened from the header
   const focusContentRef = useRef(false);
@@ -237,6 +277,7 @@ function WidgetInner(props: WidgetProps) {
                 emit={emitEvent}
                 onSession={setSession}
                 onSaveState={() => setSaveKey((k) => k + 1)}
+                onResume={() => setView({ name: 'resume' })}
                 doneExtra={
                   <div className="bo-actions">
                     {pendingJob && (
@@ -258,6 +299,24 @@ function WidgetInner(props: WidgetProps) {
                     </Button>
                   </div>
                 }
+              />
+            )}
+
+            {view.name === 'resume' && (
+              <ResumeScreen
+                api={api}
+                lang={lang}
+                initialToken={view.token}
+                initialCode={view.code}
+                manageTitle={manageTitle}
+                onSuccess={(s) => {
+                  void saveSession(s.token, s.registrationId).then(() => {
+                    setSession({ token: s.token, registrationId: s.registrationId });
+                    setSignupKey((k) => k + 1);
+                    setView({ name: 'signup' });
+                  });
+                }}
+                onCancel={() => setView({ name: 'signup' })}
               />
             )}
 

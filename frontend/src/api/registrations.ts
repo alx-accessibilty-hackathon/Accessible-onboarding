@@ -61,6 +61,23 @@ export interface ResumeLink {
   expires_at: string;
 }
 
+export interface ResumeLookupResponse {
+  registration_id: string;
+  check: 'dob' | 'phone';
+}
+
+export interface ResumeVerifyResponse {
+  registration_id: string;
+  session: SessionInfo;
+}
+
+export interface ResumeDob {
+  calendar: string;
+  year: number;
+  month: number;
+  day: number;
+}
+
 export type ConsentKind =
   'data_processing' | 'cloud_speech' | 'sms' | 'telegram' | 'partner_access';
 export type ConsentMethod = 'tap' | 'sms_code' | 'spoken' | 'partner_witnessed';
@@ -155,6 +172,33 @@ export async function createResumeLink(
   body: { send_via?: 'sms' | 'telegram' | 'none'; phone?: string } = { send_via: 'none' },
 ): Promise<ResumeLink> {
   return apiFetch<ResumeLink>(cfg, `${reg(regId)}/resume-links`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/** Look up a resume code or token to know what check to ask. */
+export async function resumeLookup(
+  cfg: ApiConfig,
+  body: { code?: string; token?: string },
+): Promise<ResumeLookupResponse> {
+  return apiFetch<ResumeLookupResponse>(cfg, '/resume/lookup', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/** Verify a resume check (DOB or phone last 4) to receive a learner session. */
+export async function resumeVerify(
+  cfg: ApiConfig,
+  body: {
+    code?: string;
+    token?: string;
+    dob?: ResumeDob;
+    phone_last4?: string;
+  },
+): Promise<ResumeVerifyResponse> {
+  return apiFetch<ResumeVerifyResponse>(cfg, '/resume/verify', {
     method: 'POST',
     body: JSON.stringify(body),
   });

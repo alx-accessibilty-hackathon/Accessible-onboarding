@@ -59,8 +59,8 @@ Built for the **ALX Digital Bridge Accessibility Hackathon 2026, Track 1 (access
 | Area | Built | Not built yet |
 |---|---|---|
 | Sign-up | Every question and branch, save as you go, offline queue, version check between devices, support needs (encrypted), consent, submit, referral for "no ID" | Duplicate check ("is this you?"), automatic clean-up of old drafts |
-| Continue elsewhere | API: resume link and code, lookup, verify | The page that opens a resume link (`/r/<token>`), so the widget doesn't offer it; real SMS sending |
-| Learner data | Profile page: see, change, delete (`/me`) | Download my data, sign in with a phone code on a new device |
+| Continue elsewhere | API: resume link and code, lookup, verify; resume screen with `/r/<token>` and 6-char code; Save panel continue cards | Real SMS sending (simulated inbox provided) |
+| Learner data | Profile page: see, change, delete, download data (`/me`, `/me/export`) | Sign in with a phone code on a new device |
 | Careers | Job list with private needs filter, job detail, apply, employer form, publish, JobPosting JSON-LD, employer reads applications | Importing JobPosting from other boards, a JobPosting feed |
 | Staff | Sign-in, employer pages, referral list for partner staff, consent code by SMS (API) | Partner staff registering a learner for them, vouching for ID, support inbox, admin pages, account management, Amharic staff pages |
 | Partners | Partner key + allowed origins, OAuth partner API, partner settings in the database | A settings page for partners, per-partner questions, applying the partner's theme colour |

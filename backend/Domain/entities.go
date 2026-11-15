@@ -331,6 +331,14 @@ type LearnerProfile struct {
 	ReferralPartnerName string
 }
 
+// LearnerExport is the complete export of personal data for GET /me/export (Q4).
+type LearnerExport struct {
+	ExportedAt time.Time
+	Profile    *LearnerProfile
+	Answers    []*Answer
+	Consents   []*Consent
+}
+
 // ProfileChanges is PATCH /me: nil means "keep". DOB holds the raw date answer (same shape as
 // the sign-up "dob" answer); JSON null clears it.
 type ProfileChanges struct {

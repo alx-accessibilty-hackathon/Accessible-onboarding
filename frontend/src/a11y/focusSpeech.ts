@@ -72,7 +72,12 @@ function nameSegments(el: Element, uiLang: string): Seg[] {
   const labels = (el as HTMLInputElement).labels;
   if (labels && labels.length > 0) {
     labels.forEach((l) => textSegments(l, langOf(l, uiLang), segs, true));
-    return merge(segs);
+    if (segs.length) return merge(segs);
+  }
+  const parentLabel = el.closest('label');
+  if (parentLabel) {
+    textSegments(parentLabel, langOf(parentLabel, uiLang), segs, true);
+    if (segs.length) return merge(segs);
   }
   textSegments(el, langOf(el, uiLang), segs, false);
   if (!segs.length) {
@@ -327,7 +332,142 @@ export function describeChange(el: Element, uiLang: string): SpeechPart[] {
   return [];
 }
 
-/** Listen for focus and choices inside the widget while Read Aloud mode is on. */
+/** Describe the current element the user is on (hover, pointer, or focused control). */
+export function describeElement(el: Element, uiLang: string): SpeechPart[] {
+  if (el.tagName === 'DIALOG') return [];
+  const lang = langOf(el, uiLang);
+  const personal = !!el.closest('[data-bo-private]');
+  const parts: SpeechPart[] = [];
+
+  // An option in a group: describe THIS option directly (its name + state).
+  const options = optionGroup(el);
+  if (options) {
+    if (options.kind === 'select') {
+      const select = el as HTMLSelectElement;
+      const option = select.selectedOptions?.[0];
+      parts.push(...toParts(nameSegments(el, uiLang), personal));
+      parts.push(word(lang, 'speech.role.list'));
+      if (option?.value && option.textContent) {
+        parts.push({ text: option.textContent.trim(), lang, personal: true });
+      }
+      return parts;
+    }
+    parts.push(...toParts(nameSegments(el, uiLang), personal), optionState(options, el, lang));
+    if ((el as HTMLButtonElement).disabled === true) {
+      parts.push(word(lang, 'speech.state.unavailable'));
+    }
+    return parts;
+  }
+
+  const name = toParts(nameSegments(el, uiLang), personal);
+  const tag = el.tagName;
+  const type = (el.getAttribute('type') ?? '').toLowerCase();
+  const disabled = (el as HTMLButtonElement).disabled === true;
+
+  if (tag === 'INPUT' && type === 'radio') {
+    const input = el as HTMLInputElement;
+    const root = el.getRootNode() as Document | ShadowRoot;
+    const groupName = input.name.replace(/["\\]/g, '\\$&');
+    const radios = Array.from(
+      root.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${groupName}"]`),
+    );
+    parts.push(...name);
+    if (radios.length > 1) {
+      parts.push(
+        word(lang, 'speech.role.option', {
+          n: Math.max(1, radios.indexOf(input) + 1),
+          total: Math.max(1, radios.length),
+        }),
+      );
+    }
+    parts.push(word(lang, input.checked ? 'speech.state.selected' : 'speech.state.not_selected'));
+  } else if (tag === 'INPUT' && type === 'checkbox') {
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.checkbox'));
+    parts.push(
+      word(
+        lang,
+        (el as HTMLInputElement).checked ? 'speech.state.checked' : 'speech.state.not_checked',
+      ),
+    );
+  } else if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    const value = (el as HTMLInputElement).value.trim();
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.text_field'));
+    if (value) {
+      parts.push(word(lang, 'speech.state.has_text'));
+      parts.push({ text: value, lang, personal: true });
+    } else {
+      parts.push(word(lang, 'speech.state.empty'));
+    }
+  } else if (tag === 'SELECT') {
+    const select = el as HTMLSelectElement;
+    const option = select.selectedOptions?.[0];
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.list'));
+    if (option?.value && option.textContent) {
+      parts.push({ text: option.textContent.trim(), lang, personal: true });
+    }
+  } else if (tag === 'A') {
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.link'));
+  } else if (tag === 'BUTTON' || el.getAttribute('role') === 'button') {
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.button'));
+    const pressed = el.getAttribute('aria-pressed');
+    if (pressed === 'true') parts.push(word(lang, 'speech.state.on'));
+    if (pressed === 'false') parts.push(word(lang, 'speech.state.off'));
+  } else {
+    // Non-control readable element (headings, paragraphs, banners, alerts, badges, labels)
+    const read = readableText(el, uiLang);
+    if (read.length) {
+      parts.push(...read);
+    } else if (name.length) {
+      parts.push(...name);
+    }
+  }
+
+  if (disabled) parts.push(word(lang, 'speech.state.unavailable'));
+  return parts;
+}
+
+/** Find the meaningful interactive control or readable text element under `target`. */
+export function findReadableTarget(target: Element | null, root: HTMLElement): Element | null {
+  if (!target || target === root || target.tagName === 'DIALOG') return null;
+
+  // 1. Check if inside an interactive control or label
+  const control = target.closest(
+    'button, a, input, select, textarea, [role="button"], [role="radio"], [role="checkbox"], [role="option"], label',
+  );
+  if (control && root.contains(control)) {
+    if (control.tagName === 'LABEL') {
+      const input =
+        control.querySelector('input, select, textarea') ||
+        (control.getAttribute('for')
+          ? (root.getRootNode() as Document | ShadowRoot).getElementById?.(
+              control.getAttribute('for')!,
+            )
+          : null);
+      if (input) return input;
+    }
+    return control;
+  }
+
+  // 2. Check if inside a readable block or notice
+  const block = target.closest(
+    'h1, h2, h3, h4, h5, h6, p, legend, [role="alert"], [role="status"], .bo-banner, dt, dd, summary, pre',
+  );
+  if (block && root.contains(block)) return block;
+
+  // 3. Leaf text element
+  if (target.children.length === 0 && target.textContent?.trim() && root.contains(target)) {
+    return target;
+  }
+
+  return null;
+}
+
+/** Listen for focus, hover and choices inside the widget while Read Aloud mode is on. */
 export function useFocusSpeech(
   rootRef: RefObject<HTMLElement>,
   lang: string,
@@ -336,16 +476,46 @@ export function useFocusSpeech(
   useEffect(() => {
     const root = rootRef.current;
     if (!root || !enabled) return;
+
+    let hoverTimer: number | undefined;
+    let lastHovered: Element | null = null;
+
+    const onPointerOver = (e: Event) => {
+      const rawTarget = e.target as Element | null;
+      if (!rawTarget) return;
+      const target = findReadableTarget(rawTarget, root);
+      if (!target || target === lastHovered) return;
+
+      window.clearTimeout(hoverTimer);
+      hoverTimer = window.setTimeout(() => {
+        lastHovered = target;
+        const parts = describeElement(target, lang);
+        if (parts.length) void speak(parts, lang, { low: true });
+      }, 100);
+    };
+
+    const onPointerLeave = (e: Event) => {
+      if (e.target === root) {
+        window.clearTimeout(hoverTimer);
+        lastHovered = null;
+      }
+    };
+
     const onFocus = (e: Event) => {
       const el = e.target as Element | null;
       if (!el || el === root) return;
+      window.clearTimeout(hoverTimer);
+      lastHovered = el;
       const from = (e as FocusEvent).relatedTarget as Element | null;
       const parts = describeFocus(el, lang, from);
       if (parts.length) void speak(parts, lang, { low: true });
     };
+
     const onChange = (e: Event) => {
       const el = e.target as Element | null;
       if (!el) return;
+      window.clearTimeout(hoverTimer);
+      lastHovered = null;
       const parts = describeChange(el, lang);
       if (parts.length) void speak(parts, lang, { low: true });
     };
@@ -353,6 +523,8 @@ export function useFocusSpeech(
     // say what is selected/toggled, once the DOM state updates.
     let timer: number | undefined;
     const onClick = (e: Event) => {
+      window.clearTimeout(hoverTimer);
+      lastHovered = null;
       const button = (e.target as Element | null)?.closest?.('button[aria-pressed]');
       if (!button) return;
       window.clearTimeout(timer);
@@ -382,11 +554,22 @@ export function useFocusSpeech(
         }
       }, 50);
     };
+
+    root.addEventListener('pointerover', onPointerOver);
+    root.addEventListener('mouseover', onPointerOver);
+    root.addEventListener('pointerleave', onPointerLeave);
+    root.addEventListener('mouseleave', onPointerLeave);
     root.addEventListener('focusin', onFocus);
     root.addEventListener('change', onChange);
     root.addEventListener('click', onClick);
+
     return () => {
+      window.clearTimeout(hoverTimer);
       window.clearTimeout(timer);
+      root.removeEventListener('pointerover', onPointerOver);
+      root.removeEventListener('mouseover', onPointerOver);
+      root.removeEventListener('pointerleave', onPointerLeave);
+      root.removeEventListener('mouseleave', onPointerLeave);
       root.removeEventListener('focusin', onFocus);
       root.removeEventListener('change', onChange);
       root.removeEventListener('click', onClick);
