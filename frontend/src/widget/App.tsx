@@ -7,6 +7,7 @@ import {
   scaleStyle,
   setChosenLanguage,
   useTextSize,
+  useTheme,
 } from '../a11y/settings';
 import { configureSpeaker } from '../a11y/speaker';
 import { loadSession, type LearnerSession } from '../api/auth';
@@ -66,6 +67,7 @@ function WidgetInner(props: WidgetProps) {
   const { lang, simple, dir, t, setLang, setSimple } = useLanguage();
   const { readAloud } = useModes();
   const textSize = useTextSize();
+  const theme = useTheme();
   const [view, setView] = useState<View>(() => initialView(props.flow, props.jobId));
   const [session, setSession] = useState<LearnerSession | null>(null);
   const [saveKey, setSaveKey] = useState(0);
@@ -180,6 +182,7 @@ function WidgetInner(props: WidgetProps) {
     <div
       ref={rootRef}
       className={(simple ? 'bo-root bo-simple' : 'bo-root') + scaleClass(textSize)}
+      data-theme={theme !== 'system' ? theme : undefined}
       lang={lang}
       dir={dir}
       style={{ ...scaleStyle(textSize), ...themeStyle }}

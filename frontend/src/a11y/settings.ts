@@ -19,6 +19,9 @@ const DEFAULTS: Record<Setting, boolean> = {
 const LANG_KEY = 'bo:lang';
 const CONSENT_KEY = 'bo:speech_consent';
 const TEXT_SIZE_KEY = 'bo:text_size';
+const THEME_KEY = 'bo:theme';
+
+export type Theme = 'system' | 'light' | 'dark';
 
 /** Text sizes offered (percent of the normal size). */
 export const TEXT_SIZES = [100, 150, 200, 300, 400] as const;
@@ -114,4 +117,28 @@ export function getSpeechConsent(): boolean | null {
 
 export function setSpeechConsent(granted: boolean): void {
   write(CONSENT_KEY, granted ? 'true' : 'false');
+}
+
+/** Theme setting: 'system' (matches OS preference), 'light', or 'dark'. */
+export function getTheme(): Theme {
+  const value = read(THEME_KEY);
+  if (value === 'light' || value === 'dark') return value;
+  return 'system';
+}
+
+export function setTheme(theme: Theme): void {
+  write(THEME_KEY, theme);
+}
+
+export function useTheme(): Theme {
+  return useSyncExternalStore(subscribe, getTheme, () => 'system');
+}
+
+export function getEffectiveTheme(theme: Theme = getTheme()): 'light' | 'dark' {
+  if (theme === 'dark') return 'dark';
+  if (theme === 'light') return 'light';
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'light';
 }
