@@ -41,6 +41,8 @@
   "header.help": "እርዳታ",
   "header.read_aloud": "ጮክ ብሎ ማንበብ",
   "header.answer_by_speaking": "በመናገር መመለስ",
+  "header.theme_dark": "ጨለማ ሁኔታ",
+  "header.theme_light": "ብርሃን ሁኔታ",
   "text_size.label": "የጽሑፍ መጠን",
 
   "read_aloud.again": "እንደገና አንብብ",

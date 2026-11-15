@@ -3,10 +3,12 @@ import { useFocusSpeech } from '../a11y/focusSpeech';
 import { ModesProvider, ReadScope, useModes } from '../a11y/modes';
 import {
   getChosenLanguage,
+  getEffectiveTheme,
   scaleClass,
   scaleStyle,
   setChosenLanguage,
   useTextSize,
+  useTheme,
 } from '../a11y/settings';
 import { configureSpeaker } from '../a11y/speaker';
 import { loadSession, saveSession, type LearnerSession } from '../api/auth';
@@ -101,6 +103,15 @@ function WidgetInner(props: WidgetProps) {
   const { lang, simple, dir, t, setLang, setSimple } = useLanguage();
   const { readAloud } = useModes();
   const textSize = useTextSize();
+  const theme = useTheme();
+  const effectiveTheme = getEffectiveTheme(theme);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', effectiveTheme);
+    }
+  }, [effectiveTheme]);
+
   const [view, setView] = useState<View>(() =>
     initialView(props.flow, props.jobId, props.resumeToken),
   );
@@ -220,6 +231,7 @@ function WidgetInner(props: WidgetProps) {
     <div
       ref={rootRef}
       className={(simple ? 'bo-root bo-simple' : 'bo-root') + scaleClass(textSize)}
+      data-theme={theme !== 'system' ? theme : undefined}
       lang={lang}
       dir={dir}
       style={{ ...scaleStyle(textSize), ...themeStyle }}

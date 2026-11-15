@@ -1,6 +1,13 @@
 import { useId } from 'react';
 import { useModes, useSpeakerState } from '../a11y/modes';
-import { setTextSize, TEXT_SIZES, useTextSize } from '../a11y/settings';
+import {
+  getEffectiveTheme,
+  setTheme,
+  setTextSize,
+  TEXT_SIZES,
+  useTextSize,
+  useTheme,
+} from '../a11y/settings';
 import { primeSpeech, stopSpeaking } from '../a11y/speaker';
 import { Icon } from '../components/Icon';
 import { languageName } from '../i18n/registry';
@@ -87,6 +94,13 @@ export function ModeToggles({
 }: ModeTogglesProps) {
   const { readAloud, answerBySpeaking, setReadAloud, setAnswerBySpeaking } = useModes();
   const { unavailable } = useSpeakerState();
+  const theme = useTheme();
+  const effectiveTheme = getEffectiveTheme(theme);
+  const isDark = effectiveTheme === 'dark';
+
+  const toggleTheme = () => {
+    setTheme(isDark ? 'light' : 'dark');
+  };
 
   const toggleReadAloud = () => {
     if (readAloud) {
@@ -130,6 +144,28 @@ export function ModeToggles({
           button(answerBySpeaking, 'mic', 'header.answer_by_speaking', () =>
             setAnswerBySpeaking(!answerBySpeaking),
           )}
+        <button
+          type="button"
+          className="bo-btn bo-btn-secondary"
+          aria-pressed={isDark}
+          onClick={toggleTheme}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--bo-space-2)',
+            padding: '0.4em 0.8em',
+            background: isDark ? 'var(--bo-selected-bg)' : undefined,
+            borderColor: isDark ? 'var(--bo-primary)' : undefined,
+          }}
+        >
+          <Icon name={isDark ? 'light_mode' : 'dark_mode'} />
+          <Label
+            lang={lang}
+            k={isDark ? 'header.theme_light' : 'header.theme_dark'}
+            bilingual={bilingual}
+          />
+          {isDark && <Icon name="check" style={{ color: 'var(--bo-primary)' }} />}
+        </button>
       </div>
       <TextSizeControl lang={lang} bilingual={bilingual} />
       {notAvailable && (

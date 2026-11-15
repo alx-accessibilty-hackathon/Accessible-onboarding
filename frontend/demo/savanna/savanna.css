@@ -1,5 +1,6 @@
 /* Savanna theme styling for demo host pages */
 :root {
+  color-scheme: light;
   --savanna-primary: #101828;
   --savanna-accent: #026aa2;
   --savanna-bg: #f8fafc;
@@ -8,6 +9,51 @@
   --savanna-text: #1e293b;
   --savanna-text-muted: #64748b;
   --savanna-radius: 12px;
+}
+
+html {
+  background-color: var(--savanna-bg);
+  min-height: 100%;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --savanna-primary: #f1f5f9;
+  --savanna-accent: #38bdf8;
+  --savanna-bg: #0b0f17;
+  --savanna-card-bg: #131b26;
+  --savanna-border: #222f3e;
+  --savanna-text: #f1f5f9;
+  --savanna-text-muted: #94a3b8;
+}
+
+:root[data-theme='dark'] .savanna-nav {
+  background: #131b26 !important;
+}
+
+:root[data-theme='dark'] .savanna-banner-card {
+  background: #102a43 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --savanna-primary: #f1f5f9;
+    --savanna-accent: #38bdf8;
+    --savanna-bg: #0b0f17;
+    --savanna-card-bg: #131b26;
+    --savanna-border: #222f3e;
+    --savanna-text: #f1f5f9;
+    --savanna-text-muted: #94a3b8;
+  }
+
+  :root:not([data-theme='light']) .savanna-nav {
+    background: #131b26 !important;
+  }
+
+  :root:not([data-theme='light']) .savanna-banner-card {
+    background: #102a43 !important;
+  }
 }
 
 body {
@@ -72,6 +118,7 @@ body {
   border-radius: var(--savanna-radius);
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
 }
 
 .savanna-banner-card {

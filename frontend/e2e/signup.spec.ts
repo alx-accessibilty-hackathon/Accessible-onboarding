@@ -5,6 +5,45 @@ test.describe('End-to-end Onboarding and Accessibility Journey', () => {
   test('completes full sign-up with keyboard-accessible controls and 0 blocking axe issues', async ({
     page,
   }) => {
+    await page.route('**/api/v1/**', async (route) => {
+      const url = route.request().url();
+      if (url.includes('/config')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            partner_name: 'Savanna',
+            default_language: 'en',
+            languages: ['en', 'am'],
+            referral_partners: [{ id: 'org_1', name: 'Ethiopian Association of the Blind' }],
+          }),
+        });
+      } else if (url.includes('/registrations') && route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            registration_id: 'reg_123',
+            learner_id: 'lrn_123',
+            status: 'draft',
+            current_step: 'welcome',
+            session: { token: 'tok_123', expires_at: '2099-01-01T00:00:00Z' },
+          }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            registration_id: 'reg_123',
+            learner_id: 'lrn_123',
+            session: { token: 'tok_123' },
+          }),
+        });
+      }
+    });
+
     await page.goto('/');
 
     // 0. Language screen (first, until a language is chosen on this device)
@@ -88,7 +127,7 @@ test.describe('End-to-end Onboarding and Accessibility Journey', () => {
     expect(blocking).toEqual([]);
 
     // Submit
-    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('button', { name: /Send my answers|Continue/i }).click();
 
     // 13. Done
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('You are signed up');

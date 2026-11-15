@@ -41,6 +41,8 @@
   "header.help": "Get help",
   "header.read_aloud": "Read aloud",
   "header.answer_by_speaking": "Answer by speaking",
+  "header.theme_dark": "Dark mode",
+  "header.theme_light": "Light mode",
   "text_size.label": "Text size",
 
   "read_aloud.again": "Read again",

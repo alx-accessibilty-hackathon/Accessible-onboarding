@@ -1,39 +1,42 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Savanna | Sign Up</title>
-    <link rel="stylesheet" href="./savanna.css" />
-  </head>
-  <body>
-    <header class="savanna-nav">
-      <a href="./home.html" class="savanna-logo">
-        <span>🌱 Savanna</span>
-      </a>
-      <nav>
-        <ul class="savanna-nav-links">
-          <li><a href="./home.html">Dashboard</a></li>
-          <li><a href="./jobs.html">Careers</a></li>
-          <li><a href="./signup.html" class="active" aria-current="page">Sign Up</a></li>
-          <li><a href="./profile.html">My profile</a></li>
-        </ul>
-      </nav>
-    </header>
 
-    <main class="savanna-container">
-      <div class="savanna-card" style="max-width: 640px; margin: 0 auto">
-        <!-- Embedded Bridge Onboarding Widget -->
-        <bridge-onboarding partner="pk_demo_savanna" flow="signup"></bridge-onboarding>
-      </div>
-    </main>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Savanna | Sign Up</title>
+  <link rel="stylesheet" href="./savanna.css" />
+</head>
 
-    <script type="module" src="/src/widget/element.tsx"></script>
-    <script>
-      // No automatic redirect: the learner reads the Done screen at their own pace (no time limits).
-      document.addEventListener('bridge-onboarding:completed', (e) => {
-        console.log('[Savanna Host] Registration completed!', e.detail);
-      });
-    </script>
-  </body>
+<body>
+  <header class="savanna-nav">
+    <a href="./home.html" class="savanna-logo">
+      <span>🌱 Savanna</span>
+    </a>
+    <nav>
+      <ul class="savanna-nav-links">
+        <li><a href="./home.html">Dashboard</a></li>
+        <li><a href="./jobs.html">Careers</a></li>
+        <li><a href="./signup.html" class="active" aria-current="page">Sign Up</a></li>
+        <li><a href="./profile.html">My profile</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="savanna-container">
+    <div class="savanna-card" style="max-width: 640px; margin: 0 auto">
+      <!-- Embedded Bridge Onboarding Widget -->
+      <bridge-onboarding partner="pk_demo_savanna" flow="signup"></bridge-onboarding>
+    </div>
+  </main>
+
+  <script type="module" src="/src/widget/element.tsx"></script>
+  <script>
+    // No automatic redirect: the learner reads the Done screen at their own pace (no time limits).
+    document.addEventListener('bridge-onboarding:completed', (e) => {
+      console.log('[Savanna Host] Registration completed!', e.detail);
+    });
+  </script>
+</body>
+
 </html>
