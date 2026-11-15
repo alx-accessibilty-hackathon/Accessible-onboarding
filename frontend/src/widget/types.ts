@@ -2,11 +2,12 @@
 export interface WidgetProps {
   partner?: string; // publishable partner key, e.g. pk_demo_savanna (not a secret)
   api?: string; // API origin; empty = same site
-  flow?: string; // signup | jobs | job-application | profile | language (resume, partner-signup: not yet)
+  flow?: string; // signup | jobs | job-application | profile | language | resume
   lang?: string; // starting language: am | en
   simple?: boolean | string; // start in Simple mode: `simple` or simple="true"
   manageTitle?: boolean | string; // manage-title="false" turns off page-title updates
   jobId?: string; // job-id, for flow="job-application"
+  resumeToken?: string; // resume-token, for flow="resume" or direct resume
   /** Set by r2wc: the shadow root we render into (its host is the custom element). */
   container?: ShadowRoot | HTMLElement;
 }

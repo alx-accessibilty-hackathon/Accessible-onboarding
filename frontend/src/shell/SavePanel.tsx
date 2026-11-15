@@ -4,6 +4,7 @@ import { keyPart } from '../a11y/readParts';
 import type { Part } from '../a11y/speaker';
 import { forgetEverything, logout } from '../api/auth';
 import type { ApiConfig } from '../api/client';
+import { createResumeLink, type ResumeLink } from '../api/registrations';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Dialog } from '../components/Dialog';
@@ -22,8 +23,6 @@ export interface SavePanelProps {
   onOpenProfile?: () => void;
 }
 
-// "Continue on another device" (a link and a code) is not offered: the link would open a page
-// that can't resume a sign-up yet (/r/<token> has no resume screen), so the promise wasn't true.
 export function SavePanel({
   open,
   lang,
@@ -34,6 +33,51 @@ export function SavePanel({
   onOpenProfile,
 }: SavePanelProps) {
   const [confirmingForget, setConfirmingForget] = useState(false);
+  const [resumeLink, setResumeLink] = useState<ResumeLink | null>(null);
+  const [loadingLink, setLoadingLink] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const canContinueElsewhere = !!(api?.token && registrationId);
+
+  const handleGetLink = useCallback(async () => {
+    if (!api?.token || !registrationId) return;
+    setLoadingLink(true);
+    setLinkError(null);
+    try {
+      const link = await createResumeLink(api, registrationId);
+      setResumeLink(link);
+    } catch {
+      setLinkError('network');
+    } finally {
+      setLoadingLink(false);
+    }
+  }, [api, registrationId]);
+
+  const handleCopyCode = useCallback(async () => {
+    if (!resumeLink?.code) return;
+    try {
+      await navigator.clipboard.writeText(resumeLink.code);
+      setCopiedCode(true);
+      announce(t(lang, 'save_panel.code_copied'));
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      // clipboard blocked
+    }
+  }, [resumeLink?.code, lang]);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!resumeLink?.url) return;
+    try {
+      await navigator.clipboard.writeText(resumeLink.url);
+      setCopiedLink(true);
+      announce(t(lang, 'save_panel.link_copied'));
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      // clipboard blocked
+    }
+  }, [resumeLink?.url, lang]);
 
   const handleForget = useCallback(async () => {
     if (api?.token) {
@@ -58,6 +102,8 @@ export function SavePanel({
   const readParts = (): Part[] => [
     keyPart(lang, 'save_panel.title'),
     keyPart(lang, 'save_panel.explanation'),
+    canContinueElsewhere && keyPart(lang, 'save_panel.continue_title'),
+    canContinueElsewhere && keyPart(lang, 'save_panel.continue_explanation'),
     canOpenProfile && keyPart(lang, 'save_panel.profile_title'),
     canOpenProfile && keyPart(lang, 'save_panel.profile_explanation'),
     keyPart(lang, 'save_panel.forget_title'),
@@ -81,6 +127,121 @@ export function SavePanel({
         style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-4)' }}
       >
         <p style={{ margin: 0 }}>{t(lang, 'save_panel.explanation')}</p>
+
+        {canContinueElsewhere && (
+          <Card style={{ background: 'var(--bo-surface)' }}>
+            <h3 style={{ margin: '0 0 var(--bo-space-2) 0', fontSize: '1em', fontWeight: 700 }}>
+              {t(lang, 'save_panel.continue_title')}
+            </h3>
+            <p className="bo-hint" style={{ margin: '0 0 var(--bo-space-3) 0' }}>
+              {t(lang, 'save_panel.continue_explanation')}
+            </p>
+            {!resumeLink ? (
+              <Button
+                variant="secondary"
+                onClick={() => void handleGetLink()}
+                disabled={loadingLink}
+              >
+                {loadingLink ? t(lang, 'common.loading') : t(lang, 'save_panel.get_link_button')}
+              </Button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-3)' }}>
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: '0.9em',
+                      marginBottom: 'var(--bo-space-1)',
+                    }}
+                  >
+                    {t(lang, 'save_panel.code_label')}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--bo-space-2)',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '1.2em',
+                        fontWeight: 700,
+                        fontFamily: 'monospace',
+                        letterSpacing: '0.1em',
+                        background: 'var(--bo-bg)',
+                        padding: 'var(--bo-space-1) var(--bo-space-2)',
+                        borderRadius: 'var(--bo-radius)',
+                        border: '1px solid var(--bo-border)',
+                      }}
+                    >
+                      {resumeLink.code}
+                    </span>
+                    <Button variant="secondary" onClick={() => void handleCopyCode()}>
+                      {copiedCode
+                        ? t(lang, 'save_panel.code_copied')
+                        : t(lang, 'save_panel.copy_code')}
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: '0.9em',
+                      marginBottom: 'var(--bo-space-1)',
+                    }}
+                  >
+                    {t(lang, 'save_panel.link_label')}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--bo-space-2)',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <a
+                      href={resumeLink.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ wordBreak: 'break-all', fontSize: '0.9em' }}
+                    >
+                      {resumeLink.url}
+                    </a>
+                    <Button variant="secondary" onClick={() => void handleCopyLink()}>
+                      {copiedLink
+                        ? t(lang, 'save_panel.link_copied')
+                        : t(lang, 'save_panel.copy_link')}
+                    </Button>
+                  </div>
+                </div>
+
+                {resumeLink.expires_at && (
+                  <p className="bo-hint" style={{ margin: 0, fontSize: '0.85em' }}>
+                    {t(lang, 'save_panel.link_expires', {
+                      date: new Date(resumeLink.expires_at).toLocaleDateString(lang),
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
+            {linkError && (
+              <p
+                style={{
+                  margin: 'var(--bo-space-2) 0 0 0',
+                  color: 'var(--bo-error)',
+                  fontSize: '0.9em',
+                }}
+              >
+                {t(lang, `errors.${linkError}`)}
+              </p>
+            )}
+          </Card>
+        )}
 
         {canOpenProfile && (
           <Card style={{ background: 'var(--bo-surface)' }}>

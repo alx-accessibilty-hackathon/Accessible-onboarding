@@ -24,6 +24,7 @@ const BridgeOnboarding = r2wc(App, {
     simple: 'string',
     manageTitle: 'string',
     jobId: 'string',
+    resumeToken: 'string',
   },
 });
 

@@ -724,10 +724,9 @@ paths:
         they are also texted to `phone` (or to the learner's saved phone number). The body is
         optional.
 
-        **Not built yet:** the page at `/r/<token>` that uses the link, so the widget does
-        not offer this today. The code can be used with `POST /api/v1/resume/lookup` and
-        `POST /api/v1/resume/verify`. SMS is simulated: messages are logged and listed by
-        `GET /api/v1/dev/messages`.
+        The link opens the hosted page at `/r/<token>` which resumes the sign-up. The code can be
+        used with `POST /api/v1/resume/lookup` and `POST /api/v1/resume/verify`. SMS is simulated:
+        messages are logged and listed by `GET /api/v1/dev/messages`.
       security:
         - PartnerKey: []
           LearnerBearer: []
@@ -3069,7 +3068,7 @@ components:
       properties:
         url:
           type: string
-          description: "`PUBLIC_WEB_URL/r/<token>` (no page serves it yet)."
+          description: "`PUBLIC_WEB_URL/r/<token>` which opens the resume screen."
         code:
           type: string
           example: K7M-9P2

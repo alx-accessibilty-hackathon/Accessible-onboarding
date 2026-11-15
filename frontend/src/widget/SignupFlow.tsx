@@ -55,6 +55,8 @@ export interface SignupFlowProps {
   onCompleted?: (learnerId: string) => void;
   /** Extra content on the Done screen (e.g. back to a job application). */
   doneExtra?: ReactNode;
+  /** Offer "Continue on another device" from the welcome screen. */
+  onResume?: () => void;
 }
 
 interface FlushResult {
@@ -75,6 +77,7 @@ export function SignupFlow({
   onSaveState,
   onCompleted,
   doneExtra,
+  onResume,
 }: SignupFlowProps) {
   const engine = useFlowEngine('signup');
   const [state, dispatch] = engine;
@@ -524,6 +527,15 @@ export function SignupFlow({
       referralPartners={config?.referral_partners}
       manageTitle={manageTitle}
       referralOrg={referralOrg}
+      renderStepExtra={(step) =>
+        step.id === 'welcome' && onResume ? (
+          <div style={{ marginTop: 'var(--bo-space-3)' }}>
+            <Button variant="link" onClick={onResume}>
+              {t(lang, 'resume.continue_existing')}
+            </Button>
+          </div>
+        ) : null
+      }
       renderDone={() => doneExtra}
       renderNoOptions={(step) =>
         step.options_from === 'config:referral_partners' ? (
