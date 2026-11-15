@@ -410,6 +410,7 @@ The order and branches come from [`shared/flows/signup.json`](shared/flows/signu
 | `dob` | date | no | a real date between 1900 and 2100 (`date_invalid`) | always |
 | `id_route` | single choice | yes | `fayda`, `kebele_id`, `refugee_id`, `unhcr_proof`, `other_document`, `none` | always |
 | `id_doc_type` | single choice | yes | `student_id`, `birth_certificate`, `idir_equb_id`, `kebele_letter`, `driving_licence`, `passport`, `other` | `id_route` is `other_document` |
+| `id_upload` | file | no | a JPEG, PNG or WebP photo, at most 1.5 MB, sent as `{"name", "data"}` with `data` a `data:image/…;base64,…` URL (`file_invalid`, `file_too_large`). The server stores it encrypted and only ever returns `{"name"}`. The widget shrinks photos to JPEG first | `id_route` is `other_document` |
 | `id_last4` | text | no | exactly 4 letters or digits (`last4_invalid`) | an ID route other than `none`, except documents `kebele_letter` and `other` |
 | `referral_partner` | single choice | yes | the `id` of a referral organisation from `GET /config` | `id_route` is `none` |
 | `referral_contact` | single choice | yes | `phone`, `telegram`, `in_person` | `id_route` is `none` |
@@ -805,6 +806,7 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 | Name, preferred name, contact method, phone (E.164), date of birth and calendar, language, Simple mode, identity level | `learners` | database access only |
 | Sign-up answers, each with a version | `answers` | database access only |
 | ID route, document type, last 4 characters | `identity_evidence` | the last 4 characters are never returned by any API |
+| Photo of an "other document" (optional, `id_upload`) | `answers` (the value holds the file name and the ciphertext) | **AES-256-GCM**, the learner and the question as additional data; no API returns the photo, only its name. Nothing reads it yet |
 | Support needs and free text | `support_requests` | **AES-256-GCM**, the learner ID as additional data (a copied row won't decrypt for another learner); only the sharing choices are plain |
 | Consents (yes or no, how, when) | `consents` | |
 | Learner, staff and partner-server tokens | `auth_sessions` | **SHA-256 hash only** |

@@ -8,6 +8,7 @@ import { resolveOptions, type OptionContext } from '../engine/options';
 import type { AnswerState, Flow, Step } from '../engine/types';
 import { ListenButton } from '../i18n/ReadAloud';
 import { t } from '../i18n/t';
+import type { FileValue } from '../lib/image';
 import { formatEthiopianPhoneDisplay } from '../lib/phone';
 import { ErrorSummary, type ErrorItem } from './ErrorSummary';
 
@@ -46,6 +47,8 @@ export function formatAnswerValue(
   if (typeof val === 'boolean') {
     return val ? t(lang, 'common.yes') : t(lang, 'common.no');
   }
+
+  if (step.type === 'file') return (val as FileValue).name;
 
   const options = resolveOptions(step, ctx);
   const labelOf = (item: unknown): string => {

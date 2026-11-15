@@ -41,7 +41,8 @@ info:
     `too_many_attempts`, `rate_limited`, `speech_unavailable`, `internal_error`,
     `not_implemented`. Field codes in `errors[]` include `required`, `too_short`,
     `too_long`, `invalid`, `invalid_choice`, `email_invalid`, `phone_invalid`,
-    `date_invalid`, `digits_invalid`, `last4_invalid`, `unknown_question`, `unknown_step`.
+    `date_invalid`, `digits_invalid`, `last4_invalid`, `file_invalid`, `file_too_large`,
+    `unknown_question`, `unknown_step`.
 
     ## Rate limits
 
@@ -472,6 +473,12 @@ paths:
         the stored object `{ "calendar": "ethiopian", "ethiopian": {"year":2010,"month":1,"day":15}, "iso": "2017-09-25" }`,
         or a flat `{ "calendar": "ethiopian"|"gregorian", "year", "month", "day" }`.
         `null`, `""` or `[]` clears an optional answer.
+
+        A `file` step (`id_upload`, the optional photo of an "other document") takes
+        `{ "name": "id.jpg", "data": "data:image/jpeg;base64,…" }`: a JPEG, PNG or WebP photo of
+        at most 1.5 MB (`file_invalid`, `file_too_large`). The server stores the photo encrypted
+        (AES-256-GCM) and every answer that comes back, here, in `current` of a conflict and in
+        `GET /registrations/{id}`, holds only `{ "name": "id.jpg" }`.
       security:
         - PartnerKey: []
           LearnerBearer: []
@@ -554,7 +561,7 @@ paths:
             `question_id` (`unknown_question`). The answer itself is reported on the field
             `value` with the step's error code: `required`, `too_short`, `too_long`,
             `invalid`, `invalid_choice`, `phone_invalid`, `date_invalid`, `digits_invalid`,
-            `last4_invalid`.
+            `last4_invalid`, `file_invalid`, `file_too_large`.
           content:
             application/json:
               schema:
@@ -2891,7 +2898,7 @@ components:
       required: [value, input_method]
       properties:
         value:
-          description: The answer. A string, a list of strings, or a date (see the operation). `null`, `""` or `[]` clears an optional answer.
+          description: The answer. A string, a list of strings, a date or a photo `{name, data}` (see the operation). `null`, `""` or `[]` clears an optional answer.
         input_method:
           type: string
           enum: [typed, voice, choice, partner]
@@ -2908,7 +2915,7 @@ components:
           type: string
           example: phone
         value:
-          description: The cleaned answer as stored (for example a phone number in E.164 form).
+          description: The cleaned answer as stored (for example a phone number in E.164 form). For a photo, only `{ "name" }`.
         input_method:
           type: string
           enum: [typed, voice, choice, partner]

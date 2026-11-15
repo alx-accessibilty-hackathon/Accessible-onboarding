@@ -124,6 +124,16 @@
         { "value": "passport", "label": "signup.id_doc_type.passport" },
         { "value": "other", "label": "signup.id_doc_type.other" }
       ],
+      "next": "id_upload"
+    },
+    {
+      "id": "id_upload",
+      "type": "file",
+      "title": "signup.id_upload.title",
+      "hint": "signup.id_upload.hint",
+      "icon": "photo_camera",
+      "required": false,
+      "storage": "answer",
       "next": [
         { "when": { "step": "id_doc_type", "in": ["kebele_letter", "other"] }, "goto": "support_needs" },
         { "goto": "id_last4" }

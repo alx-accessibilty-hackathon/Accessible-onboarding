@@ -122,6 +122,9 @@ func (uc *RegistrationUsecase) Get(ctx context.Context, actor domain.Actor, id u
 	if err != nil {
 		return nil, err
 	}
+	for _, a := range answers {
+		hideSealedFile(a)
+	}
 	supportSent, err := uc.SupportRepo.Exists(ctx, reg.LearnerID)
 	if err != nil {
 		return nil, err
@@ -201,12 +204,57 @@ func (uc *RegistrationUsecase) SaveAnswer(ctx context.Context, actor domain.Acto
 	if err != nil {
 		return nil, err
 	}
-	return uc.RegistrationRepo.SaveAnswerIfVersion(ctx, &domain.Answer{
+	if step.Type == domain.StepFile {
+		if clean, err = uc.sealFile(reg.LearnerID, step.ID, clean); err != nil {
+			return nil, err
+		}
+	}
+	saved, err := uc.RegistrationRepo.SaveAnswerIfVersion(ctx, &domain.Answer{
 		RegistrationID: reg.ID,
 		QuestionID:     step.ID,
 		Value:          clean,
 		InputMethod:    inputMethod,
 	}, baseVersion)
+	var conflict *domain.ConflictError
+	if errors.As(err, &conflict) && conflict.Current != nil {
+		hideSealedFile(conflict.Current)
+	}
+	if saved != nil {
+		hideSealedFile(saved)
+	}
+	return saved, err
+}
+
+// sealedFile is how a photo answer is stored: the name in plain text, the photo (a data URL)
+// as AES-256-GCM ciphertext.
+type sealedFile struct {
+	Name       string `json:"name"`
+	Nonce      []byte `json:"nonce,omitempty"`
+	Ciphertext []byte `json:"ciphertext,omitempty"`
+}
+
+// sealFile encrypts the photo of a checked file answer. The learner and the step are the
+// additional data, so a copied value won't open for another learner or another question.
+// A cleared answer has no photo and is stored as it is.
+func (uc *RegistrationUsecase) sealFile(learnerID uuid.UUID, stepID string, clean json.RawMessage) (json.RawMessage, error) {
+	var f fileAnswer
+	if json.Unmarshal(clean, &f) != nil || f.Data == "" {
+		return clean, nil
+	}
+	nonce, ciphertext, err := uc.Security.Encrypt([]byte(f.Data), learnerID.String()+":"+stepID)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(sealedFile{Name: f.Name, Nonce: nonce, Ciphertext: ciphertext})
+}
+
+// hideSealedFile cuts the ciphertext out of an answer before it leaves the use case: the
+// device only needs the name. Any other answer is left alone.
+func hideSealedFile(a *domain.Answer) {
+	var f sealedFile
+	if json.Unmarshal(a.Value, &f) == nil && len(f.Ciphertext) > 0 {
+		a.Value, _ = json.Marshal(sealedFile{Name: f.Name})
+	}
 }
 
 // Submit finishes the sign-up (R5, R7, R17):
