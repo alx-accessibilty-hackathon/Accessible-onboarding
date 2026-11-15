@@ -37,8 +37,43 @@ export interface MePatch {
   simple_mode?: boolean;
 }
 
+export interface LearnerExport {
+  exported_at: string;
+  learner: Me;
+  registration?: {
+    id: string;
+    flow_id: string;
+    flow_version: number;
+    status: string;
+    current_step: string;
+    created_at: string;
+    updated_at: string;
+  };
+  answers?: Array<{
+    question_id: string;
+    value: unknown;
+    input_method: string;
+    version: number;
+    updated_at: string;
+  }>;
+  identity_evidence?: Me['identity'];
+  support_request?: Me['support'];
+  referral?: Me['referral'];
+  consents?: Array<{
+    kind: string;
+    granted: boolean;
+    method: string;
+    recorded_at: string;
+  }>;
+}
+
 export async function fetchMe(cfg: ApiConfig): Promise<Me> {
   return apiFetch<Me>(cfg, '/me');
+}
+
+/** Export all learner data as JSON (Q4). */
+export async function exportMe(cfg: ApiConfig): Promise<LearnerExport> {
+  return apiFetch<LearnerExport>(cfg, '/me/export');
 }
 
 /** 409 not_registered: a draft may only change language and Simple mode. */

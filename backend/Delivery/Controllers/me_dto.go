@@ -124,3 +124,87 @@ func toMeDTO(p *domain.LearnerProfile) MeDTO {
 	}
 	return dto
 }
+
+// 200 from GET /me/export (Q4): the learner's complete data export.
+type MeExportDTO struct {
+	ExportedAt       time.Time          `json:"exported_at"`
+	Learner          MeDTO              `json:"learner"`
+	Registration     *ExportRegDTO      `json:"registration,omitempty"`
+	Answers          []ExportAnswerDTO  `json:"answers,omitempty"`
+	IdentityEvidence *MeIdentityDTO     `json:"identity_evidence,omitempty"`
+	SupportRequest   *MeSupportDTO      `json:"support_request,omitempty"`
+	Referral         *MeReferralDTO     `json:"referral,omitempty"`
+	Consents         []ExportConsentDTO `json:"consents,omitempty"`
+}
+
+type ExportRegDTO struct {
+	ID          uuid.UUID `json:"id"`
+	FlowID      string    `json:"flow_id"`
+	FlowVersion int       `json:"flow_version"`
+	Status      string    `json:"status"`
+	CurrentStep string    `json:"current_step"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ExportAnswerDTO struct {
+	QuestionID  string          `json:"question_id"`
+	Value       json.RawMessage `json:"value"`
+	InputMethod string          `json:"input_method"`
+	Version     int             `json:"version"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+type ExportConsentDTO struct {
+	Kind       string    `json:"kind"`
+	Granted    bool      `json:"granted"`
+	Method     string    `json:"method"`
+	RecordedAt time.Time `json:"recorded_at"`
+}
+
+func toMeExportDTO(exp *domain.LearnerExport) MeExportDTO {
+	meDTO := toMeDTO(exp.Profile)
+	dto := MeExportDTO{
+		ExportedAt:       exp.ExportedAt,
+		Learner:          meDTO,
+		IdentityEvidence: meDTO.Identity,
+		SupportRequest:   meDTO.Support,
+		Referral:         meDTO.Referral,
+	}
+	if exp.Profile.Registration != nil {
+		reg := exp.Profile.Registration
+		dto.Registration = &ExportRegDTO{
+			ID:          reg.ID,
+			FlowID:      reg.FlowID,
+			FlowVersion: reg.FlowVersion,
+			Status:      reg.Status,
+			CurrentStep: reg.CurrentStep,
+			CreatedAt:   reg.CreatedAt,
+			UpdatedAt:   reg.UpdatedAt,
+		}
+	}
+	if len(exp.Answers) > 0 {
+		dto.Answers = make([]ExportAnswerDTO, 0, len(exp.Answers))
+		for _, a := range exp.Answers {
+			dto.Answers = append(dto.Answers, ExportAnswerDTO{
+				QuestionID:  a.QuestionID,
+				Value:       a.Value,
+				InputMethod: a.InputMethod,
+				Version:     a.Version,
+				UpdatedAt:   a.UpdatedAt,
+			})
+		}
+	}
+	if len(exp.Consents) > 0 {
+		dto.Consents = make([]ExportConsentDTO, 0, len(exp.Consents))
+		for _, c := range exp.Consents {
+			dto.Consents = append(dto.Consents, ExportConsentDTO{
+				Kind:       c.Kind,
+				Granted:    c.Granted,
+				Method:     c.Method,
+				RecordedAt: c.CreatedAt,
+			})
+		}
+	}
+	return dto
+}

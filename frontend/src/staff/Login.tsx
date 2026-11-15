@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useAutoRead } from '../a11y/modes';
+import { keyPart } from '../a11y/readParts';
+import type { Part } from '../a11y/speaker';
 import { staffLogin, staffMe, type StaffUser } from '../api/auth';
 import { ApiError, errorCode } from '../api/client';
 import { Banner } from '../components/Banner';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { ListenButton } from '../i18n/ReadAloud';
 import { t } from '../i18n/t';
 
 export interface LoginProps {
@@ -27,6 +30,18 @@ export function Login({ apiOrigin = '', lang = 'en', onSuccess }: LoginProps) {
     () => (error ? [error] : [t(lang, 'staff.login_title')]),
     lang,
   );
+
+  const readParts = (): Part[] => [
+    keyPart(lang, 'staff.login_title'),
+    error ? error : null,
+    keyPart(lang, 'staff.email_label'),
+    email.trim()
+      ? { text: email.trim(), lang, personal: true }
+      : keyPart(lang, 'speech.state.empty'),
+    keyPart(lang, 'staff.password_label'),
+    password ? keyPart(lang, 'speech.state.has_text') : keyPart(lang, 'speech.state.empty'),
+    keyPart(lang, 'staff.signin_button'),
+  ];
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -63,6 +78,10 @@ export function Login({ apiOrigin = '', lang = 'en', onSuccess }: LoginProps) {
       <h1 style={{ marginBottom: 'var(--bo-space-4)', fontSize: '1.4em' }}>
         {t(lang, 'staff.login_title')}
       </h1>
+
+      <div style={{ marginBottom: 'var(--bo-space-4)' }}>
+        <ListenButton lang={lang} parts={readParts} />
+      </div>
 
       {error && (
         <div style={{ marginBottom: 'var(--bo-space-4)' }}>

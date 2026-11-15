@@ -168,7 +168,7 @@ func serve(cfg config.Config) {
 	jobUsecase := usecase.NewJobUsecase(jobRepo, flows, cfg.PublicWebURL)
 	applicationUsecase := usecase.NewApplicationUsecase(applicationRepo, jobRepo, learnerRepo)
 	learnerUsecase := usecase.NewLearnerUsecase(learnerRepo)
-	meUsecase := usecase.NewMeUsecase(learnerRepo, profileRepo, partnerRepo, flows, security)
+	meUsecase := usecase.NewMeUsecase(learnerRepo, profileRepo, partnerRepo, registrationRepo, consentRepo, flows, security)
 	referralUsecase := usecase.NewReferralUsecase(referralRepo)
 	employerApplicationUsecase := usecase.NewEmployerApplicationUsecase(jobRepo, applicationRepo, auditRepo, security)
 

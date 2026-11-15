@@ -8,6 +8,10 @@
     {
       "source": "/health",
       "destination": "https://accessible-onboarding.onrender.com/health"
+    },
+    {
+      "source": "/r/:path*",
+      "destination": "/index.html"
     }
   ]
 }

@@ -5,6 +5,8 @@ import { ModesProvider, useModes } from '../a11y/modes';
 import { scaleClass, scaleStyle, useTextSize } from '../a11y/settings';
 import { logout, staffMe, type StaffUser } from '../api/auth';
 import { ApiError } from '../api/client';
+import { Banner } from '../components/Banner';
+import { t } from '../i18n/t';
 import { ModeToggles } from '../shell/ModeToggles';
 import { ReadAloudNotice } from '../shell/ReadAloudNotice';
 import { EmployerJobs } from './EmployerJobs';
@@ -37,6 +39,7 @@ export function StaffApp() {
 
 function StaffShell() {
   const [token, setToken] = useState<string | null>(() => readStorage(TOKEN_KEY));
+  const [loginSuccess, setLoginSuccess] = useState<string | null>(null);
   const [user, setUser] = useState<StaffUser | null>(() => {
     const raw = readStorage(USER_KEY);
     if (!raw) return null;
@@ -57,6 +60,7 @@ function StaffShell() {
   const clearLocal = () => {
     setToken(null);
     setUser(null);
+    setLoginSuccess(null);
     try {
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(USER_KEY);
@@ -86,6 +90,7 @@ function StaffShell() {
   const handleLoginSuccess = (newToken: string, loggedInUser: StaffUser) => {
     setToken(newToken);
     setUser(loggedInUser);
+    setLoginSuccess(loggedInUser.display_name || loggedInUser.email);
     try {
       sessionStorage.setItem(TOKEN_KEY, newToken);
       sessionStorage.setItem(USER_KEY, JSON.stringify(loggedInUser));
@@ -121,6 +126,13 @@ function StaffShell() {
         >
           <ModeToggles lang={lang} answerBySpeaking={false} />
         </div>
+        {token && user && loginSuccess && (
+          <div style={{ padding: 'var(--bo-space-3) var(--bo-space-4) 0 var(--bo-space-4)' }}>
+            <Banner variant="success">
+              {t(lang, 'staff.signed_in_as', { name: loginSuccess })}
+            </Banner>
+          </div>
+        )}
         {!token || !user ? (
           <Login onSuccess={handleLoginSuccess} lang={lang} apiOrigin={API_ORIGIN} />
         ) : user.role === 'partner_staff' ? (

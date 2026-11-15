@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	domain "bridge/Domain"
 
@@ -12,24 +13,36 @@ import (
 )
 
 // MeUsecase: the signed-in learner sees, changes and deletes their own data (Q4):
-// GET, PATCH and DELETE /me.
+// GET, PATCH, DELETE and GET /me/export.
 type MeUsecase struct {
-	LearnerRepo domain.LearnerRepositoryI // the learner, their preferences and latest referral
-	ProfileRepo domain.ProfileRepositoryI
-	PartnerRepo domain.PartnerRepositoryI // the referral partner's name
-	Flows       domain.FlowStore          // PATCH uses the rules of the sign-up steps
-	Security    domain.SecurityService    // opens the learner's own support request
+	LearnerRepo      domain.LearnerRepositoryI // the learner, their preferences and latest referral
+	ProfileRepo      domain.ProfileRepositoryI
+	PartnerRepo      domain.PartnerRepositoryI // the referral partner's name
+	RegistrationRepo domain.RegistrationRepositoryI
+	ConsentRepo      domain.ConsentRepositoryI
+	Flows            domain.FlowStore       // PATCH uses the rules of the sign-up steps
+	Security         domain.SecurityService // opens the learner's own support request
 }
 
 var _ domain.MeUsecaseI = (*MeUsecase)(nil)
 
-func NewMeUsecase(lrp domain.LearnerRepositoryI, profile domain.ProfileRepositoryI, prp domain.PartnerRepositoryI, flows domain.FlowStore, sec domain.SecurityService) *MeUsecase {
+func NewMeUsecase(
+	lrp domain.LearnerRepositoryI,
+	profile domain.ProfileRepositoryI,
+	prp domain.PartnerRepositoryI,
+	reg domain.RegistrationRepositoryI,
+	consent domain.ConsentRepositoryI,
+	flows domain.FlowStore,
+	sec domain.SecurityService,
+) *MeUsecase {
 	return &MeUsecase{
-		LearnerRepo: lrp,
-		ProfileRepo: profile,
-		PartnerRepo: prp,
-		Flows:       flows,
-		Security:    sec,
+		LearnerRepo:      lrp,
+		ProfileRepo:      profile,
+		PartnerRepo:      prp,
+		RegistrationRepo: reg,
+		ConsentRepo:      consent,
+		Flows:            flows,
+		Security:         sec,
 	}
 }
 
@@ -56,6 +69,43 @@ func (uc *MeUsecase) Get(ctx context.Context, actor domain.Actor) (*domain.Learn
 		return nil, err
 	}
 	return uc.profile(ctx, learner)
+}
+
+// Export returns all personal data and history stored for the learner (Q4).
+func (uc *MeUsecase) Export(ctx context.Context, actor domain.Actor) (*domain.LearnerExport, error) {
+	id, err := meLearnerID(actor)
+	if err != nil {
+		return nil, err
+	}
+	profile, err := uc.Get(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+
+	var answers []*domain.Answer
+	if profile.Registration != nil && uc.RegistrationRepo != nil {
+		ans, err := uc.RegistrationRepo.ListAnswersByRegistrationID(ctx, profile.Registration.ID)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return nil, err
+		}
+		answers = ans
+	}
+
+	var consents []*domain.Consent
+	if uc.ConsentRepo != nil {
+		con, err := uc.ConsentRepo.ListConsentsByLearnerID(ctx, id)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return nil, err
+		}
+		consents = con
+	}
+
+	return &domain.LearnerExport{
+		ExportedAt: time.Now().UTC(),
+		Profile:    profile,
+		Answers:    answers,
+		Consents:   consents,
+	}, nil
 }
 
 // Update changes only what was sent, with the same rules as the sign-up steps of the same

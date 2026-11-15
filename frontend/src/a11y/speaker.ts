@@ -66,7 +66,7 @@ type Source =
   | { kind: 'audio'; url: string; lang: string }
   | { kind: 'device'; text: string; lang: string }
   | { kind: 'skip' }
-  | { kind: 'none'; lang: string };
+  | { kind: 'none'; text: string; lang: string };
 
 /* ------------------------------------------------------------------ */
 /*  Configuration and state                                            */
@@ -135,15 +135,33 @@ function browserActivated(): boolean {
 
 let activated = false;
 const gestureWaiters: Array<() => void> = [];
-// Events that let a page play sound: a key, a mouse button, the end of a touch.
-const GESTURE_EVENTS = ['keydown', 'mousedown', 'pointerup', 'touchend', 'click'] as const;
+// Events that let a page play sound: a key, a mouse button, the start or end of a touch, or focus.
+const GESTURE_EVENTS = [
+  'keydown',
+  'mousedown',
+  'pointerdown',
+  'pointerup',
+  'touchstart',
+  'touchend',
+  'click',
+  'focusin',
+] as const;
 const LISTEN = { capture: true, passive: true } as const;
 
-function onGesture(): void {
+function onGesture(e?: Event): void {
   if (activated) return;
   // Some keys (Escape) don't count for the browser: wait for one that does.
   const ua = userActivation();
-  if (ua && !ua.hasBeenActive && !ua.isActive) return;
+  if (
+    ua &&
+    !ua.hasBeenActive &&
+    !ua.isActive &&
+    e?.type !== 'focusin' &&
+    e?.type !== 'pointerdown' &&
+    e?.type !== 'touchstart'
+  ) {
+    return;
+  }
   activated = true;
   GESTURE_EVENTS.forEach((type) => document.removeEventListener(type, onGesture, LISTEN));
   // Mobile Safari only lets speech start inside the gesture itself: unlock it now (only where
@@ -169,6 +187,29 @@ export function hasUserGesture(): boolean {
 function gestureReady(): Promise<void> {
   if (hasActivation()) return Promise.resolve();
   return new Promise((resolve) => gestureWaiters.push(resolve));
+}
+
+// A tiny silent WAV: playing it lets mobile and desktop browsers test/unlock audio playback.
+const SILENCE =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+
+async function canAutoplay(): Promise<boolean> {
+  if (hasActivation()) return true;
+  if (typeof Audio === 'undefined') return false;
+  if (typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent)) return false;
+  try {
+    const el = audioEl ?? (audioEl = new Audio());
+    el.src = SILENCE;
+    const played = el.play() as Promise<void> | undefined;
+    if (played && typeof played.then === 'function') {
+      await played;
+    }
+    activated = true;
+    setState({ activated: true });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -257,11 +298,14 @@ export async function hasDeviceVoice(lang: string): Promise<boolean> {
 
 async function run(list: Norm[], uiLang: string, mine: number): Promise<boolean> {
   if (!hasActivation()) {
-    deferredPending = true;
-    await gestureReady();
-    if (mine !== generation) return false;
-    deferredPending = false;
-    firstReading = mine;
+    const allowed = await canAutoplay();
+    if (!allowed) {
+      deferredPending = true;
+      await gestureReady();
+      if (mine !== generation) return false;
+      deferredPending = false;
+      firstReading = mine;
+    }
   }
   // Look every source up at once (recordings, server audio), then play them in order.
   const sources = list.map((part) => resolveSource(part));
@@ -270,6 +314,7 @@ async function run(list: Norm[], uiLang: string, mine: number): Promise<boolean>
     if (mine !== generation) return false;
     if (source.kind === 'skip') continue;
     if (source.kind === 'none') {
+      announce(source.text);
       noteUnavailable(source.lang, uiLang);
       continue;
     }
@@ -329,7 +374,10 @@ function chunk(text: string, max: number): string[] {
 async function resolveSource(p: Norm): Promise<Source> {
   if (p.personal) {
     if (await hasDeviceVoice(p.lang)) return { kind: 'device', text: p.text, lang: p.lang };
-    if (!p.fallbackKey) return { kind: 'skip' };
+    if (!p.fallbackKey) {
+      if (synthSupported()) return { kind: 'device', text: p.text, lang: p.lang };
+      return { kind: 'skip' };
+    }
     return resolveSource({ text: t(p.lang, p.fallbackKey), key: p.fallbackKey, lang: p.lang });
   }
   const key = p.key ?? keyForText(p.lang, p.text);
@@ -340,7 +388,8 @@ async function resolveSource(p: Norm): Promise<Source> {
   if (await hasDeviceVoice(p.lang)) return { kind: 'device', text: p.text, lang: p.lang };
   const url = await serverAudio(p.text, p.lang);
   if (url) return { kind: 'audio', url, lang: p.lang };
-  return { kind: 'none', lang: p.lang };
+  if (synthSupported()) return { kind: 'device', text: p.text, lang: p.lang };
+  return { kind: 'none', text: p.text, lang: p.lang };
 }
 
 let lastCancel = 0;
@@ -358,18 +407,18 @@ function stopPlayback(): void {
   finish?.();
 }
 
-// A tiny silent WAV: playing it during a tap lets mobile browsers play our audio later.
-const SILENCE =
-  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-
 /** Call from a tap or key press (a toggle, Listen): later speech is then allowed to play. */
 export function primeSpeech(): void {
   activated = true;
+  setState({ activated: true });
   try {
     if (synthSupported() && !window.speechSynthesis.speaking) {
       window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
     }
-    if (typeof Audio !== 'undefined') {
+    if (
+      typeof Audio !== 'undefined' &&
+      !(typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent))
+    ) {
       const el = audioEl ?? (audioEl = new Audio());
       if (!el.src || el.src === SILENCE) {
         el.src = SILENCE;
@@ -559,7 +608,7 @@ function serverAudio(text: string, lang: string): Promise<string | null> {
       .catch((err: unknown) => {
         serverClips.delete(cacheKey);
         const status = err instanceof ApiError ? err.status : 0;
-        if (status === 503) serverOffUntil.set(lang, Number.POSITIVE_INFINITY);
+        if (status === 503) serverOffUntil.set(lang, Date.now() + 15_000);
         else if ([200, 404, 405, 501].includes(status)) serverMissing = true;
         else if (status === 0 || status >= 500) serverOffUntil.set(lang, Date.now() + 60_000);
         return null;
