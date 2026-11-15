@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Partner Onboarding & Key Generator | Bridge Onboarding</title>
+    <link rel="stylesheet" href="./demo/savanna/savanna.css" />
+    <style>
+      :root {
+        --color-primary: #cc3636;
+        --color-primary-dark: #a82b2b;
+        --color-bg: #f8fafc;
+        --color-surface: #ffffff;
+        --color-border: #e2e8f0;
+        --color-text: #0f172a;
+        --color-text-muted: #64748b;
+        --color-success: #059669;
+        --radius: 10px;
+        --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      }
+      body {
+        background-color: var(--color-bg);
+        color: var(--color-text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
+      }
+      .nav-bar {
+        background: #ffffff;
+        border-bottom: 1px solid var(--color-border);
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+      .logo {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--color-text);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .logo span {
+        color: var(--color-primary);
+      }
+      .nav-links {
+        display: flex;
+        gap: 1.5rem;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .nav-links a {
+        color: var(--color-text-muted);
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition: color 0.15s;
+      }
+      .nav-links a:hover,
+      .nav-links a.active {
+        color: var(--color-primary);
+        font-weight: 700;
+      }
+      .hero-banner {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        color: #ffffff;
+        padding: 3rem 2rem 2.5rem;
+        text-align: center;
+      }
+      .hero-banner h1 {
+        font-size: 2.25rem;
+        font-weight: 800;
+        margin: 0 0 0.75rem 0;
+      }
+      .hero-banner p {
+        font-size: 1.15rem;
+        color: #94a3b8;
+        max-width: 680px;
+        margin: 0 auto;
+      }
+      .container {
+        max-width: 1200px;
+        margin: -2rem auto 3rem;
+        padding: 0 1.5rem;
+      }
+      .grid-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        align-items: start;
+      }
+      @media (max-width: 900px) {
+        .grid-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      .card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius);
+        padding: 2rem;
+        box-shadow: var(--shadow);
+      }
+      .card-title {
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .card-subtitle {
+        color: var(--color-text-muted);
+        font-size: 0.92rem;
+        margin-bottom: 1.5rem;
+      }
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+      .form-group label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.35rem;
+      }
+      .form-group .hint {
+        font-size: 0.82rem;
+        color: var(--color-text-muted);
+        margin-top: 0.25rem;
+      }
+      .form-control {
+        width: 100%;
+        padding: 0.65rem 0.85rem;
+        border: 1px solid var(--color-border);
+        border-radius: 6px;
+        font-size: 0.95rem;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+      }
+      .form-control:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(204, 54, 54, 0.15);
+      }
+      .row {
+        display: flex;
+        gap: 1rem;
+      }
+      .row > * {
+        flex: 1;
+      }
+      .checkbox-group {
+        display: flex;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+        margin-top: 0.35rem;
+      }
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .color-picker-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .color-preview {
+        width: 40px;
+        height: 38px;
+        border-radius: 6px;
+        border: 1px solid var(--color-border);
+        cursor: pointer;
+        padding: 0;
+      }
+      .btn {
+        background-color: var(--color-primary);
+        color: #ffffff;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-weight: 700;
+        font-size: 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        justify-content: center;
+        transition: background-color 0.15s;
+      }
+      .btn:hover {
+        background-color: var(--color-primary-dark);
+      }
+      .btn-secondary {
+        background-color: #f1f5f9;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+      }
+      .btn-secondary:hover {
+        background-color: #e2e8f0;
+      }
+      .key-display {
+        background: #0f172a;
+        color: #38bdf8;
+        padding: 1rem;
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.95rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+      .copy-btn {
+        background: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background 0.15s;
+      }
+      .copy-btn:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+      pre {
+        background: #0f172a;
+        color: #f8fafc;
+        padding: 1rem;
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+        overflow-x: auto;
+        position: relative;
+        margin: 0.5rem 0 1rem;
+      }
+      .code-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--color-text-muted);
+        margin-top: 1rem;
+      }
+      .badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background: #ecfdf5;
+        color: #065f46;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+      .steps-list {
+        margin: 1.5rem 0 0;
+        padding-left: 1.25rem;
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+      }
+      .steps-list li {
+        margin-bottom: 0.5rem;
+      }
+      .tab-bar {
+        display: flex;
+        border-bottom: 1px solid var(--color-border);
+        margin-bottom: 1rem;
+      }
+      .tab {
+        padding: 0.6rem 1rem;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        border-bottom: 2px solid transparent;
+        color: var(--color-text-muted);
+      }
+      .tab.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="nav-bar">
+      <a href="/" class="logo">
+        <span>🌉</span> Bridge Onboarding
+      </a>
+      <ul class="nav-links">
+        <li><a href="/partners.html" class="active">Partner Portal</a></li>
+        <li><a href="/docs.html">REST API Docs</a></li>
+        <li><a href="/demo/savanna/signup.html">Savanna Demo</a></li>
+        <li><a href="/staff.html">Staff Login</a></li>
+      </ul>
+    </header>
+
+    <div class="hero-banner">
+      <h1>Partner Onboarding & Key Provisioning</h1>
+      <p>
+        Register your organization, whitelist your website origin, and generate your custom
+        embed code with accessible voice guidance and multi-lingual support.
+      </p>
+    </div>
+
+    <main class="container">
+      <div class="grid-layout">
+        <!-- Partner Setup Form -->
+        <section class="card">
+          <h2 class="card-title">1. Organization & Security Info</h2>
+          <p class="card-subtitle">
+            Configure your brand identity, whitelisted domain, and support contacts.
+          </p>
+
+          <form id="partnerForm">
+            <div class="form-group">
+              <label for="orgName">Organization Name *</label>
+              <input
+                type="text"
+                id="orgName"
+                class="form-control"
+                placeholder="e.g. TechHire Africa"
+                value="TechHire Africa"
+                required
+              />
+            </div>
+
+            <div class="row">
+              <div class="form-group">
+                <label for="orgSlug">Identifier Slug *</label>
+                <input
+                  type="text"
+                  id="orgSlug"
+                  class="form-control"
+                  placeholder="e.g. techhire"
+                  value="techhire"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="orgKind">Partner Type *</label>
+                <select id="orgKind" class="form-control">
+                  <option value="platform">Platform (Job Board / LMS)</option>
+                  <option value="referral_org">Referral Org (NGO / Disability Support)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="allowedOrigins">Allowed Domains / Origins (CORS Security) *</label>
+              <input
+                type="text"
+                id="allowedOrigins"
+                class="form-control"
+                placeholder="https://techhire.africa, http://localhost:3000"
+                value="https://techhire.africa, http://localhost:3000"
+                required
+              />
+              <div class="hint">
+                Only browser requests originating from these exact domains can use your key.
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="form-group">
+                <label>Primary Brand Color</label>
+                <div class="color-picker-wrap">
+                  <input type="color" id="primaryColor" class="color-preview" value="#cc3636" />
+                  <input
+                    type="text"
+                    id="colorHex"
+                    class="form-control"
+                    value="#cc3636"
+                    style="font-family: monospace"
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="defaultLang">Default Language</label>
+                <select id="defaultLang" class="form-control">
+                  <option value="am">Amharic (አማርኛ)</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Offered Languages</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="langAm" value="am" checked />
+                  Amharic (አማርኛ)
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="langEn" value="en" checked />
+                  English
+                </label>
+              </div>
+              <div class="hint">
+                If only one language is checked, the initial language selection screen is automatically skipped!
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="form-group">
+                <label for="helpPhone">Support Phone (Optional)</label>
+                <input
+                  type="text"
+                  id="helpPhone"
+                  class="form-control"
+                  placeholder="+251 11 555 0199"
+                  value="+251 11 555 0199"
+                />
+              </div>
+              <div class="form-group">
+                <label for="helpTelegram">Telegram Handle (Optional)</label>
+                <input
+                  type="text"
+                  id="helpTelegram"
+                  class="form-control"
+                  placeholder="@techhire_support"
+                  value="@techhire_support"
+                />
+              </div>
+            </div>
+
+            <button type="button" id="generateBtn" class="btn" style="margin-top: 1rem">
+              ⚡ Generate Partner Key & Embed Code
+            </button>
+          </form>
+        </section>
+
+        <!-- Output & Integration Snippets -->
+        <section class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <h2 class="card-title" style="margin-bottom: 0">2. Your Integration Code</h2>
+            <span class="badge" id="statusBadge">Ready to Embed</span>
+          </div>
+          <p class="card-subtitle">
+            Copy and paste this snippet directly into your website's HTML.
+          </p>
+
+          <label style="font-weight: 600; font-size: 0.9rem">Publishable Partner Key:</label>
+          <div class="key-display">
+            <span id="keyDisplay">pk_live_techhire_7d4a2b</span>
+            <button class="copy-btn" id="copyKeyBtn">Copy Key</button>
+          </div>
+
+          <div class="tab-bar">
+            <div class="tab active" data-tab="embedTab">HTML Embed</div>
+            <div class="tab" data-tab="sqlTab">Database SQL Setup</div>
+            <div class="tab" data-tab="curlTab">cURL Test</div>
+          </div>
+
+          <!-- HTML Embed Tab -->
+          <div id="embedTab" class="tab-content">
+            <div class="code-header">
+              <span>Frontend Embed Snippet:</span>
+              <button class="copy-btn" id="copyEmbedBtn">Copy Snippet</button>
+            </div>
+            <pre><code id="embedCode">&lt;!-- 1. Include Bridge Onboarding Script --&gt;
+&lt;script src="https://accessible-onboarding.vercel.app/v1/bridge-onboarding.js"&gt;&lt;/script&gt;
+
+&lt;!-- 2. Place Custom Element --&gt;
+&lt;bridge-onboarding
+  partner="pk_live_techhire_7d4a2b"
+  api="https://accessible-onboarding.vercel.app"
+  flow="signup"
+  lang="am"&gt;
+&lt;/bridge-onboarding&gt;
+
+&lt;!-- 3. Optional: Listen for Completion --&gt;
+&lt;script&gt;
+  document.addEventListener('bridge-onboarding:completed', (e) =&gt; {
+    console.log('Learner registered successfully! ID:', e.detail.learner_id);
+  });
+&lt;/script&gt;</code></pre>
+          </div>
+
+          <!-- SQL Tab -->
+          <div id="sqlTab" class="tab-content" style="display: none">
+            <div class="code-header">
+              <span>PostgreSQL Provisioning Query (Run in DB):</span>
+              <button class="copy-btn" id="copySqlBtn">Copy SQL</button>
+            </div>
+            <pre><code id="sqlCode">-- Run this query in your PostgreSQL database (Neon / Render)
+INSERT INTO partners (
+  slug, name, kind, publishable_key, allowed_origins, config
+) VALUES (
+  'techhire',
+  'TechHire Africa',
+  'platform',
+  'pk_live_techhire_7d4a2b',
+  ARRAY['https://techhire.africa', 'http://localhost:3000'],
+  '{"languages":["am","en"],"default_language":"am","help":{"phone":"+251 11 555 0199","telegram":"@techhire_support"},"theme":{"primary":"#cc3636"}}'::jsonb
+);</code></pre>
+          </div>
+
+          <!-- cURL Tab -->
+          <div id="curlTab" class="tab-content" style="display: none">
+            <div class="code-header">
+              <span>Terminal Smoke Test:</span>
+              <button class="copy-btn" id="copyCurlBtn">Copy cURL</button>
+            </div>
+            <pre><code id="curlCode">curl -i -H "X-Partner-Key: pk_live_techhire_7d4a2b" \
+  https://accessible-onboarding.vercel.app/api/v1/config</code></pre>
+          </div>
+
+          <h3 style="font-size: 1.05rem; margin-top: 1.5rem; margin-bottom: 0.5rem">
+            Integration Checklist:
+          </h3>
+          <ol class="steps-list">
+            <li>
+              <strong>Ensure Whitelisting:</strong> Make sure your host URL matches the allowed
+              origins so CORS won't block the request.
+            </li>
+            <li>
+              <strong>Accessible Design:</strong> Your embedded widget inherits full screen-reader
+              support, offline IndexedDB sync, and high-contrast styling automatically.
+            </li>
+            <li>
+              <strong>Event Hooks:</strong> Catch <code>bridge-onboarding:completed</code> and
+              <code>bridge-onboarding:step-changed</code> to integrate with your existing user session.
+            </li>
+          </ol>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      function generateRandomHex(length = 6) {
+        return Math.random().toString(16).substring(2, 2 + length);
+      }
+
+      function updateOutputs() {
+        const name = document.getElementById('orgName').value.trim() || 'My Organization';
+        const slug =
+          document.getElementById('orgSlug').value.trim() ||
+          name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const kind = document.getElementById('orgKind').value;
+        const color = document.getElementById('colorHex').value.trim() || '#cc3636';
+        const defaultLang = document.getElementById('defaultLang').value;
+        const originsInput = document.getElementById('allowedOrigins').value.trim();
+        const origins = originsInput
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const phone = document.getElementById('helpPhone').value.trim();
+        const telegram = document.getElementById('helpTelegram').value.trim();
+
+        const languages = [];
+        if (document.getElementById('langAm').checked) languages.push('am');
+        if (document.getElementById('langEn').checked) languages.push('en');
+        if (languages.length === 0) languages.push('en');
+
+        // Extract or maintain current key random suffix
+        let currentKey = document.getElementById('keyDisplay').innerText;
+        if (!currentKey.startsWith(`pk_live_${slug}`)) {
+          currentKey = `pk_live_${slug}_${generateRandomHex()}`;
+          document.getElementById('keyDisplay').innerText = currentKey;
+        }
+
+        // HTML Embed Code
+        const embedHtml = `<!-- 1. Include Bridge Onboarding Script -->
+<script src="https://accessible-onboarding.vercel.app/v1/bridge-onboarding.js"><\/script>
+
+<!-- 2. Place Custom Element -->
+<bridge-onboarding
+  partner="${currentKey}"
+  api="https://accessible-onboarding.vercel.app"
+  flow="signup"
+  lang="${defaultLang}"
+  style="--bo-primary: ${color};">
+</bridge-onboarding>
+
+<!-- 3. Optional: Listen for Completion -->
+<script>
+  document.addEventListener('bridge-onboarding:completed', (e) => {
+    console.log('Learner registered successfully! ID:', e.detail.learner_id);
+  });
+<\/script>`;
+        document.getElementById('embedCode').textContent = embedHtml;
+
+        // SQL Setup
+        const originsArrayStr = `ARRAY[${origins.map((o) => `'${o}'`).join(', ')}]`;
+        const configJson = JSON.stringify({
+          languages,
+          default_language: defaultLang,
+          help: { phone, telegram },
+          theme: { primary: color },
+        });
+
+        const sql = `-- Run this in your PostgreSQL database to persist this partner:
+INSERT INTO partners (
+  slug, name, kind, publishable_key, allowed_origins, config
+) VALUES (
+  '${slug}',
+  '${name.replace(/'/g, "''")}',
+  '${kind}',
+  '${currentKey}',
+  ${originsArrayStr},
+  '${configJson}'::jsonb
+);`;
+        document.getElementById('sqlCode').textContent = sql;
+
+        // cURL
+        const curl = `curl -i -H "X-Partner-Key: ${currentKey}" \\
+  https://accessible-onboarding.vercel.app/api/v1/config`;
+        document.getElementById('curlCode').textContent = curl;
+      }
+
+      // Sync color picker with text
+      const colorPicker = document.getElementById('primaryColor');
+      const colorHex = document.getElementById('colorHex');
+      colorPicker.addEventListener('input', (e) => {
+        colorHex.value = e.target.value;
+        updateOutputs();
+      });
+      colorHex.addEventListener('input', (e) => {
+        if (/^#[0-9A-F]{6}$/i.test(e.target.value)) {
+          colorPicker.value = e.target.value;
+        }
+        updateOutputs();
+      });
+
+      // Auto-slug from name
+      document.getElementById('orgName').addEventListener('input', (e) => {
+        const slugInput = document.getElementById('orgSlug');
+        slugInput.value = e.target.value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '');
+        updateOutputs();
+      });
+
+      // Form input listeners
+      ['orgSlug', 'orgKind', 'allowedOrigins', 'defaultLang', 'helpPhone', 'helpTelegram'].forEach(
+        (id) => {
+          document.getElementById(id).addEventListener('input', updateOutputs);
+        },
+      );
+      ['langAm', 'langEn'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', updateOutputs);
+      });
+
+      // Generate button forces fresh key
+      document.getElementById('generateBtn').addEventListener('click', () => {
+        const slug = document.getElementById('orgSlug').value.trim() || 'partner';
+        document.getElementById('keyDisplay').innerText = `pk_live_${slug}_${generateRandomHex()}`;
+        updateOutputs();
+        alert('New Partner Key generated successfully!');
+      });
+
+      // Tab switcher
+      document.querySelectorAll('.tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach((c) => (c.style.display = 'none'));
+          tab.classList.add('active');
+          document.getElementById(tab.dataset.tab).style.display = 'block';
+        });
+      });
+
+      // Copy helpers
+      function setupCopy(btnId, targetId, isPre = false) {
+        document.getElementById(btnId).addEventListener('click', async () => {
+          const el = document.getElementById(targetId);
+          const text = el.innerText || el.textContent;
+          await navigator.clipboard.writeText(text);
+          const originalText = document.getElementById(btnId).innerText;
+          document.getElementById(btnId).innerText = 'Copied!';
+          setTimeout(() => {
+            document.getElementById(btnId).innerText = originalText;
+          }, 2000);
+        });
+      }
+
+      setupCopy('copyKeyBtn', 'keyDisplay');
+      setupCopy('copyEmbedBtn', 'embedCode', true);
+      setupCopy('copySqlBtn', 'sqlCode', true);
+      setupCopy('copyCurlBtn', 'curlCode', true);
+
+      // Initial update
+      updateOutputs();
+    </script>
+  </body>
+</html>

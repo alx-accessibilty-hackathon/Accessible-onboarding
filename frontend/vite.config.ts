@@ -68,6 +68,8 @@ export default defineConfig(({ mode }) => {
         input: {
           main: path('./index.html'),
           staff: path('./staff.html'),
+          partners: path('./partners.html'),
+          docs: path('./docs.html'),
           notFound: path('./404.html'),
           plain: path('./demo/plain.html'),
           'demo-components': path('./demo/components.html'),
