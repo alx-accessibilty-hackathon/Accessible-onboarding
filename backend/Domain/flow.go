@@ -58,6 +58,7 @@ const (
 	StepDigits       = "digits"
 	StepSingleChoice = "single_choice"
 	StepMultiChoice  = "multi_choice"
+	StepFile         = "file"
 	StepCheckAnswers = "check_answers"
 	StepDone         = "done"
 )

@@ -72,6 +72,8 @@ export function answerParts(
   let text: string;
   if (step.type === 'date' && typeof value === 'object' && value && 'iso' in value) {
     text = formatDate(value as DateAnswerValue, lang);
+  } else if (step.type === 'file') {
+    text = (value as { name: string }).name;
   } else {
     text = String(value);
     if (step.type === 'phone' || step.type === 'digits') text = spellDigits(text);
