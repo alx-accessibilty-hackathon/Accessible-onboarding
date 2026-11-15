@@ -132,6 +132,8 @@ func serve(cfg config.Config) {
 	speech := infrastructure.InitSpeechService(cfg.STTProviders, cfg.STTTimeout)
 	speech.SetAzure(cfg.AzureSpeechKey, cfg.AzureSpeechRegion)
 	speech.SetLocalURL(cfg.LocalSTTURL)
+	speech.SetGemini(cfg.GeminiAPIKey)
+	speech.SetCacheDir(cfg.TTSCacheDir)
 	messages := infrastructure.InitMessageService(cfg.SMSProvider)
 
 	// Flow files and the needs vocabulary, shared with the frontend. A broken file stops the server.

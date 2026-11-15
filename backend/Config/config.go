@@ -28,6 +28,8 @@ type Config struct {
 	AzureSpeechKey    string        // AZURE_SPEECH_KEY
 	AzureSpeechRegion string        // AZURE_SPEECH_REGION
 	LocalSTTURL       string        // LOCAL_STT_URL
+	GeminiAPIKey      string        // GEMINI_API_KEY: Google AI Studio key for TTS (Amharic + English)
+	TTSCacheDir       string        // TTS_CACHE_DIR: directory for persistent on-disk audio cache (default ./data/tts_cache)
 
 	SMSProvider string // SMS_PROVIDER: console | afromessage | africastalking | twilio
 
@@ -58,6 +60,8 @@ func Load() (Config, error) {
 		AzureSpeechKey:         os.Getenv("AZURE_SPEECH_KEY"),
 		AzureSpeechRegion:      os.Getenv("AZURE_SPEECH_REGION"),
 		LocalSTTURL:            os.Getenv("LOCAL_STT_URL"),
+		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
+		TTSCacheDir:            getEnv("TTS_CACHE_DIR", "./data/tts_cache"),
 		SMSProvider:            getEnv("SMS_PROVIDER", "console"),
 		DevAllowedOriginSuffix: os.Getenv("DEV_ALLOWED_ORIGIN_SUFFIX"),
 		ExtraAllowedOrigins:    splitList(os.Getenv("EXTRA_ALLOWED_ORIGINS")),
