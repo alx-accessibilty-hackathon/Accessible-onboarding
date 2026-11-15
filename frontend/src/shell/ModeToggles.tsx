@@ -144,7 +144,28 @@ export function ModeToggles({
           button(answerBySpeaking, 'mic', 'header.answer_by_speaking', () =>
             setAnswerBySpeaking(!answerBySpeaking),
           )}
-        {button(isDark, isDark ? 'dark_mode' : 'light_mode', 'header.theme_dark', toggleTheme)}
+        <button
+          type="button"
+          className="bo-btn bo-btn-secondary"
+          aria-pressed={isDark}
+          onClick={toggleTheme}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--bo-space-2)',
+            padding: '0.4em 0.8em',
+            background: isDark ? 'var(--bo-selected-bg)' : undefined,
+            borderColor: isDark ? 'var(--bo-primary)' : undefined,
+          }}
+        >
+          <Icon name={isDark ? 'light_mode' : 'dark_mode'} />
+          <Label
+            lang={lang}
+            k={isDark ? 'header.theme_light' : 'header.theme_dark'}
+            bilingual={bilingual}
+          />
+          {isDark && <Icon name="check" style={{ color: 'var(--bo-primary)' }} />}
+        </button>
       </div>
       <TextSizeControl lang={lang} bilingual={bilingual} />
       {notAvailable && (

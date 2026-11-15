@@ -3,6 +3,7 @@ import { useFocusSpeech } from '../a11y/focusSpeech';
 import { ModesProvider, ReadScope, useModes } from '../a11y/modes';
 import {
   getChosenLanguage,
+  getEffectiveTheme,
   scaleClass,
   scaleStyle,
   setChosenLanguage,
@@ -68,6 +69,14 @@ function WidgetInner(props: WidgetProps) {
   const { readAloud } = useModes();
   const textSize = useTextSize();
   const theme = useTheme();
+  const effectiveTheme = getEffectiveTheme(theme);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', effectiveTheme);
+    }
+  }, [effectiveTheme]);
+
   const [view, setView] = useState<View>(() => initialView(props.flow, props.jobId));
   const [session, setSession] = useState<LearnerSession | null>(null);
   const [saveKey, setSaveKey] = useState(0);

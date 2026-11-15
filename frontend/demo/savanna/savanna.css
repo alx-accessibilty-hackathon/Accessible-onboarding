@@ -10,8 +10,26 @@
   --savanna-radius: 12px;
 }
 
+:root[data-theme='dark'] {
+  --savanna-primary: #f1f5f9;
+  --savanna-accent: #38bdf8;
+  --savanna-bg: #0b0f17;
+  --savanna-card-bg: #131b26;
+  --savanna-border: #222f3e;
+  --savanna-text: #f1f5f9;
+  --savanna-text-muted: #94a3b8;
+}
+
+:root[data-theme='dark'] .savanna-nav {
+  background: #131b26 !important;
+}
+
+:root[data-theme='dark'] .savanna-banner-card {
+  background: #102a43 !important;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --savanna-primary: #f1f5f9;
     --savanna-accent: #38bdf8;
     --savanna-bg: #0b0f17;
@@ -21,11 +39,11 @@
     --savanna-text-muted: #94a3b8;
   }
 
-  .savanna-nav {
+  :root:not([data-theme='light']) .savanna-nav {
     background: #131b26 !important;
   }
 
-  .savanna-banner-card {
+  :root:not([data-theme='light']) .savanna-banner-card {
     background: #102a43 !important;
   }
 }
