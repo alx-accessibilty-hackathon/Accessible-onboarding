@@ -525,6 +525,7 @@ export function SignupFlow({
       engine={engine}
       hooks={hooks}
       referralPartners={config?.referral_partners}
+      idRoutes={config?.id_routes}
       manageTitle={manageTitle}
       referralOrg={referralOrg}
       renderStepExtra={(step) =>

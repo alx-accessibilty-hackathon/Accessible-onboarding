@@ -519,29 +519,40 @@ export function useFocusSpeech(
       const parts = describeChange(el, lang);
       if (parts.length) void speak(parts, lang, { low: true });
     };
-
-    // A toggle button of a group (e.g. "Ethiopian calendar"): say what is selected now, once
-    // the screen shows it.
+    // A toggle button (e.g. "Simple mode", "Read aloud" or group button like "Ethiopian calendar"):
+    // say what is selected/toggled, once the DOM state updates.
     let timer: number | undefined;
     const onClick = (e: Event) => {
       window.clearTimeout(hoverTimer);
       lastHovered = null;
       const button = (e.target as Element | null)?.closest?.('button[aria-pressed]');
-      if (!button || !button.closest('[role="group"]')) return;
+      if (!button) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        if (button.getAttribute('aria-pressed') !== 'true') return;
+        const pressed = button.getAttribute('aria-pressed');
         const personal = !!button.closest('[data-bo-private]');
         const btnLang = langOf(button, lang);
-        void speak(
-          [
-            word(btnLang, 'speech.selected_prefix'),
-            ...toParts(nameSegments(button, lang), personal),
-          ],
-          lang,
-          { low: true },
-        );
-      }, 0);
+        const inGroup = !!button.closest('[role="group"]');
+        if (inGroup) {
+          if (pressed !== 'true') return;
+          void speak(
+            [
+              word(btnLang, 'speech.selected_prefix'),
+              ...toParts(nameSegments(button, lang), personal),
+            ],
+            lang,
+            { low: true },
+          );
+        } else {
+          // Standalone toggle button (e.g. "Simple mode", "Read aloud", "Answer by speaking")
+          const name = toParts(nameSegments(button, lang), personal);
+          const stateWord =
+            pressed === 'true'
+              ? word(btnLang, 'speech.state.on')
+              : word(btnLang, 'speech.state.off');
+          void speak([...name, stateWord], lang, { force: true });
+        }
+      }, 50);
     };
 
     root.addEventListener('pointerover', onPointerOver);
