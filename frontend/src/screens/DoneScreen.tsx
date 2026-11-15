@@ -42,10 +42,12 @@ export function DoneScreen({
   };
 
   const titleKey = step.title || `${flow.id}.done.title`;
+  const hintKey = referralOrg && flow.id === 'signup' ? 'signup.done.referred_hint' : step.hint;
+  const hintText = hintKey ? t(lang, hintKey, { org: referralOrg ?? '' }) : null;
 
   const readParts = (): Part[] => [
     keyPart(lang, titleKey),
-    step.hint && keyPart(lang, step.hint),
+    hintKey ? { text: hintText!, key: hintKey } : null,
     referralOrg && keyPart(lang, 'done.referral_title'),
     referralOrg && t(lang, 'done.referral_body', { org: referralOrg }),
   ];
@@ -90,9 +92,9 @@ export function DoneScreen({
         </h1>
       </div>
 
-      {step.hint && (
+      {hintText && (
         <p className="bo-hint" style={{ fontSize: '1.1em', margin: 0 }}>
-          {t(lang, step.hint)}
+          {hintText}
         </p>
       )}
 

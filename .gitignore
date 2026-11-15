@@ -47,3 +47,6 @@ TEAM_ANSWERS.md
 SAVANNA_INTEGRATION_TESTING.md
 AMHARIC_RECORDING_LIST.md
 CLAUDE.md
+
+# runtime cache
+backend/data/
