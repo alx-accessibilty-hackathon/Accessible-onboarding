@@ -187,6 +187,7 @@
   "errors.date_invalid": "Enter a real date, for example 15 Meskerem 2010.",
   "errors.date_incomplete": "Enter the day, the month and the year.",
   "errors.date_future": "Your date of birth can't be in the future.",
+  "errors.date_past": "The date can't be in the past.",
   "errors.digits_invalid": "Enter 4 numbers, for example 4821.",
   "errors.unknown_question": "Something went wrong with this question. Please go back and try again.",
   "errors.not_found": "We couldn't find that.",

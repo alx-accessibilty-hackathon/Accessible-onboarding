@@ -22,7 +22,9 @@
       "hint": "application.motivation.hint",
       "required": true,
       "storage": "answer",
-      "validate": [{ "rule": "max_length", "value": 1000, "error": "too_long" }],
+      "validate": [
+        { "rule": "max_length", "value": 1000, "error": "too_long" }
+      ],
       "next": "start_date"
     },
     {
@@ -32,6 +34,7 @@
       "required": true,
       "storage": "answer",
       "calendar_default": { "am": "ethiopian", "en": "gregorian" },
+      "future_only": true,
       "validate": [{ "rule": "date_valid", "error": "date_invalid" }],
       "next": "attach_support"
     },
@@ -48,7 +51,12 @@
       ],
       "next": "check"
     },
-    { "id": "check", "type": "check_answers", "title": "application.check.title", "next": "done" },
+    {
+      "id": "check",
+      "type": "check_answers",
+      "title": "application.check.title",
+      "next": "done"
+    },
     { "id": "done", "type": "done", "title": "application.done.title" }
   ]
 }

@@ -53,6 +53,8 @@ export interface Step {
   options?: Option[];
   options_from?: string; // "vocab:needs" | "config:referral_partners"
   calendar_default?: Record<string, 'ethiopian' | 'gregorian'>;
+  /** If true, the date must be today or in the future (e.g. job application start date). */
+  future_only?: boolean;
   next?: string | NextRule[];
 }
 

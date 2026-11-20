@@ -36,6 +36,11 @@ function mustBePast(step?: Step): boolean {
   return !step || step.id === 'dob' || (step.autocomplete ?? '').startsWith('bday');
 }
 
+// A step with future_only:true requires today or a future date (e.g. job application start date).
+function mustBeFuture(step?: Step): boolean {
+  return !!step && (step.id === 'start_date' || !!step.future_only);
+}
+
 export function validateRule(rule: Rule, value: unknown, step?: Step): string | null {
   if (isValueEmpty(value)) return null; // non-empty rules only apply if value is present
 
@@ -81,7 +86,7 @@ export function validateRule(rule: Rule, value: unknown, step?: Step): string | 
       break;
     }
     case 'date_valid': {
-      const code = dateError(value, !mustBePast(step));
+      const code = dateError(value, !mustBePast(step), mustBeFuture(step));
       if (code) return code === 'date_invalid' ? rule.error || code : code;
       break;
     }
@@ -104,7 +109,7 @@ function gregorianDaysInMonth(year: number, month: number): number {
  * (months 1–12 have 30 days, Pagume 5, or 6 when year % 4 == 3) and is that same day; a date
  * of birth is not in the future. Returns an error code, or null when the date is fine.
  */
-export function dateError(val: unknown, allowFuture = false): string | null {
+export function dateError(val: unknown, allowFuture = false, noPast = false): string | null {
   if (!val || typeof val !== 'object') return 'date_invalid';
   const date = val as Partial<DateAnswerValue> & { entered?: Record<string, unknown> };
 
@@ -131,16 +136,22 @@ export function dateError(val: unknown, allowFuture = false): string | null {
     if (formatIsoDate(g.year, g.month, g.day) !== date.iso) return 'date_invalid';
   }
 
-  if (!allowFuture) {
-    const now = new Date();
-    const today = formatIsoDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
-    if (date.iso > today) return 'date_future';
+  const now = new Date();
+  const today = formatIsoDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+
+  if (!allowFuture && date.iso > today) {
+    return 'date_future';
   }
+
+  if (noPast && date.iso < today) {
+    return 'date_past';
+  }
+
   return null;
 }
 
-export function validateDateValue(val: unknown, allowFuture = false): boolean {
-  return dateError(val, allowFuture) === null;
+export function validateDateValue(val: unknown, allowFuture = false, noPast = false): boolean {
+  return dateError(val, allowFuture, noPast) === null;
 }
 
 export function validateStep(step: Step, value: unknown): string | null {
@@ -164,7 +175,7 @@ export function validateStep(step: Step, value: unknown): string | null {
 
   // A date is always checked, even on a step without a date_valid rule: the server would refuse it.
   if (step.type === 'date' && !step.validate?.some((r) => r.rule === 'date_valid')) {
-    return dateError(value, !mustBePast(step));
+    return dateError(value, !mustBePast(step), mustBeFuture(step));
   }
 
   return null;

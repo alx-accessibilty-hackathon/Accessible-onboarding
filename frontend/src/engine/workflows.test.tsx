@@ -127,7 +127,7 @@ describe('Workflow: Job Application flow', () => {
 
     // Step 3: Start date
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('When can you start?');
-    // Fill day, month, year
+    // Fill day, month, year with a past date first to verify past date rejection
     const dayInput = screen.getByLabelText('Day');
     const monthSelect = screen.getByLabelText('Month');
     const yearInput = screen.getByLabelText('Year');
@@ -135,6 +135,13 @@ describe('Workflow: Job Application flow', () => {
     fireEvent.change(dayInput, { target: { value: '15' } });
     fireEvent.change(monthSelect, { target: { value: '1' } });
     fireEvent.change(yearInput, { target: { value: '2020' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    // Must show error that date cannot be in the past (both in error summary and field error)
+    expect(screen.getAllByText("The date can't be in the past.").length).toBeGreaterThan(0);
+
+    // Now change year to a future date
+    fireEvent.change(yearInput, { target: { value: '2030' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // Step 4: Attach support
