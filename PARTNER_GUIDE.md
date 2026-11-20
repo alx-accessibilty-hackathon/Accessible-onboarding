@@ -116,9 +116,11 @@ GET https://accessible-onboarding.vercel.app/api/v1/jobs/{id}/jobposting.jsonld
 
 Readable accommodations are in `jobBenefits`; machine-readable codes in `acc:offers`, where `acc` is defined at **https://accessible-onboarding.vercel.app/ns/accommodations** (a schema.org `DefinedTermSet` with one `DefinedTerm` per code). Put the JSON-LD in your job page in `<script type="application/ld+json">`. A job fully matches a person when its `acc:offers` contains every need they chose.
 
+All jobs in one request: `GET https://accessible-onboarding.vercel.app/api/v1/feeds/jobposting.jsonld`. Each JobPosting's `url` is where the learner applies (`/apply.html?job=<id>`): link your "Apply" button there.
+
 ## 8. Your settings
 
-Stored per partner and returned by `GET /api/v1/config`; changes show the next time the widget loads.
+Stored per partner and returned by `GET /api/v1/config`; changes show the next time the widget loads. There is no settings page yet: **ask the Bridge team** and they change it for you (the SQL below is what they run).
 
 | Setting | Example | Effect |
 |---|---|---|
@@ -133,14 +135,16 @@ WHERE publishable_key = 'pk_your_key';
 
 ## 9. Add a language
 
-Every `frontend/src/i18n/locales/<code>.json` is a language. From `frontend/`:
+Amharic and English are complete today. Every language is built into the one component script that all partners load, so **the Bridge team adds languages**; you don't change any code.
 
-1. `npm run i18n:new -- om "Afaan Oromoo" om-ET` creates the file (every text marked `TODO-om`, shown in English until translated).
-2. A native speaker translates it. Never machine translation.
-3. `npm run i18n:check -- om` lists missing or untranslated texts and wrong `{placeholders}`.
-4. Add `"om"` to your `languages` setting.
-5. Optional: read-aloud recordings in `public/audio/om/<key>.mp3` (`npm run audio:check`).
-6. `npm run build:widget` and deploy.
+1. **Ask the Bridge team** for the language you need (for example Afaan Oromoo).
+2. **Help with the translation if you can.** A native speaker translates every text: your staff or ours. We never ship machine translation. Texts not translated yet show in English.
+3. **We add it, check it and publish a new component.** Your page keeps the same script tag: nothing to change.
+4. **We switch it on for your site** by adding it to your `languages` setting. Only languages in that list appear on your language screen.
+
+What a new language gets: all screen text once translated. Read aloud uses the phone's own voice for that language (our server voice is Amharic only). Answering by voice works where the browser supports the language (Chrome). Ethiopian month names show in English until they are translated.
+
+(For the Bridge team: the technical steps are in `frontend/README.md`, "Adding a language".)
 
 ## 10. Go-live checklist
 

@@ -16,6 +16,7 @@ type ConfigDTO struct {
 	Help             HelpDTO         `json:"help"`
 	Theme            ThemeDTO        `json:"theme"`
 	Speech           SpeechFlagsDTO  `json:"speech"`
+	SMS              SMSFlagsDTO     `json:"sms"`
 }
 
 type PartnerRefDTO struct {
@@ -30,6 +31,11 @@ type HelpDTO struct {
 
 type ThemeDTO struct {
 	Primary string `json:"primary,omitempty"`
+}
+
+// What the widget may offer by SMS (real SMS on).
+type SMSFlagsDTO struct {
+	VerifyPhone bool `json:"verify_phone"` // the optional phone check on the profile page
 }
 
 type SpeechFlagsDTO struct {
@@ -88,5 +94,6 @@ func toConfigDTO(c *domain.ClientConfig) ConfigDTO {
 			Server:         c.Speech.Server,
 			CloudAvailable: c.Speech.CloudAvailable,
 		},
+		SMS: SMSFlagsDTO{VerifyPhone: c.SMS.VerifyPhone},
 	}
 }

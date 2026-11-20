@@ -64,10 +64,12 @@ Built for the **ALX Digital Bridge Accessibility Hackathon 2026, Track 1 (access
 | Sign-up | Every question and branch, save as you go, offline queue, version check between devices, support needs (encrypted), consent, submit, referral for "no ID" | Duplicate check ("is this you?"), automatic clean-up of old drafts |
 | Continue elsewhere | API: resume link and code, lookup, verify; resume screen with `/r/<token>` and 6-char code; Save panel continue cards | |
 | SMS | **Off by default** (`SMS_PROVIDER=console`: the resume link and consent code go to a simulated inbox). Real sending through SMS Ethiopia is built (`SMS_PROVIDER=smsethiopia`); only then a learner who chose phone contact also gets "you are signed up" and "application sent" | Answering by SMS or USSD (SMS Ethiopia only sends), delivery reports |
-| Learner data | Profile page: see, change, delete, download data (`/me`, `/me/export`) | Sign in with a phone code on a new device |
-| Careers | Job list with private needs filter, job detail, apply, employer form, publish, JobPosting JSON-LD, employer reads applications, **support passport** (see "Support passport" below) | Importing JobPosting from other boards, a JobPosting feed |
+| Learner data | Profile page: see, change, delete, download data (`/me`, `/me/export`); confirm the phone number with an SMS code (optional, needs real SMS); the support passport; enter a vouching code | Sign in with a phone code on a new device |
+| Careers | Job list with private needs filter, job detail, apply, employer form, publish, JobPosting JSON-LD (one job, or every job in one feed, each with a link to apply on `/apply.html`), employer reads applications, **support passport** (see "Support passport" below) | Importing JobPosting from other boards |
 | Staff | Sign-in, employer pages, referral list for partner staff, **trusted referral** (partner staff vouch for a learner with no ID: see "Identity" below), consent code by SMS (API) | Partner staff registering a learner for them, support inbox, admin pages, account management, Amharic staff pages |
-| Partners | Partner key + allowed origins, OAuth partner API, partner settings in the database | A settings page for partners, per-partner questions, applying the partner's theme colour |
+| Partners | Partner key + allowed origins, OAuth partner API, partner settings in the database (languages, starting language, ID routes, help contacts, brand colour) | A settings page for partners, per-partner questions |
+| Identity | Self-declared ID route and document type, the "I have no ID" referral, vouching by a partner organisation (`partner_attested`) | Fayda verification, document checks |
+| Accessibility | Keyboard-only use, read aloud on by default, text size up to 400%, Simple mode, dark mode; axe in the Playwright end-to-end test and a manual axe sweep of every screen in light and dark mode (0 critical, 0 serious) | A written WCAG 2.2 AA conformance report, a co-design log |
 | Speech | Browser speech recognition, server speech-to-text (Addis AI for Amharic and English, Azure, local, mock), read aloud with the device voice, an Amharic server voice (Addis AI, one fixed voice) and Azure voices, every server clip cached in the database | Recorded read-aloud clips, a local speech-to-text container in Docker Compose, Telegram bot replies |
 
 ---
@@ -212,7 +214,7 @@ The widget sends DOM events from the `<bridge-onboarding>` element. Every event 
 - **Isolated styles.** The widget draws inside a shadow root with its own stylesheet, and its host element starts from `all: initial`. Your CSS can't break it and its CSS can't touch your page. `demo/plain.html` proves it with aggressive `!important` styles.
 - **Size.** Text is sized in pixels (18 px, 20 px in Simple mode) times the person's text size, so your page's root font size doesn't change it.
 - **Fonts.** The widget asks for `DM Sans`, then `Noto Sans Ethiopic`, `Ebrima`, `Nyala` and the system font. It loads no web fonts itself. If your users' phones lack an Ethiopic font, load Noto Sans Ethiopic on your page; the widget will use it.
-- **Colours.** The widget uses its own tested palette (primary red `#cc3636`). The partner `theme` setting is returned by the API but not applied yet.
+- **Colours.** The widget uses its own tested palette (primary red `#cc3636`). A partner's `theme.primary` replaces the main colour in light mode when it has at least 4.5:1 contrast on white; dark mode always keeps our palette.
 - **Dialogs** (help, save, consent) are native `<dialog>` elements inside the shadow root.
 - **Your page is left alone.** The widget doesn't change your address, history, scroll position or styles, and never moves focus on first load. The only exception is the page title.
 
@@ -248,7 +250,7 @@ Get help opens a dialog with the partner's help contacts (`help.phone`, `help.te
 - **I agree**: the browser's own speech recognition is used where it exists (Chrome sends audio to Google, Edge to Microsoft). The consent is also recorded on the account (`cloud_speech`), which lets our server use a cloud provider.
 - **Use another way**: the voice is recorded on the device (at most 30 seconds) and sent to our server, which uses only providers that keep audio on our side.
 
-The text is cleaned up for the field (for example "zero nine one one…" becomes `0911 …`), put straight into the field, and shown and said back ("We heard: …"), with Say again and Type instead (the field can always be corrected by typing). One listening session gives one answer: the first final result is used, the microphone is closed at once, and read aloud speaks again only after it is closed, so "We heard: …" can never be heard as a new answer. Recordings are deleted from the device after one try and never stored on the server. The microphone works only on `https://` pages (or `localhost`).
+The text is cleaned up for the field (for example "zero nine one one…" becomes `0911 …`; a phone number said in groups, "ዜሮ ዘጠኝ አስራ አንድ ሃያ ሁለት…" (09 11 22…), keeps every digit; after "no" the last number said wins), put straight into the field, and shown and said back ("We heard: …"), with Say again and Type instead (the field can always be corrected by typing). One listening session gives one answer: the first final result is used, the microphone is closed at once, and read aloud speaks again only after it is closed, so "We heard: …" can never be heard as a new answer. Recordings are deleted from the device after one try and never stored on the server. The microphone works only on `https://` pages (or `localhost`).
 
 **Amharic voice answers go to Addis AI.** Browsers recognise Amharic poorly (Chrome often returns nothing), so when the server has a cloud speech service (`STT_PROVIDERS=addis` with `ADDIS_AI_API_KEY`; `GET /config` then says `speech.cloud_available: true`), an Amharic answer is recorded and sent to the server, which uses Addis AI Scribe. English keeps the browser's own recognition in Chrome and uses Addis AI only where the browser has none (Firefox, Safari) or fails. Both need the "I agree" answer above; the widget records that consent on the server before the first clip. A recording stops by itself 1.5 seconds after the person stops talking (Stop still works); if nothing is said within 8 seconds, nothing is sent and the widget says "We didn't catch that".
 
@@ -522,13 +524,13 @@ Program against `code`; `title` is a short English hint and may be missing; `err
 | 401 | `partner_key_missing`, `partner_key_invalid`, `unauthorized` (token missing, wrong kind, expired or revoked; wrong staff email or password), `resume_check_failed` (with `attempts_left`) |
 | 403 | `origin_not_allowed`, `forbidden`, `insufficient_scope` |
 | 404 | `not_found` (also for other people's things, so IDs can't be probed), `resume_not_found` |
-| 409 | `answer_conflict` (with `current`), `already_submitted`, `already_exists` (applied twice), `not_registered` (`PATCH /me` before submit) |
+| 409 | `answer_conflict` (with `current`), `already_submitted`, `already_exists` (applied twice, already vouched for, phone already confirmed), `not_registered` (`PATCH /me` before submit) |
 | 410 | `resume_expired` |
 | 413 | `payload_too_large` (voice clip over 3 MB) |
-| 422 | `validation_failed` with `errors[]`: `required`, `too_short`, `too_long`, `invalid`, `invalid_choice`, `email_invalid`, `phone_invalid`, `date_invalid`, `digits_invalid`, `last4_invalid`, `unknown_question`, `unknown_step` |
+| 422 | `validation_failed` with `errors[]`: `required`, `too_short`, `too_long`, `invalid`, `invalid_choice`, `email_invalid`, `phone_invalid`, `date_invalid`, `digits_invalid`, `last4_invalid`, `file_invalid`, `file_too_large`, `unknown_question`, `unknown_step`; for codes (vouching, phone check) `code_wrong`, `code_expired`; `sms_not_supported` (not an Ethio Telecom number) |
 | 429 | `rate_limited` (with `Retry-After`), `too_many_attempts` |
 | 500 | `internal_error` (details are logged, never sent) |
-| 503 | `speech_unavailable` |
+| 503 | `speech_unavailable`, `sms_unavailable` (real SMS is not set up) |
 
 ### Rate limits
 
@@ -563,9 +565,13 @@ The employer gets this address back when they publish (`jsonld_url`) and in the 
   "jobBenefits": "Supports we offer: remote work; tools and documents that work with screen readers; screen magnification and large-print materials; use of your own assistive device or software; flexible hours and breaks.",
   "jobLocationType": "TELECOMMUTE",
   "title": "Junior Web Developer",
+  "url": "https://accessible-onboarding.vercel.app/apply.html?job=5e6f7a8b-…",
   "workHours": "Mon–Fri, flexible hours"
 }
 ```
+
+- **Where to apply.** `url` is our hosted page `/apply.html?job=<id>`: it opens that job in the widget, ready to apply (a new learner signs up first and then comes back to the job), and puts the same JSON-LD in the page inside `<script type="application/ld+json">` for search engines. A board that shows our job sends the learner there.
+- **All jobs at once.** `GET /api/v1/feeds/jobposting.jsonld` (no key) returns every published job, newest first (at most 500), as one JSON-LD document: a shared `@context` and a `@graph` of JobPostings. Cached 5 minutes.
 
 - **Standard properties:** `title`, `description`, `hiringOrganization`, `datePosted`, `employmentType` (`FULL_TIME`, `PART_TIME`, `CONTRACTOR`, `INTERN`, `TEMPORARY`), `workHours`, and `jobLocation` with a `PostalAddress` in Ethiopia. Remote jobs get `jobLocationType: TELECOMMUTE` and `applicantLocationRequirements`.
 - **Accommodations.** schema.org has no property for workplace accommodations, so we use both:
@@ -592,7 +598,7 @@ The employer gets this address back when they publish (`jsonld_url`) and in the 
 
 The same codes are the learner's needs in [`shared/vocab/needs.json`](shared/vocab/needs.json) (learners may also choose `other`, which employers can't offer and which never matches).
 
-**How a job board uses it.** Fetch the JSON-LD from your server (browsers on other sites are blocked by CORS unless their origin is allowed), store it, and put it in the job's page inside `<script type="application/ld+json">` so search engines see it. To match, treat a job as a full match when its `acc:offers` contains every need the person chose, and a partial match otherwise; this is what our widget does on the learner's phone. Importing JobPosting from other boards and a JobPosting feed are not built yet.
+**How a job board uses it.** Fetch the JSON-LD from your server (browsers on other sites are blocked by CORS unless their origin is allowed), store it, and put it in the job's page inside `<script type="application/ld+json">` so search engines see it. To match, treat a job as a full match when its `acc:offers` contains every need the person chose, and a partial match otherwise; this is what our widget does on the learner's phone. Importing JobPosting from other boards is not built yet, and we have not run our pages through Google's Rich Results Test.
 
 ---
 
@@ -605,10 +611,10 @@ Each partner has a JSON `config` column. `GET /api/v1/config` returns it, with d
 | Field | Example | Default | Used by the widget today? |
 |---|---|---|---|
 | `languages` | `["am","en"]` | `["am","en"]` | **Yes:** the languages offered (only those with a locale file). With one language, the language screen is skipped. |
-| `default_language` | `"am"` | `"am"` (or the first language if `am` is not offered) | Not yet: the widget starts in the device's chosen language, then the `lang` attribute, then English. |
-| `id_routes` | `["fayda","kebele_id","none"]` | all six routes | Not yet: the widget shows the routes in the flow file. |
+| `default_language` | `"am"` | `"am"` (or the first language if `am` is not offered) | **Yes:** the starting language, unless the page sets `lang` or the learner already chose a language on this device. |
+| `id_routes` | `["fayda","kebele_id","none"]` | all six routes | **Yes:** only these choices are offered at "Which ID do you have?". |
 | `help` | `{"phone":"+251 11 000 0000","telegram":"@acme_help"}` | none | **Yes:** the "Get help" panel (Call support, Send an SMS, Open Telegram) and the "no organisations" message. The demo data has a placeholder number: replace it with your real help line. |
-| `theme` | `{"primary":"#0b6e4f"}` | `{"primary":"#cc3636"}` | Not yet. |
+| `theme` | `{"primary":"#0b6e4f"}` | `{"primary":"#cc3636"}` | **Yes:** the main colour of buttons and highlights, in light mode, if it has at least 4.5:1 contrast on white (otherwise, and in dark mode, our tested palette is used). |
 | `speech` | `{"server":true,"cloud_available":true}` | from `STT_PROVIDERS` | **Yes:** with `cloud_available` the widget sends Amharic voice answers to the server (Addis AI). |
 
 Set them with SQL (there is no settings page yet):
@@ -874,15 +880,15 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 | Support needs and free text | `support_requests` | **AES-256-GCM**, the learner ID as additional data (a copied row won't decrypt for another learner); only the sharing choices are plain |
 | Consents (yes or no, how, when) | `consents` | |
 | Learner, staff and partner-server tokens | `auth_sessions` | **SHA-256 hash only** |
-| Resume link tokens and codes, consent codes | `resume_tokens`, `verification_codes` | SHA-256 (link) and **HMAC-SHA256 with `CODE_HASH_KEY`** (codes); single use, 72 hours (resume) or 10 minutes (consent), 5 tries |
+| Resume link tokens and codes, consent and phone-check codes | `resume_tokens`, `verification_codes` | SHA-256 (link) and **HMAC-SHA256 with `CODE_HASH_KEY`** (codes); single use, 72 hours (resume) or 10 minutes (consent, phone check), 5 tries |
 | Staff passwords | `staff_users` | **bcrypt**; unknown email and wrong password answer the same way |
 | OAuth client secrets | `partners.client_secret_hash` | SHA-256, compared in constant time |
-| SMS and Telegram messages | `messages_outbox` | plain text, with the result (`queued`, `sent`, `failed` and why); the console provider also logs the text (see below) |
+| SMS and Telegram messages | `messages_outbox` | the text, with the result (`queued`, `sent`, `failed` and why). With real SMS, codes and resume links are hidden in the stored copy (`••••••`); with the console provider (the simulated inbox) the full text is kept and logged |
 | Trusted-referral codes | `vouch_codes` | **HMAC-SHA256 with `CODE_HASH_KEY`**; single use, 30 minutes, 5 tries |
 | Audit log (learner deleted, support needs read, vouch code made, learner vouched for) | `audit_log` | no personal data |
 | Voice recordings | **never stored** | deleted from the phone after one try, never written on the server |
 
-Things to know: `messages_outbox` keeps each SMS in plain text, including a resume or consent code; with `SMS_PROVIDER=console` the API log shows the text too (with `smsethiopia` the log shows only a masked number and the result); there is no automatic clean-up of old drafts or messages yet; and phone numbers are never verified yet.
+Things to know: with `SMS_PROVIDER=console` (development and demos) `messages_outbox` and the API log keep each SMS in full, codes included, because that is the simulated inbox; with `smsethiopia` the stored copy hides codes and links and the log shows only a masked number and the result. There is no automatic clean-up of old drafts or messages yet. Phone numbers are confirmed only when the learner chooses to (below).
 
 ### Identity: what we do and don't check
 
@@ -891,6 +897,7 @@ Bridge does **not verify documents**, and doesn't claim to. A learner is `identi
 - **The last 4 characters of a document** (`id_last4`, optional) are a reference, not a check: they are printed on the card and have only 10,000 possible values for a number, and nothing compares them with an ID system. They help staff match a document when they meet the person. The question says so to the learner.
 - **The photo of a document** (`id_upload`, optional) is stored encrypted; nobody checks it automatically.
 - **No ID at all** is a supported path: the learner is referred to an organisation (such as AAAPD) that can help them in person.
+- **Phone check (optional).** On **My profile**, a learner can confirm their phone number: **Send me a code** texts a 6-digit code (10 minutes, 5 tries, a new one at most every minute) and typing it sets `phone_verified` (shown on the profile; employers and the partner API see `verified`). It never blocks sign-up (requirement R17). It needs real SMS (`SMS_PROVIDER=smsethiopia`; `GET /config` then says `sms.verify_phone: true`); SMS Ethiopia sends only to Ethio Telecom numbers, and on its free test campaign only to numbers verified in its dashboard. Changing the number makes it unverified again.
 - **Trusted referral (built).** That organisation can vouch for the person, so no ID is ever needed. In the staff app, "People who asked for help", a staff member who met or spoke with the person presses **Vouch for this person**, ticks "I met or spoke with … and I confirm who they are", and gets a one-time 6-digit code (30 minutes, shown once, stored as a keyed hash). They tell the person the code; the person types it on **My profile → Confirm who you are**, which is their agreement. The learner becomes `partner_attested` ("A partner organisation vouched for you"), the identity evidence records which staff member and when, the referral becomes "attested", and both steps are audit-logged. Employers see "Confirmed by a partner organisation that met them" on applications, and the partner API returns `identity_level`. No SMS is needed (with SMS on, the learner also gets "<organisation> confirmed who you are"). 5 wrong tries end a code; the staff member can make a new one.
 - **Real verification (roadmap).** For Fayda, it means authentication through the National ID Program (NIDP), where the person confirms with a one-time code sent to the phone registered with Fayda (or biometrics). That needs an agreement as a relying party with NIDP. Not built yet.
 
@@ -931,12 +938,12 @@ We aim at **WCAG 2.2 AA**. What is built in:
 - **Read aloud** on by default, started by the first key press or tap: first the whole page top to bottom (top bar, then the screen), then whatever the person moves to with Tab or a tap, with what to do in each field. It also reads errors, dialogs and whole option groups. Learners' own words are read only by the device's voice.
 - **Keyboard only**: every flow works with Tab, Enter, Space and the arrow keys. The top bar has four stops; the job filter is behind one button; when a button opens another view (Find a job, Apply, Sign up), focus goes to the new heading; a dialog starts at its title; Escape closes dialogs and the Accessibility menu.
 - **Voice input** that fills the field at once and says back what it heard, alternatives when unsure, and help when the microphone is blocked.
-- **Text size** 100–400% inside the widget, reflow without sideways scrolling, 48 px targets, visible focus, colours with tested contrast (primary `#cc3636`).
+- **Text size** 100–400% inside the widget, reflow without sideways scrolling, 48 px targets, visible focus, colours with tested contrast in light and dark mode (primary `#cc3636`; a partner colour is used only in light mode and only with at least 4.5:1).
 - **Amharic** with correct `lang` attributes and taller line height for Ethiopic script; the **Ethiopian calendar** (13 months, Pagume) for dates; Ethiopian phone formats.
 - **No time limits**, nothing lost on reload, offline queue, "Forget me on this phone" for shared phones.
 - **Help in the same place** on every screen (phone and Telegram from the partner settings), with buttons that open the phone's dialler, messages or Telegram.
 - A bilingual **404 page** with Read aloud.
-- Checks: ESLint with `jsx-a11y`, unit tests, and Playwright end-to-end tests with axe (run locally).
+- Checks: ESLint with `jsx-a11y`, unit tests, Playwright end-to-end tests with axe (run locally), and an axe sweep of every screen and state (errors, dialogs, Accessibility menu, Simple mode, staff pages, docs pages) in light and dark mode: 0 critical and 0 serious issues on 21 November 2026.
 
 Our manual test checklist covers keyboard only, NVDA and TalkBack, 400% zoom and axe on every screen.
 

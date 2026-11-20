@@ -112,6 +112,7 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 
 	// Public: no key, no token
 	v1.GET("/jobs/:id/jobposting.jsonld", ctrl.Job.GetJobPostingController)
+	v1.GET("/feeds/jobposting.jsonld", ctrl.Job.GetJobPostingFeedController) // every published job
 	v1.POST("/auth/staff/login", mw.strict(), ctrl.Auth.StaffLoginController)
 	v1.POST("/oauth/token", mw.strict(), ctrl.Auth.OAuthTokenController)
 	v1.POST("/auth/logout", ctrl.Auth.LogoutController) // learner or staff token, checked by the use case
@@ -147,7 +148,9 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 		learner.DELETE("/me", ctrl.Me.DeleteMeController)
 		learner.GET("/me/applications", ctrl.Application.ListMyApplicationsController)        // support passport
 		learner.PATCH("/me/applications/:id", ctrl.Application.UpdateMyApplicationController) // share or withdraw
-		learner.POST("/me/vouch", mw.strict(), ctrl.Referral.ConfirmVouchController)          // enter a vouch code
+		learner.POST("/me/vouch", mw.strict(), ctrl.Referral.ConfirmVouchController)
+		learner.POST("/me/phone-verification", mw.strict(), ctrl.Me.SendPhoneCodeController)        // optional phone check: send a code
+		learner.POST("/me/phone-verification/confirm", mw.strict(), ctrl.Me.ConfirmPhoneController) // check the code          // enter a vouch code
 	}
 
 	// Staff routes: staff token

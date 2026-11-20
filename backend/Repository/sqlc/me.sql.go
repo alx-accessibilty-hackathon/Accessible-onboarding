@@ -109,6 +109,29 @@ func (q *Queries) GetLatestRegistrationByLearner(ctx context.Context, learnerID 
 	return i, err
 }
 
+const setLearnerPhoneVerified = `-- name: SetLearnerPhoneVerified :execrows
+UPDATE learners
+SET phone_verified = true,
+    updated_at     = now()
+WHERE id = $1
+  AND phone_e164 = $2
+`
+
+type SetLearnerPhoneVerifiedParams struct {
+	ID        uuid.UUID
+	PhoneE164 *string
+}
+
+// The learner typed the SMS code sent to this number: it is confirmed. Only while the stored
+// number is still the one the code was sent to (0 rows otherwise).
+func (q *Queries) SetLearnerPhoneVerified(ctx context.Context, arg SetLearnerPhoneVerifiedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setLearnerPhoneVerified, arg.ID, arg.PhoneE164)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateLearnerContact = `-- name: UpdateLearnerContact :one
 UPDATE learners
 SET full_name      = $1,

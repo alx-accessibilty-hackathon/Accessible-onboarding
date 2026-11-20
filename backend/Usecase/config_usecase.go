@@ -18,6 +18,7 @@ var (
 type ConfigUsecase struct {
 	PartnerRepo domain.PartnerRepositoryI
 	Speech      domain.SpeechService
+	SMSOn       bool // real SMS is on (set in main.go): the widget may offer the phone check
 }
 
 // Compile-time check that ConfigUsecase implements ConfigUsecaseI.
@@ -85,6 +86,7 @@ func (uc *ConfigUsecase) GetConfig(ctx context.Context, partnerKey string) (*dom
 		Help:             help,
 		Theme:            theme,
 		Speech:           speechFlags,
+		SMS:              domain.SMSFlags{VerifyPhone: uc.SMSOn},
 	}, nil
 }
 

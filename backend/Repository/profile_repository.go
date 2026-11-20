@@ -111,6 +111,19 @@ func (r *ProfileRepository) UpdateProfile(ctx context.Context, l *domain.Learner
 
 // DeleteLearner deletes the learner (everything else about them cascades), their sessions,
 // and writes the audit entry, all or nothing.
+// SetPhoneVerified marks the learner's phone confirmed, only if it is still this number
+// (ErrNotFound otherwise: the number changed meanwhile).
+func (r *ProfileRepository) SetPhoneVerified(ctx context.Context, learnerID uuid.UUID, phoneE164 string) error {
+	n, err := r.Q.SetLearnerPhoneVerified(ctx, sqlc.SetLearnerPhoneVerifiedParams{ID: learnerID, PhoneE164: &phoneE164})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 func (r *ProfileRepository) DeleteLearner(ctx context.Context, learnerID uuid.UUID, audit *domain.AuditEntry) error {
 	tx, err := r.DB.Begin(ctx)
 	if err != nil {

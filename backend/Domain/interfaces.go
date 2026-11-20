@@ -77,6 +77,8 @@ type JobUsecaseI interface {
 	ListJobs(ctx context.Context, limit int, cursor string) ([]*Job, *string, error)
 	GetJob(ctx context.Context, id uuid.UUID) (*Job, error)
 	GetJobPosting(ctx context.Context, id uuid.UUID) (map[string]any, error)
+	// GetJobPostingFeed: every published job as one JSON-LD document (@graph of JobPostings).
+	GetJobPostingFeed(ctx context.Context) (map[string]any, error)
 	// AccommodationsVocabulary is the JSON-LD document that defines the "acc" prefix of a JobPosting.
 	AccommodationsVocabulary() map[string]any
 	ListEmployerJobs(ctx context.Context, actor Actor) ([]*Job, error)
@@ -112,6 +114,11 @@ type MeUsecaseI interface {
 	Update(ctx context.Context, actor Actor, changes *ProfileChanges) (*LearnerProfile, error)
 	// Delete removes the learner and everything about them, and ends all their sessions.
 	Delete(ctx context.Context, actor Actor) error
+	// SendPhoneCode texts a 6-digit code to the learner's stored phone (optional phone check
+	// on the profile page). ErrSMSUnavailable when real SMS is off.
+	SendPhoneCode(ctx context.Context, actor Actor) (*PhoneCodeSent, error)
+	// ConfirmPhone checks the code; the phone becomes verified (phone_verified = true).
+	ConfirmPhone(ctx context.Context, actor Actor, code string) (*LearnerProfile, error)
 }
 
 // ReferralUsecaseI: the referral queue of a referral organisation's staff (R7).
@@ -229,6 +236,8 @@ type ApplicationRepositoryI interface {
 
 // ProfileRepositoryI: what /me reads, changes and deletes. ErrNotFound when there is no row.
 type ProfileRepositoryI interface {
+	// SetPhoneVerified: ErrNotFound if the stored number is no longer phoneE164.
+	SetPhoneVerified(ctx context.Context, learnerID uuid.UUID, phoneE164 string) error
 	GetLatestRegistration(ctx context.Context, learnerID uuid.UUID) (*Registration, error)
 	GetLatestIdentityEvidence(ctx context.Context, learnerID uuid.UUID) (*IdentityEvidence, error)
 	GetSealedSupportRequest(ctx context.Context, learnerID uuid.UUID) (*SealedSupportRequest, error)

@@ -16,6 +16,8 @@ export interface WidgetConfig {
   help: { phone?: string; telegram?: string };
   theme: { primary?: string };
   speech: { server: boolean; cloud_available: boolean };
+  /** Real SMS is on: the profile page offers the optional phone check. */
+  sms?: { verify_phone: boolean };
 }
 
 export async function fetchConfig(cfg: ApiConfig): Promise<WidgetConfig> {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useFocusSpeech } from '../a11y/focusSpeech';
 import { LiveRegion } from '../a11y/LiveRegion';
 import { ModesProvider, useModes } from '../a11y/modes';
-import { scaleClass, scaleStyle, useTextSize } from '../a11y/settings';
+import { getEffectiveTheme, scaleClass, scaleStyle, useTextSize, useTheme } from '../a11y/settings';
 import { logout, staffMe, type StaffUser } from '../api/auth';
 import { ApiError } from '../api/client';
 import { Banner } from '../components/Banner';
@@ -52,6 +52,12 @@ function StaffShell() {
   const rootRef = useRef<HTMLElement>(null);
   const { readAloud } = useModes();
   const textSize = useTextSize();
+  // Dark mode: the toggle (light/dark) wins over the system setting, as in the widget.
+  const theme = useTheme();
+  const effectiveTheme = getEffectiveTheme(theme);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
+  }, [effectiveTheme]);
   const lang = 'en';
 
   // Read aloud mode: say the element the person moves to, and what they select.
@@ -108,6 +114,7 @@ function StaffShell() {
     <main
       ref={rootRef}
       className={`bo-root${scaleClass(textSize)}`}
+      data-theme={theme !== 'system' ? theme : undefined}
       lang={lang}
       style={{
         minHeight: '100vh',

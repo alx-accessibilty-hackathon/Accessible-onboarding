@@ -85,6 +85,23 @@ func (jc *JobController) GetJobPostingController(c *gin.Context) {
 	c.Data(http.StatusOK, "application/ld+json; charset=utf-8", body)
 }
 
+// GET /api/v1/feeds/jobposting.jsonld
+// Every published job (newest first, at most 500) as one JSON-LD document. Public, no key.
+func (jc *JobController) GetJobPostingFeedController(c *gin.Context) {
+	feed, err := jc.JobUc.GetJobPostingFeed(c.Request.Context())
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	body, err := json.Marshal(feed)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "public, max-age=300")
+	c.Data(http.StatusOK, "application/ld+json; charset=utf-8", body)
+}
+
 // GET /api/v1/employer/jobs
 // The signed-in employer's own jobs, drafts included.
 func (jc *JobController) ListEmployerJobsController(c *gin.Context) {

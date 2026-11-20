@@ -207,7 +207,8 @@ func (u *RegistrationUsecase) SendConsentCode(ctx context.Context, actor domain.
 	if _, err := u.SessionRepo.CreateVerificationCode(ctx, phone, "consent", hash, &reg.LearnerID, expiresAt); err != nil {
 		return "", err
 	}
-	u.sendSMS(ctx, phone, fmt.Sprintf("Bridge: your consent code is %s. It works for 10 minutes. Only give it to the person helping you if you agree.", code))
+	consent := "Bridge: your consent code is %s. It works for 10 minutes. Only give it to the person helping you if you agree."
+	u.sendSecretSMS(ctx, phone, fmt.Sprintf(consent, code), fmt.Sprintf(consent, "••••••"))
 	return maskPhone(phone), nil
 }
 
@@ -256,7 +257,8 @@ func (u *RegistrationUsecase) CreateResumeLink(ctx context.Context, actor domain
 		if !ok {
 			return nil, domain.NewValidationError("phone", codePhoneInvalid)
 		}
-		u.sendSMS(ctx, to, fmt.Sprintf("Bridge: continue your sign-up at %s  Code: %s (works for 3 days)", link.URL, display))
+		resume := "Bridge: continue your sign-up at %s  Code: %s (works for 3 days)"
+		u.sendSecretSMS(ctx, to, fmt.Sprintf(resume, link.URL, display), fmt.Sprintf(resume, u.PublicURL+"/r/…", "•••-•••"))
 		link.Channel, link.Status = "sms", "queued"
 	}
 	return link, nil
@@ -270,6 +272,15 @@ func (u *RegistrationUsecase) sendSMS(ctx context.Context, phone, body string) {
 		outbox = u.SessionRepo
 	}
 	queueSMS(ctx, outbox, u.Messages, phone, body)
+}
+
+// sendSecretSMS: like sendSMS, but the outbox keeps `kept` (secret hidden) when SMS really go out.
+func (u *RegistrationUsecase) sendSecretSMS(ctx context.Context, phone, body, kept string) {
+	var outbox outboxWriter
+	if u.SessionRepo != nil {
+		outbox = u.SessionRepo
+	}
+	queueSMSKept(ctx, outbox, u.Messages, phone, body, kept)
 }
 
 // maskPhone shows only the start and the last 3 digits: "+251912345678" → "+2519•••••678".

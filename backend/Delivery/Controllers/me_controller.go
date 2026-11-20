@@ -91,3 +91,38 @@ func (mc *MeController) DeleteMeController(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+// POST /api/v1/me/phone-verification
+// The optional phone check: texts a 6-digit code to the learner's stored phone. 503
+// sms_unavailable when real SMS is off; 409 already_exists when the phone is already
+// confirmed; 429 rate_limited if a code was sent less than a minute ago.
+func (mc *MeController) SendPhoneCodeController(c *gin.Context) {
+	if !mc.ready(c) {
+		return
+	}
+	sent, err := mc.MeUc.SendPhoneCode(c.Request.Context(), infrastructure.ActorFrom(c))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, PhoneCodeSentDTO{SentTo: sent.SentTo, ExpiresAt: sent.ExpiresAt})
+}
+
+// POST /api/v1/me/phone-verification/confirm  {"code": "482913"}
+// Checks the code; the phone becomes verified. Answers the profile (as GET /me).
+// 422 code (required, code_wrong); 429 too_many_attempts after 5 wrong tries.
+func (mc *MeController) ConfirmPhoneController(c *gin.Context) {
+	if !mc.ready(c) {
+		return
+	}
+	var req ConfirmPhoneRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	p, err := mc.MeUc.ConfirmPhone(c.Request.Context(), infrastructure.ActorFrom(c), req.Code)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toMeDTO(p))
+}

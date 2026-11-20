@@ -22,11 +22,25 @@ type outboxWriter interface {
 }
 
 func queueSMS(ctx context.Context, outbox outboxWriter, msgs domain.MessageService, phone, body string) {
+	queueSMSKept(ctx, outbox, msgs, phone, body, body)
+}
+
+// smsSending: the message service says whether SMS really go out (MessageService.Sending).
+type smsSending interface{ Sending() bool }
+
+// queueSMSKept is queueSMS for a text with a secret in it (a code, a resume link). When SMS
+// really go out, the outbox is only a record, so it keeps `kept` (the text with the secret
+// hidden). With the console provider the outbox is the simulated inbox, so it keeps the text.
+func queueSMSKept(ctx context.Context, outbox outboxWriter, msgs domain.MessageService, phone, body, kept string) {
+	stored := body
+	if s, ok := msgs.(smsSending); ok && s.Sending() {
+		stored = kept
+	}
 	var id uuid.UUID
 	if outbox != nil {
 		provider := "console"
 		row, err := outbox.CreateOutboxMessage(ctx, &domain.OutboxMessage{
-			Channel: "sms", Recipient: phone, Body: body, Status: "queued", Provider: &provider,
+			Channel: "sms", Recipient: phone, Body: stored, Status: "queued", Provider: &provider,
 		})
 		if err == nil && row != nil {
 			id = row.ID

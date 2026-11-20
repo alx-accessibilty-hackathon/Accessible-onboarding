@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/v1/audio/:path*",
+      "destination": "/audio/:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://accessible-onboarding.onrender.com/api/:path*"
     },

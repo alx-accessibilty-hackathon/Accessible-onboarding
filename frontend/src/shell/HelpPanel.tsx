@@ -104,7 +104,8 @@ function ContactActions({
         <a
           className="bo-btn bo-btn-primary"
           href={`tel:${dialNumber(phone)}`}
-          aria-label={t(lang, 'help_panel.phone_link', { number: spoken })}
+          // The name starts with the visible words (WCAG 2.5.3: "tap Call support" works).
+          aria-label={`${t(lang, 'help_panel.call')}: ${spoken}`}
         >
           <Icon name="phone" />
           <span>{t(lang, 'help_panel.call')}</span>
@@ -114,7 +115,7 @@ function ContactActions({
         <a
           className="bo-btn bo-btn-secondary"
           href={`sms:${dialNumber(phone)}`}
-          aria-label={t(lang, 'help_panel.sms_link', { number: spoken })}
+          aria-label={`${t(lang, 'help_panel.sms')}: ${spoken}`}
         >
           <Icon name="sms" />
           <span>{t(lang, 'help_panel.sms')}</span>

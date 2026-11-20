@@ -1,6 +1,6 @@
 # Frontend (React + TypeScript)
 
-One React app shipped as a web component, `<bridge-onboarding>`, that any site loads with one script tag. Plan: `TECHNICAL_PLAN_LITE.md` (short), `TECHNICAL_PLAN.md` section 4 (detail).
+One React app shipped as a web component, `<bridge-onboarding>`, that any site loads with one script tag. What it does and how partners use it: the main [`README.md`](../README.md).
 
 ## Run
 
@@ -67,4 +67,4 @@ The top bar (`src/shell/WidgetFrame.tsx`) has Get help, Language (opens the lang
 
 ## Status
 
-Skeleton. The sign-up flow shows its first step only, and every screen marked `TODO (FA-…/FB-…)` maps to a task in `TECHNICAL_PLAN.md`. Default language is English until `am.json` is translated (see `src/widget/App.tsx`).
+Complete flows: sign-up (every question and branch, Check your answers, submit), language screen, jobs with the private needs filter, job application, My profile (change, download, delete, support passport, vouching code, optional phone check) and continue on another device; plus the staff app (`staff.html`). Amharic and English are complete; Amharic is the default unless the partner or the page sets another language. What is not built yet is listed in the main [`README.md`](../README.md), section 1.

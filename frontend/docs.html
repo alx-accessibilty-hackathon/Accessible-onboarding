@@ -4,18 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>REST API Documentation | Bridge Onboarding</title>
-    <link rel="stylesheet" href="./demo/savanna/savanna.css" />
+    <link rel="stylesheet" href="./docs-theme.css" />
     <style>
+      /* Colours come from docs-theme.css (light and dark). */
       :root {
-        --color-primary: #cc3636;
-        --color-primary-dark: #a82b2b;
-        --color-bg: #f8fafc;
-        --color-surface: #ffffff;
-        --color-border: #e2e8f0;
-        --color-text: #0f172a;
-        --color-text-muted: #64748b;
-        --color-code-bg: #0f172a;
-        --color-code-text: #f8fafc;
+        --color-primary: var(--doc-brand-text);
+        --color-bg: var(--doc-bg);
+        --color-surface: var(--doc-surface);
+        --color-border: var(--doc-border);
+        --color-text: var(--doc-text);
+        --color-text-muted: var(--doc-muted);
+        --color-code-bg: var(--doc-code-bg);
+        --color-code-text: var(--doc-code-text);
         --sidebar-width: 280px;
         --radius: 8px;
       }
@@ -27,7 +27,7 @@
         margin: 0;
       }
       .nav-bar {
-        background: #ffffff;
+        background: var(--doc-surface);
         border-bottom: 1px solid var(--color-border);
         padding: 0.85rem 2rem;
         display: flex;
@@ -81,7 +81,7 @@
         width: var(--sidebar-width);
         flex-shrink: 0;
         border-right: 1px solid var(--color-border);
-        background: #ffffff;
+        background: var(--doc-surface);
         position: sticky;
         top: 65px;
         height: calc(100vh - 65px);
@@ -120,7 +120,7 @@
       .sidebar-nav a {
         display: block;
         padding: 0.4rem 0.65rem;
-        color: #334155;
+        color: var(--doc-text-2);
         text-decoration: none;
         font-size: 0.9rem;
         border-radius: 6px;
@@ -129,7 +129,7 @@
           color 0.15s;
       }
       .sidebar-nav a:hover {
-        background: #f1f5f9;
+        background: var(--doc-surface-2);
         color: var(--color-primary);
       }
       .main-content {
@@ -163,10 +163,10 @@
       p,
       li {
         font-size: 1rem;
-        color: #334155;
+        color: var(--doc-text-2);
       }
       .endpoint-card {
-        background: #ffffff;
+        background: var(--doc-surface);
         border: 1px solid var(--color-border);
         border-radius: var(--radius);
         margin: 1.75rem 0;
@@ -178,7 +178,8 @@
         align-items: center;
         gap: 0.75rem;
         padding: 1rem 1.25rem;
-        background: #f8fafc;
+        background: var(--doc-surface-2);
+        color: var(--doc-text);
         border-bottom: 1px solid var(--color-border);
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 0.95rem;
@@ -193,24 +194,24 @@
         text-transform: uppercase;
       }
       .method-get {
-        background: #e0f2fe;
-        color: #0369a1;
+        background: var(--doc-get-bg);
+        color: var(--doc-get-text);
       }
       .method-post {
-        background: #dcfce7;
-        color: #15803d;
+        background: var(--doc-post-bg);
+        color: var(--doc-post-text);
       }
       .method-put {
-        background: #fef3c7;
-        color: #b45309;
+        background: var(--doc-put-bg);
+        color: var(--doc-put-text);
       }
       .method-patch {
-        background: #f3e8ff;
-        color: #7e22ce;
+        background: var(--doc-patch-bg);
+        color: var(--doc-patch-text);
       }
       .method-delete {
-        background: #fee2e2;
-        color: #b91c1c;
+        background: var(--doc-delete-bg);
+        color: var(--doc-delete-text);
       }
       .endpoint-body {
         padding: 1.25rem;
@@ -232,11 +233,12 @@
         vertical-align: top;
       }
       .param-table th {
-        background: #f8fafc;
-        color: #475569;
+        background: var(--doc-surface-2);
+        color: var(--doc-text-2);
         font-weight: 600;
       }
       .code-block {
+        border: 1px solid var(--doc-border);
         background: var(--color-code-bg);
         color: var(--color-code-text);
         border-radius: var(--radius);
@@ -267,8 +269,8 @@
         background: rgba(255, 255, 255, 0.25);
       }
       .swagger-banner {
-        background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-        color: white;
+        background: var(--doc-banner-bg);
+        color: var(--doc-banner-text);
         padding: 1.5rem;
         border-radius: var(--radius);
         display: flex;
@@ -278,17 +280,20 @@
         gap: 1rem;
         margin: 2rem 0;
       }
-      .swagger-banner h3 {
+      .swagger-banner h2 {
+        font-size: 1.25rem;
+        border: 0;
+        padding: 0;
         margin: 0 0 0.25rem 0;
-        color: white;
+        color: var(--doc-banner-text);
       }
       .swagger-banner p {
         margin: 0;
-        color: #e0f2fe;
+        color: var(--doc-banner-muted);
       }
       .swagger-btn {
         background: #ffffff;
-        color: #0369a1;
+        color: #075985;
         padding: 0.65rem 1.25rem;
         border-radius: 6px;
         font-weight: 700;
@@ -303,18 +308,23 @@
         font-weight: 700;
         padding: 0.2rem 0.5rem;
         border-radius: 9999px;
-        background: #f1f5f9;
-        color: #475569;
+        background: var(--doc-badge-bg);
+        color: var(--doc-badge-text);
       }
       .callout {
-        background: #fff7ed;
-        border-left: 4px solid #ea580c;
+        background: var(--doc-callout-bg);
+        color: var(--doc-text);
+        border-left: 4px solid var(--doc-callout-border);
         border-radius: var(--radius);
         padding: 0.85rem 1.1rem;
         margin: 1.25rem 0;
       }
       .callout p {
         margin: 0.25rem 0;
+      }
+      .sub-heading {
+        font-size: 1rem;
+        margin: 1.25rem 0 0.5rem;
       }
       .divider {
         border: 0;
@@ -379,6 +389,10 @@
         <ul class="sidebar-nav">
           <li><a href="#post-apply">POST /jobs/{id}/applications</a></li>
           <li><a href="#me">/me (profile, export, delete)</a></li>
+          <li><a href="#me-applications">Support passport</a></li>
+          <li><a href="#me-vouch">Trusted referral code</a></li>
+          <li><a href="#me-phone">Optional phone check</a></li>
+          <li><a href="#partner-staff">Partner staff: vouching</a></li>
           <li><a href="#resume">Resume on another device</a></li>
           <li><a href="#speech">Speech (STT &amp; TTS)</a></li>
         </ul>
@@ -410,7 +424,7 @@
 
         <div class="swagger-banner">
           <div>
-            <h3>Interactive Swagger UI</h3>
+            <h2 class="swagger-title">Interactive Swagger UI</h2>
             <p>Browse every endpoint, status code and example, and try requests live.</p>
           </div>
           <a href="/api/docs" class="swagger-btn" target="_blank" rel="noopener"
@@ -418,7 +432,7 @@
           >
         </div>
 
-        <h3>Base URLs</h3>
+        <h2 id="base-urls">Base URLs</h2>
         <ul>
           <li>
             <strong>API base:</strong>
@@ -581,7 +595,7 @@
           Every error has the same shape (except <code>POST /oauth/token</code>, which uses the
           OAuth shape <code>{"error": "invalid_client"}</code>):
         </p>
-        <div class="code-block">
+        <div class="code-block" tabindex="0">
           <pre>
 {
   "status": 422,
@@ -659,7 +673,9 @@
                   <code>phone_invalid</code>, <code>date_invalid</code>,
                   <code>digits_invalid</code>, <code>last4_invalid</code>,
                   <code>file_invalid</code>, <code>file_too_large</code>,
-                  <code>unknown_question</code>, <code>unknown_step</code>
+                  <code>unknown_question</code>, <code>unknown_step</code>; for codes (vouching,
+                  phone check) <code>code_wrong</code>, <code>code_expired</code>;
+                  <code>sms_not_supported</code>
                 </td>
               </tr>
               <tr>
@@ -675,7 +691,10 @@
               </tr>
               <tr>
                 <td>503</td>
-                <td><code>speech_unavailable</code></td>
+                <td>
+                  <code>speech_unavailable</code>, <code>sms_unavailable</code> (real SMS is not set
+                  up)
+                </td>
               </tr>
             </tbody>
           </table>
@@ -715,23 +734,25 @@
               colour and which speech services the server has. Missing settings get defaults.
             </p>
             <p>
-              The component uses <code>languages</code>, <code>help</code> and
-              <code>referral_partners</code> today. It does not use <code>default_language</code>,
-              <code>id_routes</code>, <code>theme</code> or <code>speech</code> yet. The settings
-              are read on every request, so a change shows the next time the component loads. See
+              The component uses all of them: <code>languages</code> (offered),
+              <code>default_language</code> (starting language), <code>id_routes</code> (the ID
+              choices), <code>help</code>, <code>referral_partners</code>, <code>theme</code> (main
+              colour in light mode, if it has enough contrast) and <code>speech</code> (Amharic
+              voice answers go to the server when it has a cloud service). The settings are read on
+              every request, so a change shows the next time the component loads. See
               <a href="/partners.html#settings">Partner settings</a> to change them.
             </p>
 
-            <h4>Example request</h4>
-            <div class="code-block">
+            <h3 class="sub-heading">Example request</h3>
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -H "X-Partner-Key: pk_demo_savanna" \
   https://accessible-onboarding.vercel.app/api/v1/config</pre>
             </div>
 
-            <h4>Example response (200)</h4>
-            <div class="code-block">
+            <h3 class="sub-heading">Example response (200)</h3>
+            <div class="code-block" tabindex="0">
               <pre>
 {
   "partner": { "id": "7b6f1c2e-…", "name": "Savanna (demo)" },
@@ -761,7 +782,7 @@ curl -s -H "X-Partner-Key: pk_demo_savanna" \
               jobs to a learner's needs happens in the browser, so needs are never sent here.
             </p>
 
-            <h4>Query parameters</h4>
+            <h3 class="sub-heading">Query parameters</h3>
             <div class="table-wrap">
               <table class="param-table">
                 <tbody>
@@ -777,7 +798,7 @@ curl -s -H "X-Partner-Key: pk_demo_savanna" \
               </table>
             </div>
 
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -H "X-Partner-Key: pk_demo_savanna" \
@@ -799,7 +820,7 @@ curl -s -H "X-Partner-Key: pk_demo_savanna" \
               <code>screen_reader</code>, <code>flexible_hours</code>). Drafts and closed jobs are
               <code>404</code>.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -H "X-Partner-Key: pk_demo_savanna" \
@@ -829,7 +850,7 @@ curl -s -H "X-Partner-Key: pk_demo_savanna" \
             <p>
               Content type: <code>application/ld+json</code>. Keys come out in alphabetical order.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <pre>
 {
   "@context": [
@@ -896,7 +917,7 @@ curl -s -H "X-Partner-Key: pk_demo_savanna" \
                 >https://accessible-onboarding.vercel.app/ns/accommodations</a
               >
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <pre>
 {
   "@context": {
@@ -1026,7 +1047,12 @@ curl -s -H "X-Partner-Key: pk_demo_savanna" \
             component does on the learner's phone.
           </li>
         </ol>
-        <p>Importing JobPostings from other boards and a JobPosting feed are not built yet.</p>
+        <p>
+          Every JobPosting has a <code>url</code>: our page <code>/apply.html?job=&lt;id&gt;</code>,
+          which opens that job ready to apply and carries the same JSON-LD for search engines. All
+          jobs at once: <code>GET /api/v1/feeds/jobposting.jsonld</code> (a <code>@graph</code> of
+          JobPostings). Importing JobPostings from other boards is not built yet.
+        </p>
 
         <hr class="divider" />
 
@@ -1036,7 +1062,7 @@ curl -s -H "X-Partner-Key: pk_demo_savanna" \
           Use these calls to build your own sign-up screens. (The component makes them for you.) The
           examples use any POSIX shell (Git Bash on Windows):
         </p>
-        <div class="code-block">
+        <div class="code-block" tabindex="0">
           <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
           <pre>
 API=https://accessible-onboarding.vercel.app/api/v1
@@ -1055,15 +1081,15 @@ KEY=pk_demo_savanna</pre>
               learner token. Keep the token: it is shown only once. Only the
               <code>signup</code> flow can be started today.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -X POST "$API/registrations" -H "X-Partner-Key: $KEY" \
   -H "Content-Type: application/json" \
   -d '{"flow_id":"signup","language":"en","simple_mode":false}'</pre>
             </div>
-            <h4>Response (201)</h4>
-            <div class="code-block">
+            <h3 class="sub-heading">Response (201)</h3>
+            <div class="code-block" tabindex="0">
               <pre>
 {
   "registration_id": "3f2a9c4e-…",
@@ -1073,7 +1099,7 @@ curl -s -X POST "$API/registrations" -H "X-Partner-Key: $KEY" \
   "session": { "token": "lt_Q2hhbmdlTWVJc1JhbmRvbQ", "expires_at": "2026-12-15T09:30:00Z" }
 }</pre>
             </div>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 REG=3f2a9c4e-…     # registration_id
@@ -1095,7 +1121,7 @@ H=(-H "X-Partner-Key: $KEY" -H "Authorization: Bearer $TOKEN" -H "Content-Type: 
               screen. (The consent screen itself is not saved as an answer.) The component also
               records <code>cloud_speech</code> when the learner answers the speech question.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -X POST "$API/registrations/$REG/consents" "${H[@]}" \
@@ -1120,7 +1146,7 @@ curl -s -X POST "$API/registrations/$REG/consents" "${H[@]}" \
               gets both calendars. An empty value (<code>null</code>, <code>""</code>,
               <code>[]</code>) clears an optional answer.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -X PUT "$API/registrations/$REG/answers/full_name" "${H[@]}" \
@@ -1145,7 +1171,7 @@ curl -s -X PUT "$API/registrations/$REG/answers/id_route" "${H[@]}" \
               A broken rule answers <code>422</code> with the step's error code on the field
               <code>value</code>:
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <pre>
 { "status": 422, "code": "validation_failed", "title": "Validation failed",
   "errors": [ { "field": "value", "code": "phone_invalid" } ] }</pre>
@@ -1158,7 +1184,7 @@ curl -s -X PUT "$API/registrations/$REG/answers/id_route" "${H[@]}" \
           If you send an old <code>base_version</code>, another device saved first. Nothing is
           saved, and you get the stored answer in <code>current</code>:
         </p>
-        <div class="code-block">
+        <div class="code-block" tabindex="0">
           <pre>
 { "status": 409, "code": "answer_conflict", "title": "Answer changed on another device",
   "current": { "question_id": "full_name", "value": "Abebe Kebede Tadesse", "input_method": "typed",
@@ -1184,7 +1210,7 @@ curl -s -X PUT "$API/registrations/$REG/answers/id_route" "${H[@]}" \
               the database holds only bytes. The answer never repeats the needs.
               <code>share_with</code> records who else the learner allows to see them.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -X PUT "$API/registrations/$REG/support-request" "${H[@]}" \
@@ -1205,7 +1231,7 @@ curl -s -X PUT "$API/registrations/$REG/support-request" "${H[@]}" \
               <strong>Step 6. Progress (optional).</strong> Save the current step, language or
               Simple mode, so another device can continue there. Answers <code>204</code>.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -X PATCH "$API/registrations/$REG" "${H[@]}" -d '{"current_step":"support_needs"}'</pre>
@@ -1226,7 +1252,7 @@ curl -s -X PATCH "$API/registrations/$REG" "${H[@]}" -d '{"current_step":"suppor
               route it also creates a referral to the chosen organisation. Submitting twice is safe:
               you get the same answer.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -X POST "$API/registrations/$REG/submit" "${H[@]}" -d '{}'
@@ -1245,7 +1271,7 @@ curl -s -X POST "$API/registrations/$REG/submit" "${H[@]}" -d '{}'
           support needs). <code>GET /me</code> returns the learner's profile; it is the only place
           support needs are decrypted, for the learner only.
         </p>
-        <div class="code-block">
+        <div class="code-block" tabindex="0">
           <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
           <pre>
 curl -s "$API/registrations/$REG" "${H[@]}"
@@ -1463,7 +1489,7 @@ curl -s "$API/me" "${H[@]}"</pre>
               <code>attach_support_request: true</code> lets the employer of this job read the
               learner's support needs with this application; each read is audit-logged.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <pre>
 {
   "answers": {
@@ -1521,6 +1547,129 @@ curl -s "$API/me" "${H[@]}"</pre>
                   <code>204</code>.
                 </td>
               </tr>
+              <tr id="me-applications">
+                <td>
+                  <span class="method-tag method-get">GET</span>
+                  <code>/api/v1/me/applications</code>
+                </td>
+                <td>
+                  <strong>Support passport.</strong> The learner's applications, newest first, with
+                  <code>share_support</code>: whether that job's employer may see their support
+                  needs.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="method-tag method-patch">PATCH</span>
+                  <code>/api/v1/me/applications/{id}</code>
+                </td>
+                <td>
+                  <code>{"share_support": false}</code> stops sharing with that employer at once;
+                  <code>true</code> shares again. Another learner's application is <code>404</code>.
+                </td>
+              </tr>
+              <tr id="me-vouch">
+                <td>
+                  <span class="method-tag method-post">POST</span> <code>/api/v1/me/vouch</code>
+                </td>
+                <td>
+                  <strong>Trusted referral.</strong> <code>{"code": "482913"}</code>: the code the
+                  learner's referral organisation made for them (see
+                  <a href="#partner-staff">Partner staff</a>). Then <code>identity_level</code> is
+                  <code>partner_attested</code>. <code>422 code</code> (<code>code_wrong</code>,
+                  <code>code_expired</code>), <code>429 too_many_attempts</code> after 5 wrong
+                  tries.
+                </td>
+              </tr>
+              <tr id="me-phone">
+                <td>
+                  <span class="method-tag method-post">POST</span>
+                  <code>/api/v1/me/phone-verification</code>
+                </td>
+                <td>
+                  <strong>Optional phone check.</strong> Texts a 6-digit code (10 minutes) to the
+                  learner's stored phone and answers <code>202</code> with the masked number. Only
+                  when real SMS is on (<code>GET /config</code> says <code>sms.verify_phone</code>;
+                  otherwise <code>503 sms_unavailable</code>). At most one code a minute (<code
+                    >429 rate_limited</code
+                  >); Ethio Telecom numbers only (<code>422 phone sms_not_supported</code>);
+                  <code>409 already_exists</code> if already confirmed.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="method-tag method-post">POST</span>
+                  <code>/api/v1/me/phone-verification/confirm</code>
+                </td>
+                <td>
+                  <code>{"code": "482913"}</code>: the phone becomes verified (<code
+                    >phone_verified: true</code
+                  >
+                  on <code>/me</code>, and <code>phone.verified</code> in the partner API). Answers
+                  the profile. <code>422 code_wrong</code>, <code>429 too_many_attempts</code> after
+                  5 wrong tries. Changing the number later makes it unverified again.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Partner staff -->
+        <h2 id="partner-staff">Partner staff: referrals and vouching</h2>
+        <p>
+          Staff of a referral organisation (role <code>partner_staff</code>, staff token from
+          <code>POST /api/v1/auth/staff/login</code>) see the learners who chose their organisation
+          and can vouch for them. Another organisation's referral is <code>404</code>.
+        </p>
+        <div class="table-wrap">
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th>Call</th>
+                <th>What it does</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <span class="method-tag method-get">GET</span>
+                  <code>/api/v1/partner/referrals</code>
+                </td>
+                <td>
+                  People who asked this organisation for help: name, how to contact them, phone,
+                  language, status. Never ID details or support needs.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="method-tag method-patch">PATCH</span>
+                  <code>/api/v1/partner/referrals/{id}</code>
+                </td>
+                <td><code>{"status": "in_progress"}</code> or <code>"closed"</code>.</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="method-tag method-post">POST</span>
+                  <code>/api/v1/partner/referrals/{id}/vouch-code</code>
+                </td>
+                <td>
+                  <strong>Vouch for this person.</strong> <code>{"confirmed": true}</code> (the
+                  staff member met or spoke with them) answers <code>201</code> with a one-time
+                  6-digit code, valid 30 minutes, to tell the learner. The learner enters it with
+                  <a href="#me-vouch"><code>POST /me/vouch</code></a
+                  >. <code>409 already_exists</code> if already confirmed.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="method-tag method-post">POST</span>
+                  <code>/api/v1/partner/registrations/{id}/consent-code</code>
+                </td>
+                <td>
+                  Texts a consent code to the learner's own phone (for "register for a learner",
+                  whose check is not built yet).
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -1550,7 +1699,7 @@ curl -s "$API/me" "${H[@]}"</pre>
             the code is locked (<code>429 too_many_attempts</code>).
           </li>
         </ol>
-        <div class="code-block">
+        <div class="code-block" tabindex="0">
           <pre>
 POST /api/v1/resume/verify
 { "code": "K7M-9P2", "phone_last4": "5678" }
@@ -1591,7 +1740,7 @@ POST /api/v1/resume/verify
               <code>503 speech_unavailable</code>, and the component falls back to the device's
               voice.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <pre>{ "text": "What is your full name?", "language": "en" }</pre>
             </div>
           </div>
@@ -1612,7 +1761,7 @@ POST /api/v1/resume/verify
           as a SHA-256 hash, so it is handed over once. Make it with
           <code>openssl rand -base64 32</code>.
         </p>
-        <div class="code-block">
+        <div class="code-block" tabindex="0">
           <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
           <pre>
 UPDATE partners
@@ -1633,15 +1782,15 @@ WHERE publishable_key = 'pk_…';</pre>
               <code>client_id</code> and <code>client_secret</code> for a partner token
               (<code>pt_…</code>) that lasts one hour.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -X POST "$API/oauth/token" \
   -d grant_type=client_credentials -d client_id=your-server \
   -d client_secret="$CLIENT_SECRET" -d scope=learners:read</pre>
             </div>
-            <h4>Response (200)</h4>
-            <div class="code-block">
+            <h3 class="sub-heading">Response (200)</h3>
+            <div class="code-block" tabindex="0">
               <pre>
 { "access_token": "pt_…", "token_type": "Bearer", "expires_in": 3600, "scope": "learners:read" }</pre>
             </div>
@@ -1668,14 +1817,14 @@ curl -s -X POST "$API/oauth/token" \
               <code>updated_since</code> to fetch only changes since your last call. A token without
               the scope gets <code>403 insufficient_scope</code>.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -H "Authorization: Bearer $PT" \
   "$API/partner-api/learners?updated_since=2026-11-15T00:00:00Z&amp;limit=50"</pre>
             </div>
-            <h4>Response (200)</h4>
-            <div class="code-block">
+            <h3 class="sub-heading">Response (200)</h3>
+            <div class="code-block" tabindex="0">
               <pre>
 {
   "items": [
@@ -1709,7 +1858,7 @@ curl -s -H "Authorization: Bearer $PT" \
               up. Match learners to your own users with the <code>learner_id</code> from the
               <code>bridge-onboarding:completed</code> event.
             </p>
-            <div class="code-block">
+            <div class="code-block" tabindex="0">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
               <pre>
 curl -s -H "Authorization: Bearer $PT" "$API/partner-api/learners/9a8b7c6d-…"</pre>

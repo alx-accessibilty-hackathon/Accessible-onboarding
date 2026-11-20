@@ -25,6 +25,7 @@
   --bo-error: #b42318;
   --bo-error-bg: #fdecea;
   --bo-success: #0a7650;
+  --bo-success-bg: #e6f4ee;
   --bo-info-bg: #eaf0f7;
   --bo-navy: #12305a;
   --bo-selected-bg: #fbeaea;
@@ -47,6 +48,7 @@
     --bo-error: #ff7575;
     --bo-error-bg: #2d1215;
     --bo-success: #3ec878;
+    --bo-success-bg: #0f2b1f;
     --bo-info-bg: #142438;
     --bo-navy: #7ca1d4;
     --bo-selected-bg: #2b181b;
@@ -68,6 +70,7 @@
   --bo-error: #ff7575;
   --bo-error-bg: #2d1215;
   --bo-success: #3ec878;
+  --bo-success-bg: #0f2b1f;
   --bo-info-bg: #142438;
   --bo-navy: #7ca1d4;
   --bo-selected-bg: #2b181b;
@@ -464,7 +467,7 @@ a.bo-btn {
 }
 
 .bo-banner-success {
-  background: #e6f4ee;
+  background: var(--bo-success-bg);
   border-color: var(--bo-success);
   color: var(--bo-success);
 }
@@ -663,15 +666,5 @@ a.bo-btn {
     background: rgba(0, 0, 0, 0.85);
   }
 
-  .bo-banner-error {
-    background: #f9d6d2;
-  }
-
-  .bo-banner-info {
-    background: #d4dfe8;
-  }
-
-  .bo-banner-success {
-    background: #c8e8d8;
-  }
+  /* The banners are already opaque: they keep their (light or dark) theme colours here. */
 }

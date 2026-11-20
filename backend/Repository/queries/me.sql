@@ -54,3 +54,12 @@ WHERE id = $1;
 DELETE FROM auth_sessions
 WHERE (subject_type = 'learner' AND subject_id = $1)
    OR acting_for = $1;
+
+-- The learner typed the SMS code sent to this number: it is confirmed. Only while the stored
+-- number is still the one the code was sent to (0 rows otherwise).
+-- name: SetLearnerPhoneVerified :execrows
+UPDATE learners
+SET phone_verified = true,
+    updated_at     = now()
+WHERE id = sqlc.arg(id)
+  AND phone_e164 = sqlc.arg(phone_e164);

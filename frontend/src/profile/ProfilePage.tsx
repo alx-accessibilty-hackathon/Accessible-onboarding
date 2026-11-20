@@ -14,11 +14,13 @@ import { forgetEverything, loadSession, type LearnerSession } from '../api/auth'
 import { listMyApplications, setSupportSharing, type MyApplication } from '../api/applications';
 import { ApiError, errorCode, type ApiConfig } from '../api/client';
 import {
+  confirmPhoneCode,
   confirmVouch,
   deleteMe,
   exportMe,
   fetchMe,
   patchMe,
+  sendPhoneCode,
   type ContactMethod,
   type Me,
   type MePatch,
@@ -47,6 +49,8 @@ export interface ProfilePageProps {
   lang: string;
   /** The languages offered (for "Language"). */
   languages: string[];
+  /** Real SMS is on (GET /config sms.verify_phone): offer the optional phone check. */
+  canVerifyPhone?: boolean;
   manageTitle: boolean;
   /** Opened by the person (Done screen, Save panel): focus its heading. Never on first load. */
   focusOnMount?: boolean;
@@ -105,6 +109,7 @@ export function ProfilePage({
   api,
   lang,
   languages,
+  canVerifyPhone = false,
   manageTitle,
   focusOnMount = false,
   onSignUp,
@@ -146,6 +151,14 @@ export function ProfilePage({
   const [vouchError, setVouchError] = useState<string | null>(null);
   const [vouching, setVouching] = useState(false);
   const [vouchDone, setVouchDone] = useState<string | null>(null);
+
+  // The optional phone check: a code by SMS to the stored number.
+  const [phoneSentTo, setPhoneSentTo] = useState<string | null>(null);
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneDone, setPhoneDone] = useState<string | null>(null);
+  const phoneCodeRef = useRef<HTMLInputElement>(null);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const questionHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -477,6 +490,77 @@ export function ProfilePage({
     }
   };
 
+  /* ---------------------------------------------------------------- */
+  /*  Optional phone check: a 6-digit code by SMS                      */
+  /* ---------------------------------------------------------------- */
+
+  const canCheckPhone = (data: Me) =>
+    canVerifyPhone && data.status !== 'draft' && !!data.phone && !data.phone_verified;
+
+  const phoneFail = (msg: string) => {
+    setPhoneError(msg);
+    announce(msg);
+  };
+
+  const phoneErrorText = (err: unknown): string => {
+    const field = err instanceof ApiError ? err.errors[0]?.code : '';
+    const code = errorCode(err);
+    if (field === 'sms_not_supported') return t(lang, 'profile.verify_phone_not_supported');
+    if (field === 'code_wrong') return t(lang, 'profile.verify_phone_wrong');
+    if (field === 'required') return t(lang, 'profile.verify_phone_required');
+    if (code === 'rate_limited') return t(lang, 'profile.verify_phone_wait');
+    return t(lang, `errors.${code}`);
+  };
+
+  const requestPhoneCode = async () => {
+    if (!learnerApi || phoneBusy) return;
+    setPhoneBusy(true);
+    setPhoneError(null);
+    try {
+      const sent = await sendPhoneCode(learnerApi);
+      setPhoneSentTo(sent.sent_to);
+      setPhoneCode('');
+      announce(t(lang, 'profile.verify_phone_sent', { phone: sent.sent_to }));
+      window.setTimeout(() => phoneCodeRef.current?.focus(), 0);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && me) {
+        setMe({ ...me, phone_verified: true }); // already confirmed
+      } else {
+        phoneFail(phoneErrorText(err));
+      }
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
+  const submitPhoneCode = async () => {
+    if (!learnerApi || phoneBusy) return;
+    if (!phoneCode.trim()) {
+      phoneFail(t(lang, 'profile.verify_phone_required'));
+      return;
+    }
+    setPhoneBusy(true);
+    setPhoneError(null);
+    try {
+      const updated = await confirmPhoneCode(learnerApi, phoneCode);
+      setMe(updated);
+      setPhoneSentTo(null);
+      setPhoneCode('');
+      const msg = t(lang, 'profile.verify_phone_done');
+      setPhoneDone(msg);
+      announce(msg);
+    } catch (err) {
+      phoneFail(phoneErrorText(err));
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
+  const phoneCheckParts = (data: Me): Part[] =>
+    canCheckPhone(data)
+      ? [keyPart(lang, 'profile.verify_phone_title'), keyPart(lang, 'profile.verify_phone_body')]
+      : [];
+
   const vouchParts = (data: Me): Part[] =>
     canVouch(data)
       ? [
@@ -642,6 +726,19 @@ export function ProfilePage({
     if (PHONE_METHODS.includes(data.contact_method) || data.phone) {
       stepRow('phone', data.phone ? formatEthiopianPhoneDisplay(data.phone) : '', true);
     }
+    if (data.phone) {
+      const confirmed = t(
+        lang,
+        data.phone_verified ? 'profile.phone_verified.yes' : 'profile.phone_verified.no',
+      );
+      out.push({
+        field: null,
+        label: t(lang, 'profile.label.phone_verified'),
+        value: confirmed,
+        personal: false,
+        spoken: [confirmed],
+      });
+    }
     const dob = toDateValue(data.dob);
     stepRow('dob', dob ? formatDate(dob, lang) : '', true);
     out.push({
@@ -722,6 +819,7 @@ export function ProfilePage({
     const parts: Part[] = [keyPart(lang, 'profile.title'), keyPart(lang, 'profile.intro')];
     if (draft) parts.push(keyPart(lang, 'profile.draft_body'));
     for (const row of rows(me)) parts.push(row.label, ...row.spoken);
+    parts.push(...phoneCheckParts(me));
     parts.push(...vouchParts(me));
     if (!draft) parts.push(...passportParts(me));
     parts.push(keyPart(lang, 'profile.export_title'), keyPart(lang, 'profile.export_body'));
@@ -939,6 +1037,103 @@ export function ProfilePage({
           </div>
         ))}
       </dl>
+
+      {phoneDone && (
+        <Banner variant="success" quiet>
+          {phoneDone}
+        </Banner>
+      )}
+
+      {canCheckPhone(me) && (
+        <section
+          aria-labelledby="bo-phone-check-title"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--bo-space-3)',
+            padding: 'var(--bo-space-4)',
+            border: '2px solid var(--bo-border-strong)',
+            borderRadius: 'var(--bo-radius)',
+            background: 'var(--bo-surface)',
+          }}
+        >
+          <h2 id="bo-phone-check-title" style={{ fontSize: '1.1em', margin: 0 }}>
+            {t(lang, 'profile.verify_phone_title')}
+          </h2>
+          <p id="bo-phone-check-body" style={{ margin: 0 }}>
+            {t(lang, 'profile.verify_phone_body')}
+          </p>
+          {phoneError && !phoneSentTo && (
+            <p style={{ margin: 0, color: 'var(--bo-error)', fontWeight: 600 }}>
+              <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
+              {phoneError}
+            </p>
+          )}
+          {!phoneSentTo ? (
+            <div>
+              <Button
+                variant="primary"
+                onClick={() => void requestPhoneCode()}
+                aria-busy={phoneBusy || undefined}
+              >
+                {t(lang, 'profile.verify_phone_send')}
+              </Button>
+            </div>
+          ) : (
+            <form
+              noValidate
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitPhoneCode();
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-3)' }}
+            >
+              <p id="bo-phone-check-sent" style={{ margin: 0, fontWeight: 600 }}>
+                {t(lang, 'profile.verify_phone_sent', { phone: phoneSentTo })}
+              </p>
+              <label htmlFor="bo-phone-check-code" style={{ fontWeight: 700 }}>
+                {t(lang, 'profile.verify_phone_label')}
+              </label>
+              {phoneError && (
+                <p
+                  id="bo-phone-check-error"
+                  style={{ margin: 0, color: 'var(--bo-error)', fontWeight: 600 }}
+                >
+                  <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
+                  {phoneError}
+                </p>
+              )}
+              <input
+                id="bo-phone-check-code"
+                ref={phoneCodeRef}
+                className="bo-input"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={7}
+                value={phoneCode}
+                aria-invalid={!!phoneError}
+                aria-describedby={
+                  phoneError ? 'bo-phone-check-sent bo-phone-check-error' : 'bo-phone-check-sent'
+                }
+                onChange={(e) => {
+                  setPhoneCode(e.target.value);
+                  setPhoneError(null);
+                }}
+                style={{ maxWidth: '12em', fontSize: '1.4em', letterSpacing: '0.15em' }}
+              />
+              <div className="bo-actions">
+                <Button variant="primary" type="submit" aria-busy={phoneBusy || undefined}>
+                  {t(lang, 'profile.verify_phone_confirm')}
+                </Button>
+                <Button variant="secondary" onClick={() => void requestPhoneCode()}>
+                  {t(lang, 'profile.verify_phone_resend')}
+                </Button>
+              </div>
+            </form>
+          )}
+        </section>
+      )}
 
       {vouchDone && (
         <Banner variant="success" quiet>

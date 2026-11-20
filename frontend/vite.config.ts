@@ -81,6 +81,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           main: path('./index.html'),
+          apply: path('./apply.html'),
           staff: path('./staff.html'),
           partners: path('./partners.html'),
           docs: path('./docs.html'),

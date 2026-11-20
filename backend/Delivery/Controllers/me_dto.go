@@ -34,6 +34,7 @@ type MeDTO struct {
 	PreferredName  string         `json:"preferred_name"`
 	ContactMethod  string         `json:"contact_method"` // phone | telegram | partner | none | ""
 	Phone          string         `json:"phone"`          // E.164 or ""
+	PhoneVerified  bool           `json:"phone_verified"` // confirmed with an SMS code (profile page)
 	DOB            *MeDOBDTO      `json:"dob"`
 	Language       string         `json:"language"`
 	SimpleMode     bool           `json:"simple_mode"`
@@ -90,6 +91,7 @@ func toMeDTO(p *domain.LearnerProfile) MeDTO {
 		PreferredName: l.PreferredName,
 		ContactMethod: l.ContactMethod,
 		Phone:         l.PhoneE164,
+		PhoneVerified: l.PhoneVerified,
 		Language:      l.Language,
 		SimpleMode:    l.SimpleMode,
 		RegisteredAt:  l.RegisteredAt,
@@ -207,4 +209,15 @@ func toMeExportDTO(exp *domain.LearnerExport) MeExportDTO {
 		}
 	}
 	return dto
+}
+
+// POST /me/phone-verification/confirm
+type ConfirmPhoneRequest struct {
+	Code string `json:"code"`
+}
+
+// 202 from POST /me/phone-verification: the code was sent (to the masked number).
+type PhoneCodeSentDTO struct {
+	SentTo    string    `json:"sent_to"`    // masked, e.g. "+2519•••••678"
+	ExpiresAt time.Time `json:"expires_at"` // 10 minutes
 }

@@ -283,8 +283,11 @@ paths:
         `speech.server` and `speech.cloud_available` come from `STT_PROVIDERS` unless the
         partner config overrides them.
 
-        Today the widget uses `languages`, `help` and `referral_partners`; it does not yet use
-        `default_language`, `id_routes`, `theme` or `speech`.
+        The widget uses all of them: `languages` (offered), `default_language` (starting
+        language unless the page sets `lang` or the learner chose one), `id_routes` (the ID
+        choices), `help`, `referral_partners`, `theme.primary` (main colour in light mode, if
+        it has at least 4.5:1 contrast on white) and `speech` (with `cloud_available`, Amharic
+        voice answers go to the server).
       security:
         - PartnerKey: []
       responses:
@@ -320,6 +323,8 @@ paths:
                 speech:
                   server: true
                   cloud_available: false
+                sms:
+                  verify_phone: false
         "401":
           $ref: "#/components/responses/WidgetUnauthorized"
         "403":
@@ -1370,8 +1375,11 @@ paths:
         accommodation codes. schema.org has no property for workplace accommodations, so the
         readable text goes in `jobBenefits` and the codes in `acc:offers`, where the `acc`
         prefix is `PUBLIC_WEB_URL + "/ns/accommodations#"` (defined at `GET /ns/accommodations`). Remote jobs get
-        `jobLocationType: TELECOMMUTE` and `applicantLocationRequirements` (Ethiopia). The
-        keys come out in alphabetical order.
+        `jobLocationType: TELECOMMUTE` and `applicantLocationRequirements` (Ethiopia).
+        `url` is where to apply: our hosted page `PUBLIC_WEB_URL/apply.html?job=<id>`, which
+        opens this job in the widget (sign-up first if needed) and carries the same JSON-LD in
+        the page for search engines. All jobs at once: `GET /api/v1/feeds/jobposting.jsonld`.
+        The keys come out in alphabetical order.
       security: []
       responses:
         "200":
@@ -1405,11 +1413,63 @@ paths:
                 jobBenefits: "Supports we offer: remote work; tools and documents that work with screen readers; screen magnification and large-print materials; use of your own assistive device or software; flexible hours and breaks."
                 jobLocationType: TELECOMMUTE
                 title: Junior Web Developer
+                url: https://accessible-onboarding.vercel.app/apply.html?job=5e6f7a8b-9c0d-4e1f-a2b3-c4d5e6f7a8b9
                 workHours: Mon–Fri, flexible hours
         "400":
           $ref: "#/components/responses/InvalidId"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/feeds/jobposting.jsonld:
+    get:
+      operationId: getJobPostingFeed
+      tags: [Jobs]
+      summary: Every published job as one JSON-LD document
+      description: |
+        **Who:** anyone (no key, no token). Level 3 integration: a job board can take all our
+        jobs in one request instead of one by one.
+
+        One shared `@context` (schema.org plus the `acc` prefix) and a `@graph` with one
+        JobPosting per published job (the same as `GET /api/v1/jobs/{id}/jobposting.jsonld`,
+        each with its `url` to apply), newest first, at most 500. Cached for 5 minutes
+        (`Cache-Control: public, max-age=300`).
+      security: []
+      responses:
+        "200":
+          description: The feed.
+          content:
+            application/ld+json:
+              schema:
+                type: object
+                required: ["@context", "@graph"]
+                properties:
+                  "@context":
+                    type: array
+                    items: {}
+                  "@graph":
+                    type: array
+                    description: JobPostings as in `getJobPosting`, without their own `@context` (the feed's applies).
+                    items:
+                      type: object
+                      required: ["@type", title, description, hiringOrganization, "acc:offers", url]
+                      additionalProperties: true
+              example:
+                "@context":
+                  - https://schema.org
+                  - acc: https://accessible-onboarding.vercel.app/ns/accommodations#
+                "@graph":
+                  - "@type": JobPosting
+                    title: Data Entry Clerk
+                    description: Type paper forms into our computer system and check them for mistakes.
+                    hiringOrganization:
+                      "@type": Organization
+                      name: Example Co
+                    acc:offers: [step_free, large_text, extra_time, quiet_space]
+                    url: https://accessible-onboarding.vercel.app/apply.html?job=c2c4ad89-6acd-417e-bfd4-56bb75c0ca87
         "429":
           $ref: "#/components/responses/RateLimited"
         "500":
@@ -1700,6 +1760,154 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/phone-verification:
+    post:
+      operationId: sendPhoneCode
+      tags: [Learner profile]
+      summary: Optional phone check, send a code by SMS
+      description: |
+        **Who:** a registered learner, with the partner key and their own learner token.
+
+        Texts a 6-digit code (valid 10 minutes, stored only as a keyed hash) to the learner's
+        stored phone number. Optional: it never blocks anything, and the sign-up doesn't ask
+        for it. Needs real SMS (`SMS_PROVIDER=smsethiopia`; `GET /config` says
+        `sms.verify_phone`); SMS Ethiopia sends only to Ethio Telecom numbers, and its free
+        test campaign only to numbers verified in its dashboard. At most one code a minute.
+        No body.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "202":
+          description: The code was sent (in the background).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent_to, expires_at]
+                properties:
+                  sent_to:
+                    type: string
+                    description: The masked number.
+                  expires_at:
+                    type: string
+                    format: date-time
+              example:
+                sent_to: "+2519•••••678"
+                expires_at: "2026-11-21T09:40:00Z"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "409":
+          description: "`already_exists` (the phone is already confirmed) or `not_registered` (finish signing up first)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 409
+                code: already_exists
+        "422":
+          description: "`phone` (`required`: no phone stored; `sms_not_supported`: not an Ethio Telecom number)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: phone
+                    code: sms_not_supported
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          description: Real SMS is not set up (`sms_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 503
+                code: sms_unavailable
+
+  /api/v1/me/phone-verification/confirm:
+    post:
+      operationId: confirmPhoneCode
+      tags: [Learner profile]
+      summary: Optional phone check, enter the code
+      description: |
+        **Who:** a learner, with the partner key and their own learner token.
+
+        Checks the code from the SMS (spaces are ignored). Then `phone_verified` is true on
+        `/me` and `phone.verified` in the partner API. Answers the profile, as `GET /me`.
+        A wrong, expired or unknown code gives `code_wrong`; 5 wrong tries end the code
+        (`429 too_many_attempts`; ask for a new one). Changing the number later makes it
+        unverified again.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+            example:
+              code: "482913"
+      responses:
+        "200":
+          description: "The profile, with `phone_verified` true."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "422":
+          description: "`code` (`required`, `code_wrong`) or `phone` (`required`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: code
+                    code: code_wrong
+        "429":
+          description: Too many wrong tries for this code (`too_many_attempts`), or too many requests (`rate_limited`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 429
+                code: too_many_attempts
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          description: Real SMS is not set up (`sms_unavailable`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 503
+                code: sms_unavailable
 
   /api/v1/me/vouch:
     post:
@@ -3279,6 +3487,15 @@ components:
                 A cloud speech-to-text provider is ready (`addis` with `ADDIS_AI_API_KEY`, or
                 `azure` with its key); it needs the learner's consent. The widget then records
                 Amharic answers and sends them to `POST /api/v1/speech/transcriptions`.
+        sms:
+          type: object
+          required: [verify_phone]
+          properties:
+            verify_phone:
+              type: boolean
+              description: |
+                Real SMS is on (`SMS_PROVIDER=smsethiopia` with a key): the profile page offers
+                the optional phone check (`POST /api/v1/me/phone-verification`).
 
     # ---------------------------------------------------------- registrations
     CreateRegistrationRequest:
@@ -3834,6 +4051,10 @@ components:
         jobLocationType:
           type: string
           enum: [TELECOMMUTE]
+        url:
+          type: string
+          format: uri
+          description: Where to apply on Bridge (`PUBLIC_WEB_URL/apply.html?job=<id>`).
         jobLocation:
           type: object
           properties:
@@ -4049,6 +4270,9 @@ components:
         phone:
           type: string
           description: E.164, or empty.
+        phone_verified:
+          type: boolean
+          description: Confirmed with an SMS code (the optional phone check). A changed number is unverified again.
         dob:
           type: object
           nullable: true
