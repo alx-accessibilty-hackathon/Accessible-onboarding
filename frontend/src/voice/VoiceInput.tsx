@@ -1,3 +1,4 @@
+import { del } from 'idb-keyval';
 import { useEffect, useRef, useState } from 'react';
 import { announce } from '../a11y/announce';
 import { useModes } from '../a11y/modes';
@@ -8,9 +9,11 @@ import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Icon } from '../components/Icon';
 import { t } from '../i18n/t';
+import { widgetStore } from '../offline/db';
 import { useOnline } from '../offline/useOnline';
 import { MicHelp } from './MicHelp';
 import { matchChoice, normalizeVoiceInput } from './normalize';
+import { preferServerSpeech, serverCloudSpeech } from './serverSpeech';
 import { SpeechConsent } from './SpeechConsent';
 import type { VoiceClipOutcome, VoiceInputProps } from './types';
 import { useRecorder } from './useRecorder';
@@ -72,6 +75,7 @@ export function VoiceInput({
   const mounted = useRef(true);
   const autoStarted = useRef(false);
   const recordTimer = useRef<number | null>(null);
+  const finishing = useRef(false); // a recording is being finished (silence and Stop can both ask)
   const focusNext = useRef<Focusable | null>(null);
   const stopRef = useRef<HTMLButtonElement>(null);
   const sayAgainRef = useRef<HTMLButtonElement>(null);
@@ -201,7 +205,10 @@ export function VoiceInput({
   /*  Recording on the phone (no browser speech, offline, or declined) */
   /* ---------------------------------------------------------------- */
 
-  const finishRecording = async () => {
+  /** heardSpeech false: the person said nothing (silence watch), so nothing is sent. */
+  const finishRecording = async (heardSpeech = true) => {
+    if (finishing.current) return;
+    finishing.current = true;
     if (recordTimer.current) window.clearTimeout(recordTimer.current);
     recordTimer.current = null;
     keepFocus('voice');
@@ -210,6 +217,11 @@ export function VoiceInput({
     if (!mounted.current) return;
     if (!clipId) {
       setState('idle');
+      return;
+    }
+    if (!heardSpeech) {
+      void del(clipId, widgetStore()).catch(() => {});
+      didntCatch();
       return;
     }
     setState('transcribing');
@@ -237,10 +249,12 @@ export function VoiceInput({
     keepFocus('stop');
     setState('recording');
     setNote(null);
+    finishing.current = false;
     announce(t(lang, 'voice.recording'));
     try {
-      await recorder.start();
-      recordTimer.current = window.setTimeout(() => void finishRecording(), RECORD_LIMIT_MS);
+      // Stops by itself when the person stops talking (or never starts); Stop still works.
+      await recorder.start({ onSilence: (heard) => void finishRecording(heard) });
+      recordTimer.current = window.setTimeout(() => void finishRecording(true), RECORD_LIMIT_MS);
     } catch {
       holdSpeech(false);
       if (!mounted.current) return;
@@ -299,11 +313,23 @@ export function VoiceInput({
     });
   };
 
-  /** Start the best way this browser has (the cloud speech question is asked once, ever). */
+  // The browser recognises the speech itself (path A) unless it cannot, or the server has a
+  // speech service made for the language (Addis AI for Amharic): then the answer is recorded
+  // and sent there (path B).
+  const browserCanListen = () => online && webSpeech.supported && !preferServerSpeech(lang);
+
+  /** After a "yes" to cloud speech: the browser's recognition, or a recording for the server. */
+  const listenWithConsent = () => {
+    if (browserCanListen()) startListening();
+    else void startRecording();
+  };
+
+  /** Start the best way there is (the cloud speech question is asked once, ever). */
   const begin = () => {
     setHeard(null);
     setNote(null);
-    if (!online || !webSpeech.supported) {
+    const cloudPossible = browserCanListen() || (online && serverCloudSpeech());
+    if (!cloudPossible) {
       void startRecording();
       return;
     }
@@ -316,7 +342,7 @@ export function VoiceInput({
       void startRecording();
       return;
     }
-    startListening();
+    listenWithConsent();
   };
 
   // Answer by speaking: listen by itself once the question has been read (or at once).
@@ -336,7 +362,7 @@ export function VoiceInput({
     setSpeechConsent(true);
     setConsentOpen(false);
     onSpeechConsent?.(true);
-    startListening();
+    listenWithConsent();
   };
 
   // "Use another way": remembered, so we don't ask again; record on the phone instead.
@@ -349,7 +375,7 @@ export function VoiceInput({
 
   const handleStop = () => {
     if (state === 'recording') {
-      void finishRecording();
+      void finishRecording(true);
       return;
     }
     // What was said so far still comes as the result (it used to be thrown away here).

@@ -80,3 +80,15 @@ func toPartnerReferral(r sqlc.GetPartnerReferralRow) *domain.PartnerReferral {
 		},
 	}
 }
+
+// Get returns one referral of this partner (ErrNotFound for another partner's).
+func (r *ReferralRepository) Get(ctx context.Context, id, partnerID uuid.UUID) (*domain.PartnerReferral, error) {
+	row, err := r.Q.GetPartnerReferral(ctx, sqlc.GetPartnerReferralParams{ID: id, PartnerID: partnerID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toPartnerReferral(row), nil
+}

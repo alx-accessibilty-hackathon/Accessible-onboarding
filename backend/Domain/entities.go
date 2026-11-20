@@ -95,6 +95,7 @@ const (
 	ReferralStatusRequested  = "requested"
 	ReferralStatusInProgress = "in_progress"
 	ReferralStatusClosed     = "closed"
+	ReferralStatusAttested   = "attested" // partner staff vouched for the learner (trusted referral)
 
 	ContactPhone    = "phone"
 	ContactTelegram = "telegram"
@@ -106,6 +107,8 @@ const (
 	AuditActorStaff           = "staff"
 	AuditActionLearnerDeleted = "learner.deleted"
 	AuditActionSupportRead    = "support_request.read"
+	AuditActionVouchCodeMade  = "identity.vouch_code_made"  // partner staff made a code
+	AuditActionVouched        = "identity.partner_attested" // the learner entered it
 	AuditTargetLearner        = "learner"
 
 	// IDRouteNone is the "I have no ID" answer: the learner is referred to a partner organisation (R7).
@@ -368,6 +371,31 @@ type EmployerApplication struct {
 	Support     *SupportRequest
 }
 
+// VouchCode is a one-time code partner staff make to vouch for a learner (trusted referral).
+type VouchCode struct {
+	ID             uuid.UUID
+	ReferralID     uuid.UUID
+	LearnerID      uuid.UUID
+	PartnerID      uuid.UUID
+	StaffID        uuid.UUID
+	CodeHash       []byte
+	FailedAttempts int
+	ExpiresAt      time.Time
+}
+
+// VouchCodeIssued is what the staff member sees: the code to tell the learner.
+type VouchCodeIssued struct {
+	Code        string
+	ExpiresAt   time.Time
+	LearnerName string
+}
+
+// Vouched is the result of the learner entering the code.
+type Vouched struct {
+	IdentityLevel string
+	PartnerName   string
+}
+
 // AuditEntry is one row of audit_log. Meta never holds personal data.
 type AuditEntry struct {
 	ActorType  string
@@ -435,6 +463,18 @@ type Application struct {
 	CreatedAt     time.Time
 }
 
+// LearnerApplication is one of the learner's own applications, for the support passport
+// (GET /me/applications): which employer, and whether it may see their support needs.
+type LearnerApplication struct {
+	ID           uuid.UUID
+	JobID        uuid.UUID
+	JobTitle     string
+	EmployerName string
+	Status       string
+	ShareSupport bool // applications.attach_support
+	CreatedAt    time.Time
+}
+
 // Transcription is what a speech-to-text provider returns.
 type Transcription struct {
 	Text       string
@@ -458,6 +498,7 @@ type Message struct {
 	Channel   string // sms | telegram
 	Recipient string
 	Body      string
+	OutboxID  uuid.UUID // its messages_outbox row (uuid.Nil if none): the sender records the result there
 }
 
 // ResumeToken represents a temporary resume link or code for cross-device sign-up.

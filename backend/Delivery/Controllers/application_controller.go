@@ -38,6 +38,46 @@ func (ac *ApplicationController) CreateApplicationController(c *gin.Context) {
 	c.JSON(http.StatusCreated, toApplicationDTO(app))
 }
 
+// GET /api/v1/me/applications
+// The learner's own applications (support passport): for each, the job, the employer and
+// whether that employer may see the learner's support needs. Newest first.
+func (ac *ApplicationController) ListMyApplicationsController(c *gin.Context) {
+	if ac == nil || ac.ApplicationUc == nil {
+		notImplemented(c)
+		return
+	}
+	apps, err := ac.ApplicationUc.ListMine(c.Request.Context(), infrastructure.ActorFrom(c))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, ListResponse[MyApplicationDTO]{Items: toMyApplicationDTOs(apps), NextCursor: nil})
+}
+
+// PATCH /api/v1/me/applications/:id  {"share_support": true|false}
+// One tap to share the support needs with this application's employer, or to stop sharing
+// them. Another learner's application is 404.
+func (ac *ApplicationController) UpdateMyApplicationController(c *gin.Context) {
+	if ac == nil || ac.ApplicationUc == nil {
+		notImplemented(c)
+		return
+	}
+	id, ok := uuidParam(c, "id")
+	if !ok {
+		return
+	}
+	var req UpdateMyApplicationRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	app, err := ac.ApplicationUc.SetSupportSharing(c.Request.Context(), infrastructure.ActorFrom(c), id, *req.ShareSupport)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, toMyApplicationDTO(app))
+}
+
 // EmployerApplicationController: an employer reads the applications to their own jobs.
 type EmployerApplicationController struct {
 	EmployerApplicationUc domain.EmployerApplicationUsecaseI

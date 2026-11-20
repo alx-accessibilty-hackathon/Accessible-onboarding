@@ -226,3 +226,16 @@ type VerificationCode struct {
 	UsedAt         *time.Time
 	CreatedAt      time.Time
 }
+
+type VouchCode struct {
+	ID             uuid.UUID
+	ReferralID     uuid.UUID
+	LearnerID      uuid.UUID
+	PartnerID      uuid.UUID
+	StaffID        uuid.UUID
+	CodeHash       []byte
+	FailedAttempts int32
+	ExpiresAt      time.Time
+	UsedAt         *time.Time
+	CreatedAt      time.Time
+}

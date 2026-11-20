@@ -49,6 +49,7 @@ type ApplicantDTO struct {
 	ContactMethod string `json:"contact_method"`
 	Phone         string `json:"phone"`
 	Language      string `json:"language"`
+	IdentityLevel string `json:"identity_level"` // self_declared | partner_attested (a partner vouched) | verified
 }
 
 type ApplicationSupportDTO struct {
@@ -75,6 +76,7 @@ func toEmployerApplicationDTOs(apps []*domain.EmployerApplication) []EmployerApp
 				ContactMethod: a.Applicant.ContactMethod,
 				Phone:         a.Applicant.PhoneE164,
 				Language:      a.Applicant.Language,
+				IdentityLevel: a.Applicant.IdentityLevel,
 			},
 		}
 		if a.Support != nil {
@@ -85,6 +87,38 @@ func toEmployerApplicationDTOs(apps []*domain.EmployerApplication) []EmployerApp
 			dto.Support = &ApplicationSupportDTO{Needs: needs, OtherText: a.Support.OtherText}
 		}
 		out = append(out, dto)
+	}
+	return out
+}
+
+// One item of GET /me/applications and the answer of PATCH /me/applications/:id: the support
+// passport (which employer may see the learner's support needs).
+type MyApplicationDTO struct {
+	ID           uuid.UUID `json:"id"`
+	JobID        uuid.UUID `json:"job_id"`
+	JobTitle     string    `json:"job_title"`
+	EmployerName string    `json:"employer_name"`
+	Status       string    `json:"status"`
+	ShareSupport bool      `json:"share_support"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// PATCH /me/applications/:id
+type UpdateMyApplicationRequest struct {
+	ShareSupport *bool `json:"share_support" binding:"required"`
+}
+
+func toMyApplicationDTO(a *domain.LearnerApplication) MyApplicationDTO {
+	return MyApplicationDTO{
+		ID: a.ID, JobID: a.JobID, JobTitle: a.JobTitle, EmployerName: a.EmployerName,
+		Status: a.Status, ShareSupport: a.ShareSupport, CreatedAt: a.CreatedAt,
+	}
+}
+
+func toMyApplicationDTOs(apps []*domain.LearnerApplication) []MyApplicationDTO {
+	out := make([]MyApplicationDTO, 0, len(apps)) // [] in JSON, never null
+	for _, a := range apps {
+		out = append(out, toMyApplicationDTO(a))
 	}
 	return out
 }

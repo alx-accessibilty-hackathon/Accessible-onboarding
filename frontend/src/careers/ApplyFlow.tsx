@@ -155,7 +155,13 @@ export function ApplyFlow({
       },
       onVoiceClip: async (clipId, step) => {
         if (!session) return null;
-        const res = await transcribeClip({ ...api, token: session.token }, clipId, step, lang);
+        const res = await transcribeClip(
+          { ...api, token: session.token },
+          clipId,
+          step,
+          lang,
+          session.registrationId,
+        );
         if ('text' in res) return res; // with `provider`: "mock" is the test voice service
         announce(t(lang, `errors.${res.code}`));
         return res;

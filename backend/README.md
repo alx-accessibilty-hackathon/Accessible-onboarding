@@ -68,7 +68,7 @@ Demo data from `seed`:
   - `support@example.org`, `admin@example.org`
 - **OAuth client:** `savanna-demo`; the secret is `SEED_CLIENT_SECRET` or printed.
 - **Jobs:** 6 published demo jobs.
-- **Simulated SMS inbox** (`APP_ENV=dev`): `GET /api/v1/dev/messages`.
+- **Simulated SMS inbox** (`APP_ENV=dev`): `GET /api/v1/dev/messages` lists the SMS still `queued`. With `SMS_PROVIDER=console` (the default) that is every SMS. With `SMS_PROVIDER=smsethiopia` and `SMSETHIOPIA_API_KEY` they are really sent (`Infrastructure/message_service.go`, in the background, results in `messages_outbox` and the log as `[SMS SENT - SMSETHIOPIA]` / `[SMS FAILED - SMSETHIOPIA]`); which SMS a learner gets is in `Usecase/notify.go`.
 
 **Everything with Docker** (from the repository root): copy `.env.example` to `.env`, fill in the keys, run `docker compose up --build`, then open http://localhost:8081. The API container runs `migrate`, `seed --if-empty` and `serve`.
 
@@ -156,8 +156,8 @@ The partner key may also come from the query string (`?key=` or `?partner_key=`)
 - **The learner's own data (`/me`):** see, change and delete (below)
 - **Jobs:** public jobs, JobPosting JSON-LD, the JSON-LD vocabulary of its `acc` prefix (`GET /ns/accommodations`, public, outside `/api/v1` so that `PUBLIC_WEB_URL/ns/accommodations` can be forwarded to it), employer jobs, applications, and the employer's view of the applications to their jobs
 - **Start-up check:** `serve` logs a `WARNING` when `PUBLIC_WEB_URL` is not set, or is a localhost address outside `APP_ENV=dev` (`Config.PublicWebURLProblem`): JobPosting and resume links are built from it
-- **Partner staff:** the consent code and the referral queue (below)
-- **Platform:** `/config`, speech-to-text (mock, Azure, local), the partner API (list and detail)
+- **Partner staff:** the consent code, the referral queue and the trusted referral (vouch code, `Usecase/vouch_usecase.go`; the learner enters it at `POST /me/vouch`)
+- **Platform:** `/config`, speech-to-text (Addis AI, Azure, local, mock), the partner API (list and detail)
 - **Read aloud (server voice):** `POST /speech/synthesis` in `Infrastructure/tts.go`. Amharic is read by Addis AI with one fixed voice (`ADDIS_AI_API_KEY`, `ADDIS_AI_VOICE_ID`), then Azure if set up. Each clip is cached under provider + voice + language + SHA-256 of the text, in RAM, on disk (`TTS_CACHE_DIR`) and in the database (`tts_cache`, migration 00006, `Repository/tts_cache_repository.go`): a provider is called once per clip; parallel requests for a new clip share one call; a started call finishes and is stored even if the client leaves; `TTS_DAILY_LIMIT` caps paid calls per day. Logs: `[TTS HIT - RAM|DISK|DB]`, `[TTS MISS - CALLING ADDIS]`, `[TTS MADE - ADDIS]`, `[TTS STORED - …]`, `[TTS WAIT]`, `[TTS LIMIT]`, `[TTS ERROR - …]`. At start-up the API logs Addis AI's Amharic voices and warns if `ADDIS_AI_VOICE_ID` isn't available. Before an Amharic text is sent (and cached), `Infrastructure/tts_text.go` turns it into plain Amharic words (numbers and times as words, English words and acronyms in Amharic letters, no symbols or trailing punctuation); nothing Amharic left → `422 not_amharic`. `go run . tts-clear` empties the database and folder cache (restart the API after it).
 - **Running it:** `migrate` and `seed`, the dev SMS inbox, and Docker
 

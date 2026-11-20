@@ -31,3 +31,32 @@ export async function submitApplication(
     body: JSON.stringify(payload),
   });
 }
+
+/** One of my applications: the support passport (may this employer see my support needs?). */
+export interface MyApplication {
+  id: string;
+  job_id: string;
+  job_title: string;
+  employer_name: string;
+  status: string;
+  share_support: boolean;
+  created_at: string;
+}
+
+/** GET /me/applications: my applications, newest first (learner token). */
+export async function listMyApplications(cfg: ApiConfig): Promise<MyApplication[]> {
+  const res = await apiFetch<{ items: MyApplication[] }>(cfg, '/me/applications');
+  return res.items ?? [];
+}
+
+/** PATCH /me/applications/{id}: share my support needs with this employer, or stop sharing. */
+export async function setSupportSharing(
+  cfg: ApiConfig,
+  applicationId: string,
+  share: boolean,
+): Promise<MyApplication> {
+  return apiFetch<MyApplication>(cfg, `/me/applications/${encodeURIComponent(applicationId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ share_support: share }),
+  });
+}

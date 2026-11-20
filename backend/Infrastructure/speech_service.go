@@ -55,7 +55,7 @@ var _ domain.SpeechService = (*SpeechService)(nil)
 
 func InitSpeechService(providers []string, timeout time.Duration) *SpeechService {
 	if timeout <= 0 {
-		timeout = 8 * time.Second
+		timeout = 20 * time.Second
 	}
 	return &SpeechService{
 		providers:  providers,
@@ -83,14 +83,22 @@ func (s *SpeechService) HasServerSpeech() bool {
 	return s != nil && len(s.providers) > 0
 }
 
-// HasCloudSpeech returns true if a cloud speech provider (e.g. azure, google) is configured.
+// HasCloudSpeech returns true if a cloud speech-to-text provider in STT_PROVIDERS is ready
+// (addis with ADDIS_AI_API_KEY, azure with its key). The widget then sends Amharic clips here.
 func (s *SpeechService) HasCloudSpeech() bool {
 	if s == nil {
 		return false
 	}
 	for _, p := range s.providers {
-		if isCloudProvider(p) {
-			return true
+		switch strings.ToLower(strings.TrimSpace(p)) {
+		case "addis":
+			if s.addisKey != "" {
+				return true
+			}
+		case "azure":
+			if s.azureKey != "" && s.azureRegion != "" {
+				return true
+			}
 		}
 	}
 	return false
@@ -98,7 +106,7 @@ func (s *SpeechService) HasCloudSpeech() bool {
 
 func isCloudProvider(provider string) bool {
 	p := strings.ToLower(strings.TrimSpace(provider))
-	return p == "azure" || p == "google" || p == "cloud"
+	return p == "azure" || p == "addis" || p == "google" || p == "cloud"
 }
 
 func (s *SpeechService) isBreakerOpen(provider string) bool {
@@ -160,8 +168,9 @@ func (s *SpeechService) Transcribe(ctx context.Context, audio []byte, language s
 			continue
 		}
 
-		// Circuit breaker check
-		if s.isBreakerOpen(providerName) {
+		// Circuit breaker, per provider and language (Addis English can be down while Amharic works)
+		breaker := providerName + ":" + strings.ToLower(strings.SplitN(language, "-", 2)[0])
+		if s.isBreakerOpen(breaker) {
 			continue
 		}
 
@@ -170,11 +179,11 @@ func (s *SpeechService) Transcribe(ctx context.Context, audio []byte, language s
 		cancel()
 
 		if err == nil && t != nil {
-			s.recordSuccess(providerName)
+			s.recordSuccess(breaker)
 			return t, nil
 		}
 
-		s.recordFailure(providerName)
+		s.recordFailure(breaker)
 		lastErr = err
 	}
 
@@ -188,6 +197,12 @@ func (s *SpeechService) callProvider(ctx context.Context, provider string, wav [
 	switch provider {
 	case "mock":
 		return s.callMock(lang), nil
+
+	case "addis":
+		if s.addisKey == "" {
+			return nil, errors.New("ADDIS_AI_API_KEY not configured")
+		}
+		return s.callAddisSTT(ctx, wav, lang)
 
 	case "azure":
 		if s.azureKey == "" || s.azureRegion == "" {

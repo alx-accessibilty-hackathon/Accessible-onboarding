@@ -51,7 +51,7 @@ func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationPa
 
 const listApplicationsForEmployerJob = `-- name: ListApplicationsForEmployerJob :many
 SELECT a.id, a.job_id, a.learner_id, a.answers, a.attach_support, a.status, a.created_at,
-       l.full_name, l.preferred_name, l.contact_method, l.phone_e164, l.language,
+       l.full_name, l.preferred_name, l.contact_method, l.phone_e164, l.language, l.identity_level,
        s.nonce AS support_nonce, s.ciphertext AS support_ciphertext
 FROM applications a
 JOIN jobs j ON j.id = a.job_id
@@ -80,6 +80,7 @@ type ListApplicationsForEmployerJobRow struct {
 	ContactMethod     *string
 	PhoneE164         *string
 	Language          string
+	IdentityLevel     string
 	SupportNonce      []byte
 	SupportCiphertext []byte
 }
@@ -109,6 +110,7 @@ func (q *Queries) ListApplicationsForEmployerJob(ctx context.Context, arg ListAp
 			&i.ContactMethod,
 			&i.PhoneE164,
 			&i.Language,
+			&i.IdentityLevel,
 			&i.SupportNonce,
 			&i.SupportCiphertext,
 		); err != nil {
@@ -120,4 +122,76 @@ func (q *Queries) ListApplicationsForEmployerJob(ctx context.Context, arg ListAp
 		return nil, err
 	}
 	return items, nil
+}
+
+const listApplicationsForLearner = `-- name: ListApplicationsForLearner :many
+SELECT a.id, a.job_id, a.attach_support, a.status, a.created_at,
+       j.title AS job_title, COALESCE(e.name, '')::text AS employer_name
+FROM applications a
+JOIN jobs j ON j.id = a.job_id
+LEFT JOIN employers e ON e.id = j.employer_id
+WHERE a.learner_id = $1
+ORDER BY a.created_at DESC, a.id DESC
+`
+
+type ListApplicationsForLearnerRow struct {
+	ID            uuid.UUID
+	JobID         uuid.UUID
+	AttachSupport bool
+	Status        string
+	CreatedAt     time.Time
+	JobTitle      string
+	EmployerName  string
+}
+
+// The learner's own applications, newest first, with the job and employer names (support
+// passport: which employers may see their support needs).
+func (q *Queries) ListApplicationsForLearner(ctx context.Context, learnerID uuid.UUID) ([]ListApplicationsForLearnerRow, error) {
+	rows, err := q.db.Query(ctx, listApplicationsForLearner, learnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListApplicationsForLearnerRow{}
+	for rows.Next() {
+		var i ListApplicationsForLearnerRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.AttachSupport,
+			&i.Status,
+			&i.CreatedAt,
+			&i.JobTitle,
+			&i.EmployerName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setApplicationSupportSharing = `-- name: SetApplicationSupportSharing :execrows
+UPDATE applications
+SET attach_support = $1
+WHERE id = $2 AND learner_id = $3
+`
+
+type SetApplicationSupportSharingParams struct {
+	AttachSupport bool
+	ID            uuid.UUID
+	LearnerID     uuid.UUID
+}
+
+// Share or stop sharing the support needs with the employer of one application. Only the
+// learner's own application: 0 rows means it isn't theirs (or doesn't exist).
+func (q *Queries) SetApplicationSupportSharing(ctx context.Context, arg SetApplicationSupportSharingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setApplicationSupportSharing, arg.AttachSupport, arg.ID, arg.LearnerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

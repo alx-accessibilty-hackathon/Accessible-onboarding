@@ -350,6 +350,30 @@ func (f fakeJobs) Publish(_ context.Context, id, employerID uuid.UUID) (*domain.
 
 type fakeApplications struct{ s *memStore }
 
+func (f fakeApplications) ListForLearner(_ context.Context, learnerID uuid.UUID) ([]*domain.LearnerApplication, error) {
+	f.s.mu.Lock()
+	defer f.s.mu.Unlock()
+	var out []*domain.LearnerApplication
+	for _, a := range f.s.apps {
+		if a.LearnerID == learnerID {
+			out = append(out, &domain.LearnerApplication{ID: a.ID, JobID: a.JobID, Status: a.Status, ShareSupport: a.AttachSupport, CreatedAt: a.CreatedAt})
+		}
+	}
+	return out, nil
+}
+
+func (f fakeApplications) SetSupportSharing(_ context.Context, learnerID, applicationID uuid.UUID, share bool) error {
+	f.s.mu.Lock()
+	defer f.s.mu.Unlock()
+	for _, a := range f.s.apps {
+		if a.ID == applicationID && a.LearnerID == learnerID {
+			a.AttachSupport = share
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+
 func (f fakeApplications) Create(_ context.Context, app *domain.Application) (*domain.Application, error) {
 	f.s.mu.Lock()
 	defer f.s.mu.Unlock()

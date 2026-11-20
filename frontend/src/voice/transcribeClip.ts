@@ -4,6 +4,7 @@ import { transcribe } from '../api/speech';
 import type { Step } from '../engine/types';
 import { widgetStore } from '../offline/db';
 import { normalizeVoiceInput } from './normalize';
+import { syncCloudConsent } from './serverSpeech';
 
 /** `raw` is exactly what the service heard; `provider` "mock" is the server's test service. */
 export type ClipResult = { text: string; raw: string; provider: string } | { code: string };
@@ -18,10 +19,13 @@ export async function transcribeClip(
   clipId: string,
   step: Step,
   lang: string,
+  registrationId?: string,
 ): Promise<ClipResult> {
   const blob = await get<Blob>(clipId, widgetStore()).catch(() => undefined);
   if (!blob) return { code: 'speech_unavailable' };
   try {
+    // The server's cloud service (Addis AI) needs the learner's "yes", recorded on the server.
+    await syncCloudConsent(cfg, registrationId);
     const res = await transcribe(cfg, blob, {
       language: lang,
       stepId: step.id,

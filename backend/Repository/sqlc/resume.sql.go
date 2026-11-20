@@ -289,6 +289,33 @@ func (q *Queries) ListQueuedOutboxMessages(ctx context.Context) ([]MessagesOutbo
 	return items, nil
 }
 
+const markOutboxMessage = `-- name: MarkOutboxMessage :exec
+UPDATE messages_outbox
+SET status = $1,
+    provider = $2,
+    error = $3,
+    sent_at = CASE WHEN $1 = 'sent' THEN now() ELSE sent_at END
+WHERE id = $4
+`
+
+type MarkOutboxMessageParams struct {
+	Status   string
+	Provider *string
+	Error    *string
+	ID       uuid.UUID
+}
+
+// What the SMS provider said: status 'sent' (accepted for delivery) or 'failed' (with the reason).
+func (q *Queries) MarkOutboxMessage(ctx context.Context, arg MarkOutboxMessageParams) error {
+	_, err := q.db.Exec(ctx, markOutboxMessage,
+		arg.Status,
+		arg.Provider,
+		arg.Error,
+		arg.ID,
+	)
+	return err
+}
+
 const markResumeTokenUsed = `-- name: MarkResumeTokenUsed :exec
 UPDATE resume_tokens
 SET used_at = now()

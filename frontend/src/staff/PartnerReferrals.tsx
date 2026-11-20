@@ -5,7 +5,13 @@ import { spellDigits } from '../a11y/readParts';
 import type { Part } from '../a11y/speaker';
 import type { StaffUser } from '../api/auth';
 import { ApiError, errorCode, type ApiConfig } from '../api/client';
-import { fetchReferrals, updateReferral, type Referral } from '../api/partner';
+import {
+  fetchReferrals,
+  makeVouchCode,
+  updateReferral,
+  type Referral,
+  type VouchCode,
+} from '../api/partner';
 import { Banner } from '../components/Banner';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -60,6 +66,9 @@ export function PartnerReferrals({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; code: string } | null>(null);
   const statusRefs = useRef<Record<string, HTMLElement | null>>({});
+  // Trusted referral: the person whose "Vouch for this person" panel is open.
+  const [vouchFor, setVouchFor] = useState<string | null>(null);
+  const vouchRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     let active = true;
@@ -259,7 +268,7 @@ export function PartnerReferrals({
                       </Banner>
                     )}
 
-                    {r.status !== 'closed' && (
+                    {r.status !== 'closed' && r.status !== 'attested' && (
                       <div className="bo-actions">
                         {r.status === 'requested' && (
                           <Button
@@ -281,6 +290,42 @@ export function PartnerReferrals({
                         </Button>
                       </div>
                     )}
+                    {r.status !== 'attested' &&
+                      (vouchFor === r.id ? (
+                        <VouchPanel
+                          referral={r}
+                          name={name}
+                          lang={lang}
+                          api={api}
+                          onIssued={() =>
+                            setItems((list) =>
+                              (list ?? []).map((x) =>
+                                x.id === r.id && x.status === 'requested'
+                                  ? { ...x, status: 'in_progress' }
+                                  : x,
+                              ),
+                            )
+                          }
+                          onClose={() => {
+                            setVouchFor(null);
+                            window.setTimeout(() => vouchRefs.current[r.id]?.focus(), 0);
+                          }}
+                          onLogout={onLogout}
+                        />
+                      ) : (
+                        <div>
+                          <Button
+                            ref={(el) => {
+                              vouchRefs.current[r.id] = el;
+                            }}
+                            variant="secondary"
+                            onClick={() => setVouchFor(r.id)}
+                          >
+                            {t(lang, 'staff.vouch_button')}
+                            <VisuallyHidden>: {name}</VisuallyHidden>
+                          </Button>
+                        </div>
+                      ))}
                   </Card>
                 </li>
               );
@@ -289,5 +334,150 @@ export function PartnerReferrals({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Trusted referral: the staff member confirms they met or spoke with the person, and gets a
+ * one-time code to tell them. When the person types it on their profile, they are 'confirmed by
+ * a partner' (no ID needed).
+ */
+function VouchPanel({
+  referral,
+  name,
+  lang,
+  api,
+  onIssued,
+  onClose,
+  onLogout,
+}: {
+  referral: Referral;
+  name: string;
+  lang: string;
+  api: ApiConfig;
+  onIssued: () => void;
+  onClose: () => void;
+  onLogout: () => void;
+}) {
+  const [checked, setChecked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [issued, setIssued] = useState<VouchCode | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const codeRef = useRef<HTMLDivElement>(null);
+  const titleId = `bo-vouch-${referral.id}`;
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
+  const make = async () => {
+    if (busy) return; // not disabled while busy: focus would be lost
+    if (!checked) {
+      const msg = t(lang, 'staff.vouch_check_required');
+      setError(msg);
+      announce(msg);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const v = await makeVouchCode(api, referral.id);
+      setIssued(v);
+      onIssued();
+      announce(`${t(lang, 'staff.vouch_code_label', { name })}: ${v.code.split('').join(' ')}`);
+      window.setTimeout(() => codeRef.current?.focus(), 0);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        onLogout();
+        return;
+      }
+      const code = errorCode(err);
+      const msg =
+        code === 'already_exists' ? t(lang, 'staff.vouch_already') : t(lang, `errors.${code}`);
+      setError(msg);
+      announce(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const until = issued
+    ? new Date(issued.expires_at).toLocaleTimeString(lang === 'am' ? 'am-ET' : 'en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '';
+
+  return (
+    <section
+      aria-labelledby={titleId}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--bo-space-3)',
+        padding: 'var(--bo-space-4)',
+        border: '2px solid var(--bo-primary)',
+        borderRadius: 'var(--bo-radius)',
+        background: 'var(--bo-surface)',
+      }}
+    >
+      <h3 id={titleId} tabIndex={-1} ref={headingRef} data-bo-private="" style={{ margin: 0 }}>
+        {t(lang, 'staff.vouch_title', { name })}
+      </h3>
+      {!issued ? (
+        <>
+          <p style={{ margin: 0 }}>{t(lang, 'staff.vouch_body')}</p>
+          <label className="bo-checkbox" style={{ fontWeight: 600 }}>
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => {
+                setChecked(e.target.checked);
+                setError(null);
+              }}
+            />
+            <span data-bo-private="">{t(lang, 'staff.vouch_check', { name })}</span>
+          </label>
+        </>
+      ) : (
+        <>
+          <div ref={codeRef} tabIndex={-1}>
+            <p style={{ margin: 0, fontWeight: 700 }} data-bo-private="">
+              {t(lang, 'staff.vouch_code_label', { name })}
+            </p>
+            <p
+              aria-hidden="true"
+              style={{
+                margin: 'var(--bo-space-2) 0',
+                fontSize: '2.2em',
+                fontWeight: 700,
+                letterSpacing: '0.2em',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {issued.code.slice(0, 3)} {issued.code.slice(3)}
+            </p>
+            <VisuallyHidden>{issued.code.split('').join(' ')}</VisuallyHidden>
+          </div>
+          <p style={{ margin: 0 }} data-bo-private="">
+            {t(lang, 'staff.vouch_code_help', { name, time: until })}
+          </p>
+        </>
+      )}
+      {error && (
+        <Banner variant="error" quiet>
+          {error}
+        </Banner>
+      )}
+      <div className="bo-actions">
+        <Button variant="primary" aria-busy={busy || undefined} onClick={() => void make()}>
+          {t(lang, issued ? 'staff.vouch_new' : 'staff.vouch_make')}
+        </Button>
+        <Button variant="secondary" onClick={onClose}>
+          {t(lang, issued ? 'staff.vouch_close' : 'common.cancel')}
+        </Button>
+      </div>
+    </section>
   );
 }

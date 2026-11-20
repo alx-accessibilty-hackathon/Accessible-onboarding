@@ -62,12 +62,13 @@ Built for the **ALX Digital Bridge Accessibility Hackathon 2026, Track 1 (access
 | Area | Built | Not built yet |
 |---|---|---|
 | Sign-up | Every question and branch, save as you go, offline queue, version check between devices, support needs (encrypted), consent, submit, referral for "no ID" | Duplicate check ("is this you?"), automatic clean-up of old drafts |
-| Continue elsewhere | API: resume link and code, lookup, verify; resume screen with `/r/<token>` and 6-char code; Save panel continue cards | Real SMS sending (simulated inbox provided) |
+| Continue elsewhere | API: resume link and code, lookup, verify; resume screen with `/r/<token>` and 6-char code; Save panel continue cards | |
+| SMS | **Off by default** (`SMS_PROVIDER=console`: the resume link and consent code go to a simulated inbox). Real sending through SMS Ethiopia is built (`SMS_PROVIDER=smsethiopia`); only then a learner who chose phone contact also gets "you are signed up" and "application sent" | Answering by SMS or USSD (SMS Ethiopia only sends), delivery reports |
 | Learner data | Profile page: see, change, delete, download data (`/me`, `/me/export`) | Sign in with a phone code on a new device |
-| Careers | Job list with private needs filter, job detail, apply, employer form, publish, JobPosting JSON-LD, employer reads applications | Importing JobPosting from other boards, a JobPosting feed |
-| Staff | Sign-in, employer pages, referral list for partner staff, consent code by SMS (API) | Partner staff registering a learner for them, vouching for ID, support inbox, admin pages, account management, Amharic staff pages |
+| Careers | Job list with private needs filter, job detail, apply, employer form, publish, JobPosting JSON-LD, employer reads applications, **support passport** (see "Support passport" below) | Importing JobPosting from other boards, a JobPosting feed |
+| Staff | Sign-in, employer pages, referral list for partner staff, **trusted referral** (partner staff vouch for a learner with no ID: see "Identity" below), consent code by SMS (API) | Partner staff registering a learner for them, support inbox, admin pages, account management, Amharic staff pages |
 | Partners | Partner key + allowed origins, OAuth partner API, partner settings in the database | A settings page for partners, per-partner questions, applying the partner's theme colour |
-| Speech | Browser speech recognition, server speech-to-text (mock, Azure, local), read aloud with the device voice, an Amharic server voice (Addis AI, one fixed voice) and Azure voices, every server clip cached in the database | Recorded read-aloud clips, a local speech-to-text container in Docker Compose, Telegram bot replies |
+| Speech | Browser speech recognition, server speech-to-text (Addis AI for Amharic and English, Azure, local, mock), read aloud with the device voice, an Amharic server voice (Addis AI, one fixed voice) and Azure voices, every server clip cached in the database | Recorded read-aloud clips, a local speech-to-text container in Docker Compose, Telegram bot replies |
 
 ---
 
@@ -249,7 +250,9 @@ Get help opens a dialog with the partner's help contacts (`help.phone`, `help.te
 
 The text is cleaned up for the field (for example "zero nine one one…" becomes `0911 …`), put straight into the field, and shown and said back ("We heard: …"), with Say again and Type instead (the field can always be corrected by typing). One listening session gives one answer: the first final result is used, the microphone is closed at once, and read aloud speaks again only after it is closed, so "We heard: …" can never be heard as a new answer. Recordings are deleted from the device after one try and never stored on the server. The microphone works only on `https://` pages (or `localhost`).
 
-Without a speech key on the server (`STT_PROVIDERS=mock`), recordings are answered with sample text labelled "Test voice service". For real Amharic voice answers use a browser with built-in speech recognition (Chrome), or configure a server provider.
+**Amharic voice answers go to Addis AI.** Browsers recognise Amharic poorly (Chrome often returns nothing), so when the server has a cloud speech service (`STT_PROVIDERS=addis` with `ADDIS_AI_API_KEY`; `GET /config` then says `speech.cloud_available: true`), an Amharic answer is recorded and sent to the server, which uses Addis AI Scribe. English keeps the browser's own recognition in Chrome and uses Addis AI only where the browser has none (Firefox, Safari) or fails. Both need the "I agree" answer above; the widget records that consent on the server before the first clip. A recording stops by itself 1.5 seconds after the person stops talking (Stop still works); if nothing is said within 8 seconds, nothing is sent and the widget says "We didn't catch that".
+
+Without a cloud provider (`STT_PROVIDERS=mock`), recordings are answered with sample text labelled "Test voice service". Use `mock` only for testing, never in production.
 
 ### Offline
 
@@ -606,7 +609,7 @@ Each partner has a JSON `config` column. `GET /api/v1/config` returns it, with d
 | `id_routes` | `["fayda","kebele_id","none"]` | all six routes | Not yet: the widget shows the routes in the flow file. |
 | `help` | `{"phone":"+251 11 000 0000","telegram":"@acme_help"}` | none | **Yes:** the "Get help" panel (Call support, Send an SMS, Open Telegram) and the "no organisations" message. The demo data has a placeholder number: replace it with your real help line. |
 | `theme` | `{"primary":"#0b6e4f"}` | `{"primary":"#cc3636"}` | Not yet. |
-| `speech` | `{"server":true,"cloud_available":false}` | from `STT_PROVIDERS` | Not yet (returned for information). |
+| `speech` | `{"server":true,"cloud_available":true}` | from `STT_PROVIDERS` | **Yes:** with `cloud_available` the widget sends Amharic voice answers to the server (Addis AI). |
 
 Set them with SQL (there is no settings page yet):
 
@@ -746,8 +749,8 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 | `PUBLIC_WEB_URL` | required when hosted | `http://localhost:5173` | The public site address, used in resume links, JobPosting links and the `acc` namespace (`/ns/accommodations`). The API logs a `WARNING` at start if it is not set, or is a localhost address outside `dev`. |
 | `FLOWS_DIR` | optional | `../shared/flows` | Folder of flow files. |
 | `NEEDS_FILE` | optional | `../shared/vocab/needs.json` | The needs list. |
-| `STT_PROVIDERS` | optional | empty (no server speech-to-text) | Comma list tried in order: `mock`, `azure`, `local`. `mock` returns sample text and needs nothing. |
-| `STT_TIMEOUT_MS` | optional | `8000` | Time limit per provider try. |
+| `STT_PROVIDERS` | optional | empty (no server speech-to-text) | Comma list tried in order: `addis`, `azure`, `local`, `mock`. **`addis`** is Addis AI Scribe (Amharic and English) with the same `ADDIS_AI_API_KEY` as the Amharic voice, billed per transcribed character from the same credit. `mock` returns sample text and needs nothing: for testing only. In production use `addis`. |
+| `STT_TIMEOUT_MS` | optional | `20000` | Time limit per provider try (an upload from a phone on 3G takes a while). |
 | `ADDIS_AI_API_KEY` | optional | | Turns on the **Amharic server voice** for read aloud (Addis AI, https://addisassistant.com/apikeys; the key starts with `sk_`). Only fixed interface text is sent, never a learner's answers. |
 | `ADDIS_AI_VOICE_ID` | optional | `am-hamen` | The one Amharic voice used for every clip, so a whole screen sounds like one person. At start-up the API logs Addis AI's Amharic voices (ID, name, gender, available) and warns if this ID isn't one of them. Changing it makes new clips (the old ones stay cached under the old voice). |
 | `ADDIS_AI_SPEED` | optional | `0` | Speaking speed, 1 to 100; `0` keeps Addis AI's default. |
@@ -755,7 +758,9 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 | `TTS_DAILY_LIMIT` | optional | `300` | At most this many **paid** server voice calls per day and per API process (`0` = no limit). Cached clips are always served. Protects a free key. |
 | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | optional | | For Azure speech-to-text and the server voice. In the Azure portal create a **Speech** resource (the free F0 tier is enough to try), then open **Keys and Endpoint**: copy **Key 1** and the **Location/Region** (for example `westeurope`). |
 | `LOCAL_STT_URL` | optional | | Base URL of a local speech-to-text server (the API posts the WAV to `<url>/inference`). |
-| `SMS_PROVIDER` | optional | `console` | Only `console` exists: messages are logged and listed by `/api/v1/dev/messages`, never really sent. |
+| `SMS_PROVIDER` | optional | `console` | `console`: SMS are only logged and listed by `/api/v1/dev/messages`. `smsethiopia`: SMS are really sent through [SMS Ethiopia](https://smsethiopia.com) (needs `SMSETHIOPIA_API_KEY`). See "SMS" below. |
+| `SMSETHIOPIA_API_KEY` | with `smsethiopia` | | SMS Ethiopia key: sign up at smsethiopia.com, then **Dashboard → Console → API Keys**. The free test campaign (100 SMS) only delivers to numbers verified in its dashboard. |
+| `SMS_DAILY_LIMIT` | optional | `50` | At most this many SMS per day and per API process (`0` = no limit). There is also a fixed limit of 5 an hour to one number. |
 | `DEV_ALLOWED_ORIGIN_SUFFIX` | optional, dev only | | For example `.trycloudflare.com`: any `https://…<suffix>` origin may use the widget. |
 | `EXTRA_ALLOWED_ORIGINS` | optional, dev only | | Comma list of more origins, for example a phone on your Wi-Fi `http://192.168.1.20:5173`. |
 | `TELEGRAM_WEBHOOK_SECRET` | optional | | Checked against Telegram's `X-Telegram-Bot-Api-Secret-Token`. |
@@ -767,7 +772,9 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 
 Frontend (`frontend/.env.local`, build time): `VITE_API_PROXY_TARGET` (where the dev server forwards `/api`, default `http://localhost:8080`) and `VITE_API_ORIGIN` (API origin for the staff app; empty = same site). The widget gets its API origin from the `api` attribute.
 
-Docker Compose reads the root `.env`: `DATA_ENCRYPTION_KEY`, `CODE_HASH_KEY` and `SEED_STAFF_PASSWORD` are required; `SEED_CLIENT_SECRET`, `STT_PROVIDERS`, `EXTRA_ALLOWED_ORIGINS`, `APP_ENV`, `PUBLIC_WEB_URL`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `ADDIS_AI_API_KEY`, `ADDIS_AI_VOICE_ID` and `TTS_DAILY_LIMIT` are optional.
+Docker Compose reads the root `.env`: `DATA_ENCRYPTION_KEY`, `CODE_HASH_KEY` and `SEED_STAFF_PASSWORD` are required; `SEED_CLIENT_SECRET`, `STT_PROVIDERS`, `EXTRA_ALLOWED_ORIGINS`, `APP_ENV`, `PUBLIC_WEB_URL`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `ADDIS_AI_API_KEY`, `ADDIS_AI_VOICE_ID`, `TTS_DAILY_LIMIT`, `SMS_PROVIDER`, `SMSETHIOPIA_API_KEY` and `SMS_DAILY_LIMIT` are optional.
+
+**SMS** (off unless `SMS_PROVIDER=smsethiopia` and a key are set; with `console` only the resume link and consent code are kept, in the simulated inbox). With SMS on, Bridge texts a learner who chose to be contacted by phone: "you are signed up" (and, on the "no ID" route, which organisation will contact them), "your application for … was sent", "<organisation> confirmed who you are" (trusted referral), plus the resume link and the consent code when those are asked for. Messages are in the learner's language and kept short (an Amharic SMS holds 70 characters). Each one is written to `messages_outbox` first, then sent in the background, so no request waits; the row then says `sent` or `failed` with the reason, and the log shows `[SMS SENT - SMSETHIOPIA]` or `[SMS FAILED - SMSETHIOPIA]` with a masked number, never the text. Limits of SMS Ethiopia: it sends only to Ethio Telecom numbers (`+2519…`), it has no incoming SMS (so learners can't answer by SMS), and its free test campaign delivers only to numbers verified in its dashboard (error 10007 otherwise).
 
 ### Docker Compose
 
@@ -819,7 +826,7 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 ### Deploying
 
 - Set `APP_ENV=production` (no dev inbox, no tunnel or extra origins, Telegram webhook only with a secret) and `GIN_MODE=release`.
-- Run `bridge migrate` (or `go run . migrate`) on every upgrade: it adds new tables such as `tts_cache` (the lasting read-aloud cache). The API image starts with `serve` only.
+- Run `bridge migrate` (or `go run . migrate`) on every upgrade: it adds new tables such as `tts_cache` (the lasting read-aloud cache) and `vouch_codes` (trusted referral). The API image starts with `serve` only.
 - Set `PUBLIC_WEB_URL` to your public `https://` address (the API logs a `WARNING` at start while it isn't). If the site and the API are on different hosts, forward `/api/`, `/health` and `/ns/` from the site to the API (`frontend/vercel.json` and `docker/nginx.conf` do this).
 - **Free hosting plans sleep.** The first request after a quiet time can take up to a minute. The widget retries reading requests for about 75 seconds and says "Connecting to the service…" meanwhile; before a demo, open the site once to wake the API.
 - Serve everything over **HTTPS** (put a TLS proxy in front of the `web` container). The microphone needs it.
@@ -841,7 +848,7 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
  │   IndexedDB: answers, token   │              │  partner key + origin, tokens, roles     │
  └───────────────────────────────┘              │  controllers → use cases → repositories │
  Partner server ── OAuth token ──▶ /partner-api │  PostgreSQL (sqlc, goose migrations)     │
- Job boards ── JobPosting JSON-LD ◀──────────── │  speech: mock / Azure / local; ffmpeg    │
+ Job boards ── JobPosting JSON-LD ◀──────────── │  speech: Addis / Azure / local; ffmpeg   │
  Staff browser ── staff.html ─────────────────▶ └─────────────────────────────────────────┘
 ```
 
@@ -870,26 +877,29 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 | Resume link tokens and codes, consent codes | `resume_tokens`, `verification_codes` | SHA-256 (link) and **HMAC-SHA256 with `CODE_HASH_KEY`** (codes); single use, 72 hours (resume) or 10 minutes (consent), 5 tries |
 | Staff passwords | `staff_users` | **bcrypt**; unknown email and wrong password answer the same way |
 | OAuth client secrets | `partners.client_secret_hash` | SHA-256, compared in constant time |
-| Simulated SMS and Telegram messages | `messages_outbox` | plain text, and logged (see below) |
-| Audit log (learner deleted, support needs read) | `audit_log` | no personal data |
+| SMS and Telegram messages | `messages_outbox` | plain text, with the result (`queued`, `sent`, `failed` and why); the console provider also logs the text (see below) |
+| Trusted-referral codes | `vouch_codes` | **HMAC-SHA256 with `CODE_HASH_KEY`**; single use, 30 minutes, 5 tries |
+| Audit log (learner deleted, support needs read, vouch code made, learner vouched for) | `audit_log` | no personal data |
 | Voice recordings | **never stored** | deleted from the phone after one try, never written on the server |
 
-Things to know: the simulated messages (`messages_outbox` and the API log) contain the phone number and the resume or consent code in plain text, because real sending isn't built; there is no automatic clean-up of old drafts or messages yet; and phone numbers are never verified yet.
+Things to know: `messages_outbox` keeps each SMS in plain text, including a resume or consent code; with `SMS_PROVIDER=console` the API log shows the text too (with `smsethiopia` the log shows only a masked number and the result); there is no automatic clean-up of old drafts or messages yet; and phone numbers are never verified yet.
 
 ### Identity: what we do and don't check
 
-Bridge does **not verify identity** today, and doesn't claim to. Every learner is recorded as `identity_level: self_declared`.
+Bridge does **not verify documents**, and doesn't claim to. A learner is `identity_level: self_declared` (they told us), or `partner_attested` once an organisation that met them vouched for them (trusted referral, below).
 
 - **The last 4 characters of a document** (`id_last4`, optional) are a reference, not a check: they are printed on the card and have only 10,000 possible values for a number, and nothing compares them with an ID system. They help staff match a document when they meet the person. The question says so to the learner.
 - **The photo of a document** (`id_upload`, optional) is stored encrypted; nobody checks it automatically.
 - **No ID at all** is a supported path: the learner is referred to an organisation (such as AAAPD) that can help them in person.
-- **Real verification (roadmap).** For Fayda, it means authentication through the National ID Program (NIDP), where the person confirms with a one-time code sent to the phone registered with Fayda (or biometrics). That needs an agreement as a relying party with NIDP. A second, community route is a trusted referral: partner staff who met the person confirm it with a one-time code, and the identity level becomes "confirmed by a partner". Neither is built yet.
+- **Trusted referral (built).** That organisation can vouch for the person, so no ID is ever needed. In the staff app, "People who asked for help", a staff member who met or spoke with the person presses **Vouch for this person**, ticks "I met or spoke with … and I confirm who they are", and gets a one-time 6-digit code (30 minutes, shown once, stored as a keyed hash). They tell the person the code; the person types it on **My profile → Confirm who you are**, which is their agreement. The learner becomes `partner_attested` ("A partner organisation vouched for you"), the identity evidence records which staff member and when, the referral becomes "attested", and both steps are audit-logged. Employers see "Confirmed by a partner organisation that met them" on applications, and the partner API returns `identity_level`. No SMS is needed (with SMS on, the learner also gets "<organisation> confirmed who you are"). 5 wrong tries end a code; the staff member can make a new one.
+- **Real verification (roadmap).** For Fayda, it means authentication through the National ID Program (NIDP), where the person confirms with a one-time code sent to the phone registered with Fayda (or biometrics). That needs an agreement as a relying party with NIDP. Not built yet.
 
 ### Consent
 
 - The sign-up starts with a plain-language consent screen; agreeing is recorded as `data_processing`.
 - Voice: the person chooses between a speech service on the internet (recorded as `cloud_speech`) and recording on the device for our server only. The server uses a cloud provider only with that consent.
 - Support needs: the learner chooses who else may see them (course teachers, employers when applying), and is asked again on each job application before an employer can see them.
+- **Support passport.** The learner writes their support needs once. On **My profile**, "Employers who can see what would help me" lists every job they applied for, with **Share** or **Stop sharing** for each employer (one tap; `GET /api/v1/me/applications`, `PATCH /api/v1/me/applications/{id}`). Stopping takes effect at once: the employer's list of applications no longer includes the support needs. Each time an employer reads them it is audit-logged.
 - The learner can see, change and delete their data on the profile page. Deleting removes everything about them in one transaction.
 
 ### Who can see what (as built)
@@ -897,9 +907,9 @@ Bridge does **not verify identity** today, and doesn't claim to. Every learner i
 | Caller | Can | Cannot |
 |---|---|---|
 | A website (partner key) | read partner settings and published jobs, start a sign-up, resume lookup and verify, read fixed text aloud | read any learner's data |
-| Learner (`lt_`) | their own registration, answers, support request, consents, submit, voice transcription, apply for jobs (once registered), see, change and delete their profile | anyone else's data; their token doesn't work with another partner's key |
+| Learner (`lt_`) | their own registration, answers, support request, consents, submit, voice transcription, apply for jobs (once registered), see their applications and share or stop sharing their support needs with each employer, see, change and delete their profile | anyone else's data; their token doesn't work with another partner's key |
 | Employer (`employer`) | their own jobs (with drafts), create and publish, applications to their own jobs, support needs **only** where the applicant attached them (each read audit-logged) | other employers' jobs (404), learner lists, ID details |
-| Partner staff (`partner_staff`) | referrals to their own organisation (name, contact, language), set progress, text a consent code to their own or referred learners | ID details, support needs, other organisations' referrals (404) |
+| Partner staff (`partner_staff`) | referrals to their own organisation (name, contact, language), set progress, vouch for a referred learner (one-time code), text a consent code to their own or referred learners | ID details, support needs, other organisations' referrals (404) |
 | Support, admin | sign in only (no pages yet) | |
 | Partner server (`pt_`, `learners:read`) | its own registered learners: names, language, status, identity level, contact | support needs, ID details, date of birth, answers |
 

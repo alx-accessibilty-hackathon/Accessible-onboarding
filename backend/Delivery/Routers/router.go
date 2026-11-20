@@ -145,6 +145,9 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 		learner.GET("/me/export", ctrl.Me.ExportMeController)
 		learner.PATCH("/me", ctrl.Me.UpdateMeController)
 		learner.DELETE("/me", ctrl.Me.DeleteMeController)
+		learner.GET("/me/applications", ctrl.Application.ListMyApplicationsController)        // support passport
+		learner.PATCH("/me/applications/:id", ctrl.Application.UpdateMyApplicationController) // share or withdraw
+		learner.POST("/me/vouch", mw.strict(), ctrl.Referral.ConfirmVouchController)          // enter a vouch code
 	}
 
 	// Staff routes: staff token
@@ -165,6 +168,7 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 			partnerStaff.POST("/registrations/:id/consent-code", ctrl.Registration.SendConsentCodeController)
 			partnerStaff.GET("/referrals", ctrl.Referral.ListPartnerReferralsController)
 			partnerStaff.PATCH("/referrals/:id", ctrl.Referral.UpdatePartnerReferralController)
+			partnerStaff.POST("/referrals/:id/vouch-code", ctrl.Referral.MakeVouchCodeController) // trusted referral
 		}
 	}
 

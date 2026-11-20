@@ -13,6 +13,16 @@ import (
 // (name, contact, language; never ID details or support needs) and mark their progress.
 type ReferralUsecase struct {
 	ReferralRepo domain.ReferralRepositoryI
+
+	// Trusted referral (vouch_usecase.go), set in main.go.
+	Vouch    domain.VouchRepositoryI
+	Security domain.SecurityService
+	Partners domain.PartnerRepositoryI // the organisation's name
+	Learners domain.LearnerRepositoryI // for the "confirmed" SMS
+	// The "confirmed" SMS, only when real SMS is on.
+	SMSNotices bool
+	Outbox     domain.SessionRepositoryI
+	Messages   domain.MessageService
 }
 
 var _ domain.ReferralUsecaseI = (*ReferralUsecase)(nil)

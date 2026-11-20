@@ -6,6 +6,8 @@ import (
 	"errors"
 
 	domain "bridge/Domain"
+
+	"github.com/google/uuid"
 )
 
 // ApplicationUsecase submits job applications (optionally with the support request attached) (C1).
@@ -13,6 +15,11 @@ type ApplicationUsecase struct {
 	ApplicationRepo domain.ApplicationRepositoryI
 	JobRepo         domain.JobRepositoryI
 	LearnerRepo     domain.LearnerRepositoryI
+
+	// Optional (set in main.go only when real SMS is on): the "application sent" SMS
+	// (notify.go). Nil: no SMS.
+	Outbox   domain.SessionRepositoryI
+	Messages domain.MessageService
 }
 
 var _ domain.ApplicationUsecaseI = (*ApplicationUsecase)(nil)
@@ -66,10 +73,55 @@ func (uc *ApplicationUsecase) Apply(ctx context.Context, actor domain.Actor, app
 		return nil, domain.NewValidationError("answers", codeInvalid)
 	}
 
-	return uc.ApplicationRepo.Create(ctx, &domain.Application{
+	created, err := uc.ApplicationRepo.Create(ctx, &domain.Application{
 		JobID:         job.ID,
 		LearnerID:     learner.ID,
 		Answers:       app.Answers,
 		AttachSupport: app.AttachSupport,
 	})
+	if err != nil {
+		return nil, err
+	}
+	// "Your application was sent" by SMS, if the learner chose to be contacted by phone.
+	if phone, ok := smsPhone(learner.ContactMethod, learner.PhoneE164); ok && uc.Messages != nil {
+		var outbox outboxWriter
+		if uc.Outbox != nil {
+			outbox = uc.Outbox
+		}
+		queueSMS(ctx, outbox, uc.Messages, phone, applicationSMS(learner.Language, job.Title, job.EmployerName))
+	}
+	return created, nil
+}
+
+// ListMine: the support passport. The learner's applications and, for each employer, whether
+// it may see their support needs. Only the learner's own token (not partner staff).
+func (uc *ApplicationUsecase) ListMine(ctx context.Context, actor domain.Actor) ([]*domain.LearnerApplication, error) {
+	id, err := meLearnerID(actor)
+	if err != nil {
+		return nil, err
+	}
+	return uc.ApplicationRepo.ListForLearner(ctx, id)
+}
+
+// SetSupportSharing: one tap to share the support needs with this application's employer, or
+// to stop sharing them. It takes effect at once: the employer's list joins the support request
+// only while it is shared (ListApplicationsForEmployerJob).
+func (uc *ApplicationUsecase) SetSupportSharing(ctx context.Context, actor domain.Actor, applicationID uuid.UUID, share bool) (*domain.LearnerApplication, error) {
+	id, err := meLearnerID(actor)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.ApplicationRepo.SetSupportSharing(ctx, id, applicationID, share); err != nil {
+		return nil, err
+	}
+	apps, err := uc.ApplicationRepo.ListForLearner(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range apps {
+		if a.ID == applicationID {
+			return a, nil
+		}
+	}
+	return nil, domain.ErrNotFound
 }
