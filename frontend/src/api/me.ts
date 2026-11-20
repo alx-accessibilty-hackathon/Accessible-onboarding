@@ -16,6 +16,8 @@ export interface Me {
   preferred_name: string;
   contact_method: ContactMethod;
   phone: string; // E.164, e.g. +251912345678, or ''
+  /** Confirmed with an SMS code on the profile page (optional). */
+  phone_verified?: boolean;
   /** `ethiopian` may be missing: the profile page works it out from `iso`. */
   dob: DateAnswerValue | null;
   language: string;
@@ -95,4 +97,23 @@ export async function confirmVouch(
   code: string,
 ): Promise<{ identity_level: string; partner_name: string }> {
   return apiFetch(cfg, '/me/vouch', { method: 'POST', body: JSON.stringify({ code }) });
+}
+
+/**
+ * The optional phone check: text a 6-digit code to my stored phone (202). 503 sms_unavailable
+ * (SMS is off), 409 already_exists (already confirmed), 429 rate_limited (a code less than a
+ * minute ago), 422 phone sms_not_supported (not an Ethio Telecom number).
+ */
+export async function sendPhoneCode(
+  cfg: ApiConfig,
+): Promise<{ sent_to: string; expires_at: string }> {
+  return apiFetch(cfg, '/me/phone-verification', { method: 'POST' });
+}
+
+/** Check the code from the SMS; answers my profile with phone_verified true. 422 code_wrong. */
+export async function confirmPhoneCode(cfg: ApiConfig, code: string): Promise<Me> {
+  return apiFetch<Me>(cfg, '/me/phone-verification/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
 }

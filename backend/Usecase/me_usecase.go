@@ -28,6 +28,7 @@ type MeUsecase struct {
 	ConsentRepo      domain.ConsentRepositoryI
 	Flows            domain.FlowStore       // PATCH uses the rules of the sign-up steps
 	Security         domain.SecurityService // opens the learner's own support request
+	Phone            *PhoneCheck            // the optional phone check by SMS (me_phone.go); set in main.go
 }
 
 var _ domain.MeUsecaseI = (*MeUsecase)(nil)

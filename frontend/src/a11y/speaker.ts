@@ -397,7 +397,7 @@ async function resolveSource(p: Norm): Promise<Source> {
   const key = p.key ?? keyForText(p.lang, p.text);
   if (key) {
     const url = `${audioBase}${encodeURIComponent(p.lang)}/${encodeURIComponent(key)}.mp3`;
-    if (await hasRecording(url)) return { kind: 'audio', url, lang: p.lang };
+    if (await hasRecording(url, p.lang)) return { kind: 'audio', url, lang: p.lang };
   }
   if (await hasDeviceVoice(p.lang)) return { kind: 'device', text: p.text, lang: p.lang };
   const url = await serverAudio(p.text, p.lang);
@@ -464,10 +464,23 @@ function noteUnavailable(lang: string, uiLang: string): void {
 
 const recordings = new Map<string, Promise<boolean>>();
 
-function hasRecording(url: string): Promise<boolean> {
+// Per language: recordings found and missing. With none found after a few tries, the language
+// has no recordings (today none has): stop asking, so a phone on 3G doesn't make one request
+// per sentence for nothing. One found keeps the probing on.
+const recordingTally = new Map<string, { hits: number; misses: number }>();
+const NO_RECORDINGS_AFTER = 3;
+
+function hasRecording(url: string, lang = ''): Promise<boolean> {
   let probe = recordings.get(url);
   if (!probe) {
-    probe = probeRecording(url);
+    const tally = recordingTally.get(lang) ?? { hits: 0, misses: 0 };
+    recordingTally.set(lang, tally);
+    if (tally.hits === 0 && tally.misses >= NO_RECORDINGS_AFTER) return Promise.resolve(false);
+    probe = probeRecording(url).then((found) => {
+      if (found) tally.hits++;
+      else tally.misses++;
+      return found;
+    });
     recordings.set(url, probe);
   }
   return probe;

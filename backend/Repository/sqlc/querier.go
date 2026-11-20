@@ -143,6 +143,9 @@ type Querier interface {
 	// learner's own application: 0 rows means it isn't theirs (or doesn't exist).
 	SetApplicationSupportSharing(ctx context.Context, arg SetApplicationSupportSharingParams) (int64, error)
 	SetLearnerIdentityLevel(ctx context.Context, arg SetLearnerIdentityLevelParams) error
+	// The learner typed the SMS code sent to this number: it is confirmed. Only while the stored
+	// number is still the one the code was sent to (0 rows otherwise).
+	SetLearnerPhoneVerified(ctx context.Context, arg SetLearnerPhoneVerifiedParams) (int64, error)
 	SetReferralAttested(ctx context.Context, id uuid.UUID) error
 	SupportRequestExists(ctx context.Context, learnerID uuid.UUID) (bool, error)
 	// Records that the session was used. Learner sessions also slide their expiry (30 days from now);

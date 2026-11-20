@@ -25,7 +25,8 @@ var (
 	ErrTooManyAttempts   = errors.New("too many failed attempts")
 	ErrResumeCheckFailed = errors.New("resume check failed")
 	ErrInvalidInput      = errors.New("invalid input")
-	ErrNotRegistered     = errors.New("not registered") // 409 not_registered: finish signing up first
+	ErrNotRegistered     = errors.New("not registered")  // 409 not_registered: finish signing up first
+	ErrSMSUnavailable    = errors.New("sms unavailable") // 503 sms_unavailable: real SMS is not set up
 )
 
 // FieldError is one problem with one field: Field is the JSON field or flow step ID,
@@ -181,6 +182,7 @@ type ClientConfig struct {
 	Help             HelpConfig
 	Theme            ThemeConfig
 	Speech           SpeechFlags
+	SMS              SMSFlags
 }
 
 type PartnerRef struct {
@@ -200,6 +202,17 @@ type ThemeConfig struct {
 type SpeechFlags struct {
 	Server         bool
 	CloudAvailable bool
+}
+
+// SMSFlags: what the widget may offer by SMS (real SMS on: SMS_PROVIDER=smsethiopia).
+type SMSFlags struct {
+	VerifyPhone bool // the optional phone check on the profile page
+}
+
+// PhoneCodeSent: the phone-check code was sent (to the masked number, valid until ExpiresAt).
+type PhoneCodeSent struct {
+	SentTo    string
+	ExpiresAt time.Time
 }
 
 type Employer struct {

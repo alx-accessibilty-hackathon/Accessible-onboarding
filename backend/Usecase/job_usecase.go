@@ -77,7 +77,42 @@ func (uc *JobUsecase) GetJobPosting(ctx context.Context, id uuid.UUID) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	return BuildJobPosting(job, job.EmployerName, uc.PublicURL+accommodationsNamespacePath), nil
+	return uc.jobPosting(job), nil
+}
+
+// jobApplyPath is the hosted page that opens one job in the widget, ready to apply
+// (frontend/apply.html). JobPostings link to it, so a board that shows our job can send the
+// learner back to apply.
+const jobApplyPath = "/apply.html?job="
+
+// maxFeedJobs: the most jobs in one feed (the newest).
+const maxFeedJobs = 500
+
+// jobPosting is BuildJobPosting plus the link to apply on Bridge (url).
+func (uc *JobUsecase) jobPosting(job *domain.Job) map[string]any {
+	p := BuildJobPosting(job, job.EmployerName, uc.PublicURL+accommodationsNamespacePath)
+	p["url"] = uc.PublicURL + jobApplyPath + job.ID.String()
+	return p
+}
+
+// GetJobPostingFeed returns every published job (newest first, at most maxFeedJobs) as one
+// JSON-LD document: a shared @context and a @graph of JobPostings, for boards that want all
+// our jobs in one request.
+func (uc *JobUsecase) GetJobPostingFeed(ctx context.Context) (map[string]any, error) {
+	jobs, err := uc.JobRepo.ListPublished(ctx, maxFeedJobs, nil)
+	if err != nil {
+		return nil, err
+	}
+	graph := make([]any, 0, len(jobs))
+	for _, job := range jobs {
+		p := uc.jobPosting(job)
+		delete(p, "@context") // one shared context for the whole feed
+		graph = append(graph, p)
+	}
+	return map[string]any{
+		"@context": []any{"https://schema.org", map[string]any{"acc": uc.PublicURL + accommodationsNamespacePath}},
+		"@graph":   graph,
+	}, nil
 }
 
 // AccommodationsVocabulary returns the JSON-LD document that defines the "acc" prefix.

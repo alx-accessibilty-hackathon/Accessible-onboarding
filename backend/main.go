@@ -218,6 +218,7 @@ func serve(cfg config.Config) {
 
 	// Use cases
 	configUsecase := usecase.NewConfigUsecase(partnerRepo, speech)
+	configUsecase.SMSOn = messages.Sending() // the profile page offers the phone check by SMS
 	authUsecase := usecase.NewAuthUsecase(sessionRepo, staffRepo, partnerRepo, learnerRepo, security)
 	// authUsecase is the SessionIssuer: it creates the learner token when a sign-up starts.
 	registrationUsecase := usecase.NewRegistrationUsecase(learnerRepo, registrationRepo, supportRepo, partnerRepo, authUsecase, flows, sessionRepo, security, messages)
@@ -233,6 +234,11 @@ func serve(cfg config.Config) {
 	}
 	learnerUsecase := usecase.NewLearnerUsecase(learnerRepo)
 	meUsecase := usecase.NewMeUsecase(learnerRepo, profileRepo, partnerRepo, registrationRepo, consentRepo, flows, security)
+	// The optional phone check on the profile page: a code by SMS (only when real SMS is on;
+	// SMS Ethiopia sends only to Ethio Telecom numbers).
+	meUsecase.Phone = &usecase.PhoneCheck{
+		Codes: sessionRepo, Messages: messages, Available: messages.Sending(), EthioTelecomOnly: messages.Sending(),
+	}
 	referralUsecase := usecase.NewReferralUsecase(referralRepo)
 	// Trusted referral: partner staff vouch for a learner with a one-time code.
 	referralUsecase.Vouch = repository.NewVouchRepo(db)

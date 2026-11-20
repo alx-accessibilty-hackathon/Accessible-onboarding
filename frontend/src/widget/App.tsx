@@ -166,9 +166,11 @@ function WidgetInner(props: WidgetProps) {
   }, []);
 
   // Apply partner primary theme color if it passes WCAG AA 4.5:1 contrast against white.
+  // Light mode only: it is checked against white, and dark mode puts dark text on the primary
+  // colour (a partner red such as #cc3636 would be 3.6:1 there), so dark mode keeps our palette.
   const themeStyle = useMemo<CSSProperties>(() => {
     const primary = config?.theme?.primary?.trim();
-    if (!primary) return {};
+    if (!primary || effectiveTheme === 'dark') return {};
     if (!isAccessibleAgainstWhite(primary)) {
       console.warn(
         `[theme] Partner primary color "${primary}" fails WCAG AA 4.5:1 contrast against white; using default accessible color.`,
@@ -180,7 +182,7 @@ function WidgetInner(props: WidgetProps) {
       '--bo-primary': primary,
       ...(hover ? { '--bo-primary-hover': hover } : {}),
     } as CSSProperties;
-  }, [config?.theme?.primary]);
+  }, [config?.theme?.primary, effectiveTheme]);
 
   // Use partner default_language as initial fallback before 'en' when the user hasn't chosen a language.
   useEffect(() => {
@@ -374,6 +376,7 @@ function WidgetInner(props: WidgetProps) {
                 api={api}
                 lang={lang}
                 languages={languages}
+                canVerifyPhone={!!config?.sms?.verify_phone}
                 manageTitle={manageTitle}
                 focusOnMount={!!view.opened}
                 onSignUp={() => go({ name: 'signup' })}

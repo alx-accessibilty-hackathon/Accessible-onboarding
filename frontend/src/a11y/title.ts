@@ -1,5 +1,4 @@
 // R1: the page title follows the current step, then the host page's own title comes back.
-// TODO (FA-3): call setStepTitle on each new step and restoreHostTitle when the flow ends.
 let hostTitle: string | null = null;
 let enabled = true;
 

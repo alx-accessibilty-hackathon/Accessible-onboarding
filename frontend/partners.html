@@ -4,19 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Partner Guide | Bridge Onboarding</title>
-    <link rel="stylesheet" href="./demo/savanna/savanna.css" />
+    <link rel="stylesheet" href="./docs-theme.css" />
     <style>
+      /* Colours come from docs-theme.css (light and dark). */
       :root {
-        --color-primary: #cc3636;
-        --color-primary-dark: #a82b2b;
-        --color-bg: #f8fafc;
-        --color-surface: #ffffff;
-        --color-border: #e2e8f0;
-        --color-text: #0f172a;
-        --color-text-muted: #64748b;
-        --color-success: #059669;
+        --color-primary: var(--doc-brand-text);
+        --color-bg: var(--doc-bg);
+        --color-surface: var(--doc-surface);
+        --color-border: var(--doc-border);
+        --color-text: var(--doc-text);
+        --color-text-muted: var(--doc-muted);
+        --color-success: var(--doc-success-text);
         --radius: 10px;
-        --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --shadow: var(--doc-shadow);
       }
       body {
         background-color: var(--color-bg);
@@ -25,7 +25,7 @@
         line-height: 1.6;
       }
       .nav-bar {
-        background: #ffffff;
+        background: var(--doc-surface);
         border-bottom: 1px solid var(--color-border);
         padding: 1rem 2rem;
         display: flex;
@@ -67,19 +67,20 @@
         font-weight: 700;
       }
       .hero-banner {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        color: #ffffff;
+        background: var(--doc-hero-bg);
+        color: var(--doc-hero-text);
         padding: 3rem 2rem 2.5rem;
         text-align: center;
       }
       .hero-banner h1 {
+        color: var(--doc-hero-text);
         font-size: 2.25rem;
         font-weight: 800;
         margin: 0 0 0.75rem 0;
       }
       .hero-banner p {
         font-size: 1.15rem;
-        color: #94a3b8;
+        color: var(--doc-hero-muted);
         max-width: 680px;
         margin: 0 auto;
       }
@@ -122,7 +123,7 @@
       .section-card p,
       .section-card li {
         font-size: 0.95rem;
-        color: #334155;
+        color: var(--doc-text-2);
       }
       .card-title {
         font-size: 1.35rem;
@@ -155,7 +156,9 @@
       .form-control {
         width: 100%;
         padding: 0.65rem 0.85rem;
-        border: 1px solid var(--color-border);
+        background: var(--doc-surface);
+        color: var(--doc-text);
+        border: 1px solid var(--doc-border-strong);
         border-radius: 6px;
         font-size: 0.95rem;
         box-sizing: border-box;
@@ -163,8 +166,8 @@
       }
       .form-control:focus {
         outline: none;
-        border-color: var(--color-primary);
-        box-shadow: 0 0 0 3px rgba(204, 54, 54, 0.15);
+        border-color: var(--doc-focus);
+        box-shadow: 0 0 0 3px var(--doc-focus);
       }
       .row {
         display: flex;
@@ -202,8 +205,8 @@
         padding: 0;
       }
       .btn {
-        background-color: var(--color-primary);
-        color: #ffffff;
+        background-color: var(--doc-brand);
+        color: var(--doc-on-brand);
         border: none;
         padding: 0.75rem 1.5rem;
         font-weight: 700;
@@ -218,19 +221,19 @@
         transition: background-color 0.15s;
       }
       .btn:hover {
-        background-color: var(--color-primary-dark);
+        background-color: var(--doc-brand-hover);
       }
       .btn-secondary {
-        background-color: #f1f5f9;
-        color: #334155;
-        border: 1px solid #cbd5e1;
+        background-color: var(--doc-surface-2);
+        color: var(--doc-text);
+        border: 1px solid var(--doc-border-strong);
       }
       .btn-secondary:hover {
-        background-color: #e2e8f0;
+        background-color: var(--doc-border);
       }
       .key-display {
-        background: #0f172a;
-        color: #38bdf8;
+        background: var(--doc-code-bg);
+        color: var(--doc-code-accent);
         padding: 1rem;
         border-radius: 6px;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -263,8 +266,9 @@
         background: #1e293b;
       }
       pre {
-        background: #0f172a;
-        color: #f8fafc;
+        background: var(--doc-code-bg);
+        color: var(--doc-code-text);
+        border: 1px solid var(--doc-border);
         padding: 1rem;
         border-radius: 6px;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -286,8 +290,8 @@
       .badge {
         display: inline-block;
         padding: 0.25rem 0.5rem;
-        background: #ecfdf5;
-        color: #065f46;
+        background: var(--doc-success-bg);
+        color: var(--doc-success-text);
         border-radius: 9999px;
         font-size: 0.75rem;
         font-weight: 700;
@@ -339,13 +343,14 @@
         vertical-align: top;
       }
       .info-table th {
-        background: #f8fafc;
-        color: #475569;
+        background: var(--doc-surface-2);
+        color: var(--doc-text-2);
         font-weight: 600;
       }
       .callout {
-        background: #fff7ed;
-        border-left: 4px solid #ea580c;
+        background: var(--doc-callout-bg);
+        color: var(--doc-text);
+        border-left: 4px solid var(--doc-callout-border);
         border-radius: 6px;
         padding: 0.85rem 1.1rem;
         margin: 1.25rem 0;
@@ -366,8 +371,8 @@
       </ul>
     </header>
 
-    <div class="hero-banner">
-      <h1>Partner Guide</h1>
+    <div class="hero-banner" role="region" aria-labelledby="hero-title">
+      <h1 id="hero-title">Partner Guide</h1>
       <p>
         Add an accessible sign-up to your website with one script tag. Amharic and English, read
         aloud, voice answers, text size up to 400%, and it keeps working on a weak connection.
@@ -429,8 +434,9 @@
         <section class="card">
           <h2 class="card-title">1. Your organisation and settings</h2>
           <p class="card-subtitle">
-            This form runs only in your browser. It prepares the code and the settings to send to
-            the Bridge operator. Nothing is saved or sent.
+            This form runs only in your browser and sends nothing. It prepares your settings and the
+            code for your page. To go live, send the "SQL for the operator" tab to the Bridge team:
+            they create your partner, and only then does your key work.
           </p>
 
           <form id="partnerForm">
@@ -561,14 +567,14 @@
                   />
                 </div>
                 <div class="hint">
-                  Saved in your settings. The component does not apply it yet; it uses its own
-                  tested palette.
+                  Used for buttons and highlights in light mode if it has at least 4.5:1 contrast on
+                  white. Otherwise, and in dark mode, our tested palette is used.
                 </div>
               </div>
             </div>
 
             <button type="button" id="generateBtn" class="btn" style="margin-top: 1rem">
-              Make a new suggested key
+              Suggest a different key
             </button>
           </form>
         </section>
@@ -587,19 +593,30 @@
             <h2 class="card-title" style="margin-bottom: 0">2. Your integration code</h2>
             <span class="badge" id="statusBadge" role="status">Up to date</span>
           </div>
-          <p class="card-subtitle">The code updates as you type.</p>
+          <p class="card-subtitle">
+            The code updates as you type. The key stays the same until you ask for a different one.
+          </p>
 
           <label style="font-weight: 600; font-size: 0.9rem" for="keyDisplay"
-            >Suggested partner key</label
+            >Your partner key (not active yet)</label
           >
           <div class="key-display">
-            <output id="keyDisplay">pk_live_acme_000000000000</output>
+            <output id="keyDisplay">pk_live_0000000000000000</output>
             <button type="button" class="copy-btn" id="copyKeyBtn">Copy key</button>
           </div>
-          <p class="card-subtitle" style="margin-top: -0.5rem">
-            The key is public (it goes in your HTML). It works only after the operator has created
-            your partner with it.
-          </p>
+          <div class="callout" role="note">
+            <p>
+              <strong>This key does not work yet.</strong> It is a proposal made in your browser. It
+              works once the Bridge team has created your partner with it (the "SQL for the
+              operator" tab). Until then the API answers <code>401 partner_key_invalid</code>.
+            </p>
+            <p>
+              <strong>Want to try the component today?</strong> Use our demo site:
+              <a href="/demo/savanna/signup.html">the Savanna demo</a>, which uses the demo key
+              <code>pk_demo_savanna</code>.
+            </p>
+            <p>The key is public: it goes in your HTML. It is not a password.</p>
+          </div>
 
           <div class="tab-bar" role="tablist" aria-label="Integration code">
             <button
@@ -640,7 +657,7 @@
               <span>Put this in your page:</span>
               <button type="button" class="copy-btn" id="copyEmbedBtn">Copy snippet</button>
             </div>
-            <pre><code id="embedCode"></code></pre>
+            <pre tabindex="0"><code id="embedCode"></code></pre>
           </div>
 
           <!-- SQL Tab -->
@@ -649,16 +666,16 @@
               <span>The operator runs this in the Bridge database:</span>
               <button type="button" class="copy-btn" id="copySqlBtn">Copy SQL</button>
             </div>
-            <pre><code id="sqlCode"></code></pre>
+            <pre tabindex="0"><code id="sqlCode"></code></pre>
           </div>
 
           <!-- cURL Tab -->
           <div id="curlTab" class="tab-content" role="tabpanel" style="display: none">
             <div class="code-header">
-              <span>Once the partner exists, check your settings:</span>
+              <span>After the Bridge team has created your partner, check your settings:</span>
               <button type="button" class="copy-btn" id="copyCurlBtn">Copy curl</button>
             </div>
-            <pre><code id="curlCode"></code></pre>
+            <pre tabindex="0"><code id="curlCode"></code></pre>
             <p class="card-subtitle">
               It returns your languages, help contacts and referral organisations. A wrong key
               answers <code>401 partner_key_invalid</code>.
@@ -981,7 +998,8 @@
         <p class="card-subtitle">
           Each partner has a JSON <code>config</code> in the <code>partners</code> table.
           <code>GET /api/v1/config</code> returns it, with defaults for anything missing. There is
-          no settings page yet: the operator changes it with SQL.
+          no settings page yet: ask the Bridge team and they change it for you (the SQL below is
+          what they run).
         </p>
         <div class="table-wrap">
           <table class="info-table">
@@ -1009,17 +1027,25 @@
               <tr>
                 <td><code>default_language</code></td>
                 <td><code>"am"</code></td>
-                <td>Not yet (use the <code>lang</code> attribute).</td>
+                <td>
+                  <strong>Yes:</strong> the starting language, unless your page sets
+                  <code>lang</code> or the learner already chose one.
+                </td>
               </tr>
               <tr>
                 <td><code>id_routes</code></td>
                 <td><code>["fayda","kebele_id","none"]</code></td>
-                <td>Not yet: every partner gets the same questions.</td>
+                <td>
+                  <strong>Yes:</strong> only these choices are offered at "Which ID do you have?".
+                </td>
               </tr>
               <tr>
                 <td><code>theme</code></td>
                 <td><code>{"primary":"#0b6e4f"}</code></td>
-                <td>Not yet.</td>
+                <td>
+                  <strong>Yes:</strong> buttons and highlights in light mode, if the colour has at
+                  least 4.5:1 contrast on white.
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1030,7 +1056,7 @@
           <span>SQL (operator):</span>
           <button type="button" class="copy-btn" data-copy="sqlHelp">Copy</button>
         </div>
-        <pre><code id="sqlHelp">UPDATE partners
+        <pre tabindex="0"><code id="sqlHelp">UPDATE partners
 SET config = jsonb_set(config, '{help}', '{"phone":"+251 11 123 4567","telegram":"@your_handle"}')
 WHERE publishable_key = 'pk_…';</code></pre>
 
@@ -1039,7 +1065,7 @@ WHERE publishable_key = 'pk_…';</code></pre>
           <span>SQL (operator):</span>
           <button type="button" class="copy-btn" data-copy="sqlLangs">Copy</button>
         </div>
-        <pre><code id="sqlLangs">UPDATE partners
+        <pre tabindex="0"><code id="sqlLangs">UPDATE partners
 SET config = jsonb_set(config, '{languages}', '["am","en"]')
 WHERE publishable_key = 'pk_…';</code></pre>
 
@@ -1048,7 +1074,9 @@ WHERE publishable_key = 'pk_…';</code></pre>
           <span>SQL (operator):</span>
           <button type="button" class="copy-btn" data-copy="sqlOrigins">Copy</button>
         </div>
-        <pre><code id="sqlOrigins">UPDATE partners SET allowed_origins = array_append(allowed_origins, 'https://your-site.example')
+        <pre
+          tabindex="0"
+        ><code id="sqlOrigins">UPDATE partners SET allowed_origins = array_append(allowed_origins, 'https://your-site.example')
 WHERE publishable_key = 'pk_…';
 
 UPDATE partners SET allowed_origins = array_remove(allowed_origins, 'https://your-site.example')
@@ -1064,39 +1092,36 @@ WHERE publishable_key = 'pk_…';</code></pre>
       <section class="card section-card" id="languages">
         <h2 class="card-title">Adding a language</h2>
         <p class="card-subtitle">
-          Every file <code>frontend/src/i18n/locales/&lt;code&gt;.json</code> is a language. Amharic
-          and English are complete today. Run these from the <code>frontend/</code> folder.
+          Amharic and English are complete today. Every language is built into the one component
+          script that all partners load, so the Bridge team adds languages: you don't change any
+          code.
         </p>
         <ol>
           <li>
-            <strong>Create the file.</strong>
-            <code>npm run i18n:new -- om "Afaan Oromoo" om-ET</code> creates
-            <code>om.json</code> with every text marked <code>TODO-om</code>. TODO texts show in
-            English until they are translated.
+            <strong>Ask the Bridge team</strong> for the language you need (for example Afaan
+            Oromoo).
           </li>
           <li>
-            <strong>Translate.</strong> A native speaker translates every text. Never use machine
-            translation.
+            <strong>Help with the translation if you can.</strong> A native speaker translates every
+            text: your staff or ours. We never ship machine translation. Texts not translated yet
+            show in English.
           </li>
           <li>
-            <strong>Check.</strong> <code>npm run i18n:check -- om</code> lists missing keys, texts
-            still marked TODO, and <code>{placeholders}</code> that differ from English.
+            <strong>We add it, check it and publish a new component.</strong> Your page keeps the
+            same script tag: nothing to change.
           </li>
           <li>
-            <strong>Offer it.</strong> Add the code to the partner's <code>languages</code> setting
-            (see <a href="#settings">Partner settings</a>). <code>GET /config</code> then returns
-            it.
-          </li>
-          <li>
-            <strong>Optional: recordings.</strong> Read-aloud clips go in
-            <code>frontend/public/audio/&lt;code&gt;/&lt;key&gt;.mp3</code>.
-            <code>npm run audio:check</code> lists which are missing.
-          </li>
-          <li>
-            <strong>Rebuild the component.</strong> <code>npm run build:widget</code>, then deploy
-            the new <code>bridge-onboarding.js</code>.
+            <strong>We switch it on for your site</strong> by adding it to your
+            <code>languages</code> setting (see <a href="#settings">Partner settings</a>). Only
+            languages in that list appear on your language screen.
           </li>
         </ol>
+        <p>
+          What a new language gets: all screen text once translated. Read aloud uses the phone's own
+          voice for that language (our server voice is Amharic only). Answering by voice works where
+          the browser supports the language (Chrome). Ethiopian month names show in English until
+          they are translated.
+        </p>
       </section>
 
       <!-- Data -->
@@ -1237,7 +1262,8 @@ WHERE publishable_key = 'pk_…';</code></pre>
       const attr = (s) =>
         String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-      let suffix = randomHex();
+      // The key is random only: it doesn't change while you type your organisation's name.
+      let suffix = randomHex(8);
 
       function updateOutputs() {
         const name = document.getElementById('orgName').value.trim() || 'My Organisation';
@@ -1264,7 +1290,7 @@ WHERE publishable_key = 'pk_…';</code></pre>
         if (languages.length === 0) languages.push('en');
         const lang = languages.includes(defaultLang) ? defaultLang : languages[0];
 
-        const key = `pk_live_${slug.replace(/[^a-z0-9]+/gi, '_')}_${suffix}`;
+        const key = `pk_live_${suffix}`;
         document.getElementById('keyDisplay').textContent = key;
 
         const embedHtml = `<!-- 1. Where the form should appear -->
@@ -1359,7 +1385,7 @@ WHERE publishable_key = ${sqlText(key)};`;
 
       // A fresh random part for the suggested key
       document.getElementById('generateBtn').addEventListener('click', () => {
-        suffix = randomHex();
+        suffix = randomHex(8);
         updateOutputs();
         document.getElementById('statusBadge').textContent = 'New key suggested';
       });
