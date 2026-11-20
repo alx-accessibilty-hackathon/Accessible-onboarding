@@ -4,15 +4,25 @@
 // Elements focused by the widget itself (tabindex="-1": headings, the error summary) are not
 // described: the screen reading or the error reading already says them.
 //
+// When the person moves focus themselves (Tab, the arrow keys, a tap), what they land on is
+// said at once, cutting off whatever was being read (also the first reading of the page). The
+// key press or tap that starts read aloud is the exception: the first reading is said first.
+// When the widget moves focus (e.g. after a voice answer), the new place is said after what is
+// being said now, never over it.
+//
+// On focus, a field also says its hint and error and what to do ("Type your answer, then press
+// Enter."); a list or group of options says how to choose.
+//
 // Choices are read as a whole when focus comes into them: a radio or checkbox group (a
-// fieldset, role="radiogroup"/"group"), a list (<select>) or a set of toggle buttons in a
-// role="group" (the calendar choice of a date). Then: the question, "N options:", every option,
-// what is selected now, and the focused option with its state. Moving between the options of
-// the same group says only the focused option and its state.
+// fieldset, role="radiogroup"/"group") or a set of toggle buttons in a role="group" (the
+// calendar choice of a date): the question, "N options:", every option, what is selected now,
+// and the focused option with its state. A list (<select>) says how many options it has and
+// what is chosen, not every option. Moving between the options of the same group says only
+// the focused option and its state.
 
 import { useEffect, type RefObject } from 'react';
 import { t } from '../i18n/t';
-import { speak, type SpeechPart } from './speaker';
+import { getSpeakerState, speak, type SpeakOptions, type SpeechPart } from './speaker';
 
 interface Seg {
   text: string;
@@ -87,6 +97,19 @@ function nameSegments(el: Element, uiLang: string): Seg[] {
   return merge(segs);
 }
 
+/** The hint and error a field points to (aria-describedby): fixed interface text. */
+function describedBySegments(el: Element, uiLang: string): Seg[] {
+  const ids = el.getAttribute('aria-describedby');
+  if (!ids) return [];
+  const root = el.getRootNode() as Document | ShadowRoot;
+  const segs: Seg[] = [];
+  for (const id of ids.split(/\s+/)) {
+    const target = id ? root.getElementById?.(id) : null;
+    if (target) textSegments(target, langOf(target, uiLang), segs, false);
+  }
+  return merge(segs);
+}
+
 function toParts(segs: Seg[], personal: boolean): SpeechPart[] {
   return segs.map((s) => ({ text: s.text, lang: s.lang, personal }));
 }
@@ -95,6 +118,12 @@ function toParts(segs: Seg[], personal: boolean): SpeechPart[] {
 function word(lang: string, key: string, params?: Record<string, string | number>): SpeechPart {
   const text = t(lang, key, params);
   return params ? { text, lang } : { text, key, lang };
+}
+
+/** What to do here, set by the page on any element (already in the page's language). */
+function ownInstruction(el: Element, uiLang: string): SpeechPart[] {
+  const text = el.getAttribute('data-bo-instruction');
+  return text ? [{ text, lang: langOf(el, uiLang) }] : [];
 }
 
 /* ------------------------------------------------------------------ */
@@ -185,14 +214,27 @@ function optionState(group: OptionGroup, el: Element, lang: string): SpeechPart 
   return word(lang, isOn(el) ? 'speech.state.selected' : 'speech.state.not_selected');
 }
 
-/** Coming into a group: the question, every option, what is chosen, then the focused one. */
+/** How to choose in a group of this kind (said when focus comes into it). */
+function groupHint(group: OptionGroup, lang: string): SpeechPart[] {
+  if (group.kind === 'checkbox') return [word(lang, 'speech.hint.checkbox')];
+  if (group.kind === 'radio' || group.kind === 'select') return [word(lang, 'speech.hint.arrows')];
+  return [];
+}
+
+/**
+ * Coming into a group: the question, every option (a list: how many), what is chosen, then
+ * the focused one, and how to choose.
+ */
 function describeGroup(group: OptionGroup, el: Element, uiLang: string): SpeechPart[] {
   const lang = langOf(el, uiLang);
   const personal = !!el.closest('[data-bo-private]');
   const parts: SpeechPart[] = [...toParts(groupLabel(group, uiLang), false)];
   if (group.kind === 'select') parts.push(word(lang, 'speech.role.list'));
   parts.push(word(lang, 'speech.n_options', { n: group.options.length }));
-  for (const option of group.options) parts.push(...optionName(option, uiLang, personal));
+  // A list (e.g. the 13 months) is not read out option by option: the arrow keys say each one.
+  if (group.kind !== 'select') {
+    for (const option of group.options) parts.push(...optionName(option, uiLang, personal));
+  }
 
   const chosen = group.options.filter(isOn);
   // Focus is on the one chosen option: "English, selected" says both at once.
@@ -210,7 +252,108 @@ function describeGroup(group: OptionGroup, el: Element, uiLang: string): SpeechP
   if (group.kind !== 'select') {
     parts.push(...toParts(nameSegments(el, uiLang), personal), optionState(group, el, lang));
   }
+  parts.push(...toParts(describedBySegments(el, uiLang), false));
+  parts.push(...groupHint(group, lang));
   return parts;
+}
+
+/**
+ * One control: its name, role and state. On focus (`focus`), also its hint and error and what
+ * to do there; under the pointer, a block of text is read as it is.
+ */
+function controlParts(el: Element, uiLang: string, focus: boolean): SpeechPart[] {
+  const lang = langOf(el, uiLang);
+  const personal = !!el.closest('[data-bo-private]');
+  const name = toParts(nameSegments(el, uiLang), personal);
+  const tag = el.tagName;
+  const type = (el.getAttribute('type') ?? '').toLowerCase();
+  const disabled = (el as HTMLButtonElement).disabled === true;
+  const parts: SpeechPart[] = [];
+  const hints: SpeechPart[] = []; // said last, and only on focus
+
+  if (tag === 'INPUT' && type === 'radio') {
+    const input = el as HTMLInputElement;
+    const root = el.getRootNode() as Document | ShadowRoot;
+    const groupName = input.name.replace(/["\\]/g, '\\$&');
+    const radios = Array.from(
+      root.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${groupName}"]`),
+    );
+    parts.push(...name);
+    if (radios.length > 1) {
+      parts.push(
+        word(lang, 'speech.role.option', {
+          n: Math.max(1, radios.indexOf(input) + 1),
+          total: radios.length,
+        }),
+      );
+    }
+    parts.push(word(lang, input.checked ? 'speech.state.selected' : 'speech.state.not_selected'));
+    hints.push(word(lang, 'speech.hint.arrows'));
+  } else if (tag === 'INPUT' && type === 'checkbox') {
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.checkbox'));
+    parts.push(
+      word(
+        lang,
+        (el as HTMLInputElement).checked ? 'speech.state.checked' : 'speech.state.not_checked',
+      ),
+    );
+    hints.push(...toParts(describedBySegments(el, uiLang), false));
+    hints.push(word(lang, 'speech.hint.checkbox'));
+  } else if (tag === 'INPUT' && type === 'file') {
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.file'));
+    hints.push(...toParts(describedBySegments(el, uiLang), false));
+    hints.push(word(lang, 'speech.hint.file'));
+  } else if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    const value = (el as HTMLInputElement).value.trim();
+    parts.push(...name);
+    parts.push(word(lang, tag === 'TEXTAREA' ? 'speech.role.text_area' : 'speech.role.text_field'));
+    if (value) {
+      parts.push(word(lang, 'speech.state.has_text'));
+      // What the learner typed: device voice only, and nothing if there is none.
+      parts.push({ text: value, lang, personal: true });
+    } else {
+      parts.push(word(lang, 'speech.state.empty'));
+    }
+    hints.push(...toParts(describedBySegments(el, uiLang), false));
+    hints.push(word(lang, tag === 'TEXTAREA' ? 'speech.hint.type_long' : 'speech.hint.type'));
+  } else if (tag === 'SELECT') {
+    const select = el as HTMLSelectElement;
+    const option = select.selectedOptions?.[0];
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.list'));
+    // What the learner picked (e.g. the month they were born): device voice only.
+    if (option?.value && option.textContent) {
+      parts.push({ text: option.textContent.trim(), lang, personal: true });
+    }
+    hints.push(word(lang, 'speech.hint.arrows'));
+  } else if (tag === 'A') {
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.link'));
+  } else if (tag === 'BUTTON' || el.getAttribute('role') === 'button') {
+    parts.push(...name);
+    parts.push(word(lang, 'speech.role.button'));
+    const pressed = el.getAttribute('aria-pressed');
+    if (pressed === 'true') parts.push(word(lang, 'speech.state.on'));
+    if (pressed === 'false') parts.push(word(lang, 'speech.state.off'));
+    const expanded = el.getAttribute('aria-expanded');
+    if (expanded === 'true') parts.push(word(lang, 'speech.state.expanded'));
+    if (expanded === 'false') {
+      parts.push(word(lang, 'speech.state.collapsed'));
+      hints.push(word(lang, 'speech.hint.open'));
+    }
+  } else if (focus) {
+    parts.push(...name);
+  } else {
+    // Non-control readable element (headings, paragraphs, banners, alerts, badges, labels)
+    const read = readableText(el, uiLang);
+    parts.push(...(read.length ? read : name));
+  }
+
+  if (disabled) parts.push(word(lang, 'speech.state.unavailable'));
+  if (!focus || disabled) return parts;
+  return [...parts, ...hints, ...ownInstruction(el, uiLang)];
 }
 
 /** What to say when `el` gets focus (null: say nothing). */
@@ -220,7 +363,7 @@ export function describeFocus(el: Element, uiLang: string, from: Element | null)
   const personal = !!el.closest('[data-bo-private]');
   const parts: SpeechPart[] = [];
 
-  // Entering a group (e.g. a job card): say what it is about first.
+  // Entering a group (e.g. a job card, a date): say what it is about first.
   const group = el.closest('[data-bo-context]');
   if (group && !(from && group.contains(from))) {
     parts.push({ text: group.getAttribute('data-bo-context') ?? '', lang: langOf(group, uiLang) });
@@ -241,68 +384,7 @@ export function describeFocus(el: Element, uiLang: string, from: Element | null)
     return parts;
   }
 
-  const name = toParts(nameSegments(el, uiLang), personal);
-  const tag = el.tagName;
-  const type = (el.getAttribute('type') ?? '').toLowerCase();
-  const disabled = (el as HTMLButtonElement).disabled === true;
-
-  if (tag === 'INPUT' && type === 'radio') {
-    const input = el as HTMLInputElement;
-    const root = el.getRootNode() as Document | ShadowRoot;
-    const groupName = input.name.replace(/["\\]/g, '\\$&');
-    const radios = Array.from(
-      root.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${groupName}"]`),
-    );
-    parts.push(...name);
-    parts.push(
-      word(lang, 'speech.role.option', {
-        n: Math.max(1, radios.indexOf(input) + 1),
-        total: Math.max(1, radios.length),
-      }),
-    );
-    parts.push(word(lang, input.checked ? 'speech.state.selected' : 'speech.state.not_selected'));
-  } else if (tag === 'INPUT' && type === 'checkbox') {
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.checkbox'));
-    parts.push(
-      word(
-        lang,
-        (el as HTMLInputElement).checked ? 'speech.state.checked' : 'speech.state.not_checked',
-      ),
-    );
-  } else if (tag === 'INPUT' || tag === 'TEXTAREA') {
-    const value = (el as HTMLInputElement).value.trim();
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.text_field'));
-    if (value) {
-      parts.push(word(lang, 'speech.state.has_text'));
-      // What the learner typed: device voice only, and nothing if there is none.
-      parts.push({ text: value, lang, personal: true });
-    } else {
-      parts.push(word(lang, 'speech.state.empty'));
-    }
-  } else if (tag === 'SELECT') {
-    const select = el as HTMLSelectElement;
-    const option = select.selectedOptions?.[0];
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.list'));
-    // What the learner picked (e.g. the month they were born): device voice only.
-    if (option?.value && option.textContent) {
-      parts.push({ text: option.textContent.trim(), lang, personal: true });
-    }
-  } else if (tag === 'A') {
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.link'));
-  } else if (tag === 'BUTTON' || el.getAttribute('role') === 'button') {
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.button'));
-    const pressed = el.getAttribute('aria-pressed');
-    if (pressed === 'true') parts.push(word(lang, 'speech.state.on'));
-    if (pressed === 'false') parts.push(word(lang, 'speech.state.off'));
-  } else {
-    parts.push(...name);
-  }
-  if (disabled) parts.push(word(lang, 'speech.state.unavailable'));
+  parts.push(...controlParts(el, uiLang, true));
   return parts;
 }
 
@@ -332,103 +414,23 @@ export function describeChange(el: Element, uiLang: string): SpeechPart[] {
   return [];
 }
 
-/** Describe the current element the user is on (hover, pointer, or focused control). */
+/** Describe the element under the pointer (or any element): name, role and state. */
 export function describeElement(el: Element, uiLang: string): SpeechPart[] {
   if (el.tagName === 'DIALOG') return [];
   const lang = langOf(el, uiLang);
   const personal = !!el.closest('[data-bo-private]');
-  const parts: SpeechPart[] = [];
 
   // An option in a group: describe THIS option directly (its name + state).
   const options = optionGroup(el);
   if (options) {
-    if (options.kind === 'select') {
-      const select = el as HTMLSelectElement;
-      const option = select.selectedOptions?.[0];
-      parts.push(...toParts(nameSegments(el, uiLang), personal));
-      parts.push(word(lang, 'speech.role.list'));
-      if (option?.value && option.textContent) {
-        parts.push({ text: option.textContent.trim(), lang, personal: true });
-      }
-      return parts;
-    }
-    parts.push(...toParts(nameSegments(el, uiLang), personal), optionState(options, el, lang));
+    if (options.kind === 'select') return controlParts(el, uiLang, false);
+    const parts = [...toParts(nameSegments(el, uiLang), personal), optionState(options, el, lang)];
     if ((el as HTMLButtonElement).disabled === true) {
       parts.push(word(lang, 'speech.state.unavailable'));
     }
     return parts;
   }
-
-  const name = toParts(nameSegments(el, uiLang), personal);
-  const tag = el.tagName;
-  const type = (el.getAttribute('type') ?? '').toLowerCase();
-  const disabled = (el as HTMLButtonElement).disabled === true;
-
-  if (tag === 'INPUT' && type === 'radio') {
-    const input = el as HTMLInputElement;
-    const root = el.getRootNode() as Document | ShadowRoot;
-    const groupName = input.name.replace(/["\\]/g, '\\$&');
-    const radios = Array.from(
-      root.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${groupName}"]`),
-    );
-    parts.push(...name);
-    if (radios.length > 1) {
-      parts.push(
-        word(lang, 'speech.role.option', {
-          n: Math.max(1, radios.indexOf(input) + 1),
-          total: Math.max(1, radios.length),
-        }),
-      );
-    }
-    parts.push(word(lang, input.checked ? 'speech.state.selected' : 'speech.state.not_selected'));
-  } else if (tag === 'INPUT' && type === 'checkbox') {
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.checkbox'));
-    parts.push(
-      word(
-        lang,
-        (el as HTMLInputElement).checked ? 'speech.state.checked' : 'speech.state.not_checked',
-      ),
-    );
-  } else if (tag === 'INPUT' || tag === 'TEXTAREA') {
-    const value = (el as HTMLInputElement).value.trim();
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.text_field'));
-    if (value) {
-      parts.push(word(lang, 'speech.state.has_text'));
-      parts.push({ text: value, lang, personal: true });
-    } else {
-      parts.push(word(lang, 'speech.state.empty'));
-    }
-  } else if (tag === 'SELECT') {
-    const select = el as HTMLSelectElement;
-    const option = select.selectedOptions?.[0];
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.list'));
-    if (option?.value && option.textContent) {
-      parts.push({ text: option.textContent.trim(), lang, personal: true });
-    }
-  } else if (tag === 'A') {
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.link'));
-  } else if (tag === 'BUTTON' || el.getAttribute('role') === 'button') {
-    parts.push(...name);
-    parts.push(word(lang, 'speech.role.button'));
-    const pressed = el.getAttribute('aria-pressed');
-    if (pressed === 'true') parts.push(word(lang, 'speech.state.on'));
-    if (pressed === 'false') parts.push(word(lang, 'speech.state.off'));
-  } else {
-    // Non-control readable element (headings, paragraphs, banners, alerts, badges, labels)
-    const read = readableText(el, uiLang);
-    if (read.length) {
-      parts.push(...read);
-    } else if (name.length) {
-      parts.push(...name);
-    }
-  }
-
-  if (disabled) parts.push(word(lang, 'speech.state.unavailable'));
-  return parts;
+  return controlParts(el, uiLang, false);
 }
 
 /** Find the meaningful interactive control or readable text element under `target`. */
@@ -467,6 +469,83 @@ export function findReadableTarget(target: Element | null, root: HTMLElement): E
   return null;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Who moved focus: the person (Tab, arrows, a tap) or the widget     */
+/* ------------------------------------------------------------------ */
+
+// Keys that move focus by themselves (in a group of options, the arrows move it too).
+const HOVER_OWNER = 'hover';
+const MOVE_KEYS = new Set([
+  'Tab',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+]);
+const RECENT_MS = 600;
+
+interface LastInput {
+  at: number;
+  key: string | null; // the key pressed, or null for a pointer
+  target: EventTarget | null; // where the pointer went down (inside the shadow root too)
+  /** This input is the one that started read aloud (the first key press or tap). */
+  activating: boolean;
+}
+
+let lastInput: LastInput = { at: 0, key: null, target: null, activating: false };
+let inputListeners = 0;
+
+// Window, capture phase: runs before the speaker's first-gesture listener (on the document),
+// so `activating` is still known. Passive: nothing on the host page is changed or blocked.
+function onUserInput(e: Event): void {
+  lastInput = {
+    at: Date.now(),
+    key: e instanceof KeyboardEvent ? e.key : null,
+    target: e.composedPath?.()[0] ?? e.target,
+    activating: !getSpeakerState().activated,
+  };
+}
+
+const INPUT_LISTEN = { capture: true, passive: true } as const;
+
+function watchUserInput(): () => void {
+  if (inputListeners++ === 0) {
+    window.addEventListener('keydown', onUserInput, INPUT_LISTEN);
+    window.addEventListener('pointerdown', onUserInput, INPUT_LISTEN);
+  }
+  return () => {
+    if (--inputListeners === 0) {
+      window.removeEventListener('keydown', onUserInput, INPUT_LISTEN);
+      window.removeEventListener('pointerdown', onUserInput, INPUT_LISTEN);
+    }
+  };
+}
+
+/** The pointer went down on `el`, inside it, or on its label (a choice card, a question). */
+function pointerOn(el: Element, target: EventTarget | null): boolean {
+  if (!(target instanceof Node)) return false;
+  if (el === target || el.contains(target)) return true;
+  const start = target instanceof Element ? target : target.parentElement;
+  const label = start?.closest('label');
+  if (!label) return false;
+  const labels = (el as HTMLInputElement).labels;
+  return label.contains(el) || (!!labels && Array.from(labels).includes(label));
+}
+
+/** How to say what got focus: at once (the person moved), or after what is being said. */
+function focusSpeakOptions(el: Element): SpeakOptions {
+  const recent = Date.now() - lastInput.at < RECENT_MS;
+  const byPerson =
+    recent &&
+    (lastInput.key !== null ? MOVE_KEYS.has(lastInput.key) : pointerOn(el, lastInput.target));
+  if (!byPerson) return { low: true, after: true }; // the widget moved focus
+  // The key press or tap that started read aloud: the first reading goes first.
+  if (lastInput.activating) return { low: true };
+  return { interrupt: true };
+}
+
 /** Listen for focus, hover and choices inside the widget while Read Aloud mode is on. */
 export function useFocusSpeech(
   rootRef: RefObject<HTMLElement>,
@@ -476,6 +555,7 @@ export function useFocusSpeech(
   useEffect(() => {
     const root = rootRef.current;
     if (!root || !enabled) return;
+    const unwatch = watchUserInput();
 
     let hoverTimer: number | undefined;
     let lastHovered: Element | null = null;
@@ -490,7 +570,12 @@ export function useFocusSpeech(
       hoverTimer = window.setTimeout(() => {
         lastHovered = target;
         const parts = describeElement(target, lang);
-        if (parts.length) void speak(parts, lang, { low: true });
+        if (!parts.length) return;
+        // Moving the pointer replaces what the pointer said before, but never cuts off a
+        // reading (a screen, "We heard: …"): the page can also move under a still pointer.
+        const { speaking, owner } = getSpeakerState();
+        const busy = speaking && owner !== HOVER_OWNER;
+        void speak(parts, lang, { low: true, owner: HOVER_OWNER, after: busy });
       }, 100);
     };
 
@@ -508,7 +593,7 @@ export function useFocusSpeech(
       lastHovered = el;
       const from = (e as FocusEvent).relatedTarget as Element | null;
       const parts = describeFocus(el, lang, from);
-      if (parts.length) void speak(parts, lang, { low: true });
+      if (parts.length) void speak(parts, lang, focusSpeakOptions(el));
     };
 
     const onChange = (e: Event) => {
@@ -519,38 +604,44 @@ export function useFocusSpeech(
       const parts = describeChange(el, lang);
       if (parts.length) void speak(parts, lang, { low: true });
     };
-    // A toggle button (e.g. "Simple mode", "Read aloud" or group button like "Ethiopian calendar"):
-    // say what is selected/toggled, once the DOM state updates.
+    // A toggle button (e.g. "Simple mode", "Read aloud" or group button like "Ethiopian
+    // calendar") or a button that opens a panel: say what is selected/toggled/open, once the
+    // DOM state updates. (Never while the microphone listens: it would become the answer.)
     let timer: number | undefined;
     const onClick = (e: Event) => {
       window.clearTimeout(hoverTimer);
       lastHovered = null;
-      const button = (e.target as Element | null)?.closest?.('button[aria-pressed]');
+      const button = (e.target as Element | null)?.closest?.(
+        'button[aria-pressed], button[aria-expanded]',
+      );
       if (!button) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        const pressed = button.getAttribute('aria-pressed');
+        if (!button.isConnected) return;
         const personal = !!button.closest('[data-bo-private]');
         const btnLang = langOf(button, lang);
+        const name = toParts(nameSegments(button, lang), personal);
+        const expanded = button.getAttribute('aria-expanded');
+        if (expanded !== null) {
+          const stateWord = word(
+            btnLang,
+            expanded === 'true' ? 'speech.state.expanded' : 'speech.state.collapsed',
+          );
+          void speak([...name, stateWord], lang, { interrupt: true });
+          return;
+        }
+        const pressed = button.getAttribute('aria-pressed');
         const inGroup = !!button.closest('[role="group"]');
         if (inGroup) {
           if (pressed !== 'true') return;
-          void speak(
-            [
-              word(btnLang, 'speech.selected_prefix'),
-              ...toParts(nameSegments(button, lang), personal),
-            ],
-            lang,
-            { low: true },
-          );
+          void speak([word(btnLang, 'speech.selected_prefix'), ...name], lang, { low: true });
         } else {
           // Standalone toggle button (e.g. "Simple mode", "Read aloud", "Answer by speaking")
-          const name = toParts(nameSegments(button, lang), personal);
           const stateWord =
             pressed === 'true'
               ? word(btnLang, 'speech.state.on')
               : word(btnLang, 'speech.state.off');
-          void speak([...name, stateWord], lang, { force: true });
+          void speak([...name, stateWord], lang, { interrupt: true });
         }
       }, 50);
     };
@@ -564,6 +655,7 @@ export function useFocusSpeech(
     root.addEventListener('click', onClick);
 
     return () => {
+      unwatch();
       window.clearTimeout(hoverTimer);
       window.clearTimeout(timer);
       root.removeEventListener('pointerover', onPointerOver);

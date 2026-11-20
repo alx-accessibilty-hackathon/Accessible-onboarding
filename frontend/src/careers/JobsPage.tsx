@@ -89,7 +89,9 @@ export function JobsPage({ lang, api, manageTitle = true, onApply }: JobsPagePro
       ? t(lang, 'jobs.result_count', { count: fullMatches, needs: activeNeeds })
       : activeNeeds === 1
         ? t(lang, 'jobs.result_count_one', { count: fullMatches })
-        : t(lang, 'jobs.result_count_all', { count: jobs?.length ?? 0 });
+        : (jobs?.length ?? 0) === 1
+          ? t(lang, 'jobs.result_count_all_one')
+          : t(lang, 'jobs.result_count_all', { count: jobs?.length ?? 0 });
 
   const { readAloud, active } = useModes();
 

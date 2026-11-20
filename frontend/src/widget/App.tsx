@@ -224,8 +224,39 @@ function WidgetInner(props: WidgetProps) {
     }
   };
 
+  // The person pressed a button that shows another view (Find a job, Apply, Sign up…): the
+  // button is gone with the old view, so focus goes to the new view's heading (else it would
+  // fall to the page, and the next Tab would start again at the top of the page). Never on
+  // first load (W3). If the new view already put focus somewhere inside, it stays there.
+  const focusNextViewRef = useRef(false);
+  const go = (next: View) => {
+    focusNextViewRef.current = true;
+    setView(next);
+  };
+  useEffect(() => {
+    if (!focusNextViewRef.current) return;
+    focusNextViewRef.current = false;
+    let frame = 0;
+    let tries = 0;
+    const tryFocus = () => {
+      const root = rootRef.current?.getRootNode() as Document | ShadowRoot | undefined;
+      const active = root?.activeElement ?? null;
+      if (active && active !== document.body) return; // focus is somewhere already
+      const heading = contentRef.current?.querySelector<HTMLElement>('h1');
+      if (heading) {
+        if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1;
+        heading.focus();
+        return;
+      }
+      // Still loading (e.g. the job): try again on the next frames, for up to about 5 seconds.
+      if (++tries < 300) frame = window.requestAnimationFrame(tryFocus);
+    };
+    frame = window.requestAnimationFrame(tryFocus);
+    return () => window.cancelAnimationFrame(frame);
+  }, [view]);
+
   const learnerApi = session ? { ...api, token: session.token } : null;
-  const openProfile = () => setView({ name: 'profile', opened: true });
+  const openProfile = () => go({ name: 'profile', opened: true });
 
   return (
     <div
@@ -289,20 +320,20 @@ function WidgetInner(props: WidgetProps) {
                 emit={emitEvent}
                 onSession={setSession}
                 onSaveState={() => setSaveKey((k) => k + 1)}
-                onResume={() => setView({ name: 'resume' })}
+                onResume={() => go({ name: 'resume' })}
                 doneExtra={
                   <div className="bo-actions">
                     {pendingJob && (
                       <Button
                         variant="primary"
-                        onClick={() => setView({ name: 'apply', ...pendingJob })}
+                        onClick={() => go({ name: 'apply', ...pendingJob })}
                       >
                         {t('apply.continue_application')}
                       </Button>
                     )}
-                    {/* What the Done screen says you can do now */}
+                    {/* What the Done screen says you can do now: finding a job comes first */}
                     {!pendingJob && (
-                      <Button variant="secondary" onClick={() => setView({ name: 'jobs' })}>
+                      <Button variant="primary" onClick={() => go({ name: 'jobs' })}>
                         {t('jobs.title')}
                       </Button>
                     )}
@@ -325,10 +356,10 @@ function WidgetInner(props: WidgetProps) {
                   void saveSession(s.token, s.registrationId).then(() => {
                     setSession({ token: s.token, registrationId: s.registrationId });
                     setSignupKey((k) => k + 1);
-                    setView({ name: 'signup' });
+                    go({ name: 'signup' });
                   });
                 }}
-                onCancel={() => setView({ name: 'signup' })}
+                onCancel={() => go({ name: 'signup' })}
               />
             )}
 
@@ -339,7 +370,7 @@ function WidgetInner(props: WidgetProps) {
                 languages={languages}
                 manageTitle={manageTitle}
                 focusOnMount={!!view.opened}
-                onSignUp={() => setView({ name: 'signup' })}
+                onSignUp={() => go({ name: 'signup' })}
                 onLanguage={(l) => {
                   setChosenLanguage(l);
                   setLang(l);
@@ -358,7 +389,7 @@ function WidgetInner(props: WidgetProps) {
                 lang={lang}
                 api={api}
                 manageTitle={manageTitle}
-                onApply={(job) => setView({ name: 'apply', jobId: job.id, job })}
+                onApply={(job) => go({ name: 'apply', jobId: job.id, job })}
               />
             )}
 
@@ -371,10 +402,10 @@ function WidgetInner(props: WidgetProps) {
                 job={view.job}
                 manageTitle={manageTitle}
                 emit={emitEvent}
-                onBackToJobs={() => setView({ name: 'jobs' })}
+                onBackToJobs={() => go({ name: 'jobs' })}
                 onSignUp={() => {
                   setPendingJob({ jobId: view.jobId, job: view.job });
-                  setView({ name: 'signup' });
+                  go({ name: 'signup' });
                 }}
               />
             )}

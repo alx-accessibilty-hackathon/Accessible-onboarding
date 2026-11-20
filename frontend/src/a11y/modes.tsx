@@ -12,12 +12,15 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import { t } from '../i18n/t';
 import { setSetting, useSetting } from './settings';
 import {
   getSpeakerState,
+  hasUserGesture,
   speak,
   stopSpeaking,
   subscribeSpeaker,
+  whenActivated,
   whenIdle,
   type Part,
   type SpeakerState,
@@ -73,8 +76,26 @@ export function useSpeakerState(): SpeakerState {
 }
 
 /**
+ * What the frame around the screens (the widget's top bar: Get help, Language, Dark mode, the
+ * Accessibility menu) says, top to bottom. The first reading of the page starts with it, so
+ * someone who can't see the screen learns what is there and where the settings are.
+ */
+const FrameReadContext = createContext<(() => Part[]) | null>(null);
+export const FrameReadProvider = FrameReadContext.Provider;
+
+// The first reading of the page (once per page, even with several widgets) includes the frame.
+// It is "used" when it plays: at the first key press or tap, or at once if sound is allowed.
+let framePending = true;
+
+/** Tests only: read the frame again on the next first reading. */
+export function resetFrameReading(): void {
+  framePending = true;
+}
+
+/**
  * Read Aloud mode: say `build()` each time `key` changes (a new screen, an error that appeared,
  * a dialog that opened). Nothing happens when the mode is off or the content is hidden.
+ * The first reading of the page says the frame first and ends with how to move around (Tab).
  * `onDone` runs when the reading is over (or was replaced by other speech) and all is quiet.
  */
 export function useAutoRead(
@@ -84,6 +105,9 @@ export function useAutoRead(
   onDone?: () => void,
 ): void {
   const { readAloud, active } = useModes();
+  const frame = useContext(FrameReadContext);
+  const frameRef = useRef(frame);
+  frameRef.current = frame;
   const buildRef = useRef(build);
   buildRef.current = build;
   const doneRef = useRef(onDone);
@@ -92,7 +116,21 @@ export function useAutoRead(
   useEffect(() => {
     if (!readAloud || !active || key === null) return;
     let live = true;
-    void speak(buildRef.current(), lang, { owner: key })
+    let parts = buildRef.current();
+    const frameParts = framePending ? frameRef.current : null;
+    if (frameParts) {
+      parts = [
+        ...frameParts(),
+        ...parts,
+        { text: t(lang, 'read_aloud.tab_hint'), key: 'read_aloud.tab_hint' },
+      ];
+      if (hasUserGesture()) framePending = false;
+      else
+        void whenActivated().then(() => {
+          framePending = false;
+        });
+    }
+    void speak(parts, lang, { owner: key })
       .then(() => whenIdle())
       .then(() => {
         if (live) doneRef.current?.();

@@ -2,8 +2,8 @@ import { useId } from 'react';
 import { useModes, useSpeakerState } from '../a11y/modes';
 import {
   getEffectiveTheme,
-  setTheme,
   setTextSize,
+  setTheme,
   TEXT_SIZES,
   useTextSize,
   useTheme,
@@ -19,6 +19,9 @@ export interface ModeTogglesProps {
   bilingual?: string[] | null;
   /** Offer "Answer by speaking" (the widget; not the staff pages). Default true. */
   answerBySpeaking?: boolean;
+  /** Show the Dark mode switch here too (the staff pages). The widget shows it in its top bar
+   * (ThemeToggle), so it passes false. Default true. */
+  theme?: boolean;
 }
 
 /** A label in the current language, or in every offered language (each with its `lang`). */
@@ -26,13 +29,27 @@ export function Label({
   lang,
   k,
   bilingual,
+  stacked = false,
 }: {
   lang: string;
   k: string;
   bilingual?: string[] | null;
+  /** One language per line (a narrow button, e.g. in the top bar), instead of "A · B". */
+  stacked?: boolean;
 }) {
   if (!bilingual || bilingual.length < 2) return <span>{t(lang, k)}</span>;
   const order = [lang, ...bilingual.filter((l) => l !== lang)];
+  if (stacked) {
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1.2 }}>
+        {order.map((l) => (
+          <span key={l} lang={l}>
+            {t(l, k)}
+          </span>
+        ))}
+      </span>
+    );
+  }
   return (
     <span>
       {order.map((l, i) => (
@@ -82,7 +99,45 @@ export function TextSizeControl({
 }
 
 /**
- * The persistent modes, on every screen (header) and on the first screen:
+ * Dark mode, saved on this device. The name stays "Dark mode" and the button says whether it is
+ * on (aria-pressed and a tick), so it is never announced as "Light mode, on".
+ */
+export function ThemeToggle({
+  lang,
+  bilingual,
+  compact = false,
+}: {
+  lang: string;
+  bilingual?: string[] | null;
+  /** In the widget's top bar: its size and padding come from `.bo-bar` (styles.css). */
+  compact?: boolean;
+}) {
+  const theme = useTheme();
+  const isDark = getEffectiveTheme(theme) === 'dark';
+  return (
+    <button
+      type="button"
+      className="bo-btn bo-btn-secondary"
+      aria-pressed={isDark}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: compact ? undefined : 'var(--bo-space-2)',
+        padding: compact ? undefined : '0.4em 0.8em',
+        background: isDark ? 'var(--bo-selected-bg)' : undefined,
+        borderColor: isDark ? 'var(--bo-primary)' : undefined,
+      }}
+    >
+      <Icon name="dark_mode" />
+      <Label lang={lang} k="header.theme_dark" bilingual={bilingual} stacked={compact} />
+      {isDark && <Icon name="check" style={{ color: 'var(--bo-primary)' }} />}
+    </button>
+  );
+}
+
+/**
+ * The persistent modes (in the widget, inside the Accessibility menu):
  * Read aloud (screens, errors, panels and the focused element are read by themselves; on until
  * the person turns it off), Answer by speaking (the microphone listens by itself on questions
  * you can say) and the text size. All are saved on this device.
@@ -91,16 +146,10 @@ export function ModeToggles({
   lang,
   bilingual,
   answerBySpeaking: offerSpeaking = true,
+  theme: showTheme = true,
 }: ModeTogglesProps) {
   const { readAloud, answerBySpeaking, setReadAloud, setAnswerBySpeaking } = useModes();
   const { unavailable } = useSpeakerState();
-  const theme = useTheme();
-  const effectiveTheme = getEffectiveTheme(theme);
-  const isDark = effectiveTheme === 'dark';
-
-  const toggleTheme = () => {
-    setTheme(isDark ? 'light' : 'dark');
-  };
 
   const toggleReadAloud = () => {
     if (readAloud) {
@@ -144,28 +193,7 @@ export function ModeToggles({
           button(answerBySpeaking, 'mic', 'header.answer_by_speaking', () =>
             setAnswerBySpeaking(!answerBySpeaking),
           )}
-        <button
-          type="button"
-          className="bo-btn bo-btn-secondary"
-          aria-pressed={isDark}
-          onClick={toggleTheme}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 'var(--bo-space-2)',
-            padding: '0.4em 0.8em',
-            background: isDark ? 'var(--bo-selected-bg)' : undefined,
-            borderColor: isDark ? 'var(--bo-primary)' : undefined,
-          }}
-        >
-          <Icon name={isDark ? 'light_mode' : 'dark_mode'} />
-          <Label
-            lang={lang}
-            k={isDark ? 'header.theme_light' : 'header.theme_dark'}
-            bilingual={bilingual}
-          />
-          {isDark && <Icon name="check" style={{ color: 'var(--bo-primary)' }} />}
-        </button>
+        {showTheme && <ThemeToggle lang={lang} bilingual={bilingual} />}
       </div>
       <TextSizeControl lang={lang} bilingual={bilingual} />
       {notAvailable && (

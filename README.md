@@ -4,6 +4,8 @@ Bridge is a sign-up form that any learning or jobs website can drop into its own
 
 Built for the **ALX Digital Bridge Accessibility Hackathon 2026, Track 1 (accessible onboarding)**. Our first host is Savanna, ALX's learning platform, but nothing in Bridge is ALX-specific.
 
+**Adding Bridge to your platform?** Start with the one-page [Partner guide](PARTNER_GUIDE.md): the partner key, the script tag, the API, and exactly what data your platform receives. Hosted demo: https://accessible-onboarding.vercel.app
+
 ---
 
 ## Contents
@@ -35,7 +37,7 @@ Built for the **ALX Digital Bridge Accessibility Hackathon 2026, Track 1 (access
 
 | Service | What it does |
 |---|---|
-| **Sign-up widget** `<bridge-onboarding>` | One question per screen: name, how to contact you, phone, date of birth (Ethiopian or Gregorian calendar), which ID you have (or none), what would help you, then "Check your answers". Saved as you go. |
+| **Sign-up widget** `<bridge-onboarding>` | One question per screen: full name (name, father's name, grandfather's name), how to contact you, phone, date of birth (Ethiopian or Gregorian calendar), sex, region or city, education, which ID you have (or none), what would help you, then "Check your answers". Saved as you go. |
 | **Profile page** | The learner sees, changes or deletes everything we keep about them. |
 | **Career gateway** | Jobs filtered by the supports the learner needs (the matching happens on their phone), job details, and applying with the same accessible form. |
 | **Employer form** | Employers describe a job and tick the supports it offers; the job is published as schema.org JobPosting. |
@@ -45,8 +47,9 @@ Built for the **ALX Digital Bridge Accessibility Hackathon 2026, Track 1 (access
 
 ### Key accessibility features
 
-- **Read aloud, on by default.** Each screen, error, panel and the focused control are read out. Nothing plays until the person presses a key or taps; a notice says so. It can be turned off and stays off.
-- **Voice answers.** "Answer by voice" on text, phone and number questions, with a "We heard…" card to check, keep, say again or type instead. An optional "Answer by speaking" mode listens by itself after each question is read.
+- **Read aloud, on by default.** Nothing plays until the person presses a key or taps; a notice says so. Then it reads the page from top to bottom (the top bar with Get help, Language, Dark mode and Accessibility, then the screen) and says "Press Tab to go from one item to the next". As soon as the person presses Tab or taps something, it describes that instead; a field says what it is and what to do ("Type your answer, then press Enter."). It can be turned off and stays off.
+- **A short top bar with one Accessibility menu.** The top bar has only Get help, Language, Dark mode and Accessibility. Accessibility opens a panel with Read aloud, Answer by speaking, text size and Simple mode.
+- **Voice answers.** "Answer by voice" on text, phone and number questions: what was heard goes straight into the field and is said back ("We heard: …"), with Say again and Type instead. The microphone closes after one answer, so read aloud is never heard as an answer. An optional "Answer by speaking" mode listens by itself after each question is read.
 - **Amharic and English**, each written in its own script, with the **Ethiopian calendar** for dates.
 - **Text size from 100% to 400%** inside the widget, and a Simple mode.
 - **Works offline.** Answers are kept on the phone and sent when the connection returns.
@@ -174,7 +177,7 @@ Set the attributes in your HTML. Changing them after the widget has started is n
 | `job-application` | The application for `job-id`. Only a learner who finished signing up **on this device** can apply; anyone else sees "Finish signing up first" with a Sign up button, and after signing up the Done screen offers "Continue to your job application". |
 | `profile` | "My profile": see, change or delete what we keep. It works for the sign-up made on this device; elsewhere it says so (signing in on another device is not built yet). |
 
-The job-application questions are: are these contact details right, why do you want this job, when can you start, and whether to share what would help you with this employer.
+The job-application questions are: are these contact details right, why do you want this job, when can you start, and whether to ask this employer for the support you need (if yes, the employer sees the supports the learner chose).
 
 ### Events
 
@@ -216,13 +219,25 @@ The widget sends DOM events from the `<bridge-onboarding>` element. Every event 
 
 While a question is on screen, the widget sets the page title to `Question 4 of 11: What is your phone number? – <your title>`, and gives your title back when the flow ends or the widget goes away. This helps screen-reader users know where they are. On a busy page (a card on a dashboard), turn it off with `manage-title="false"`.
 
+### The top bar and the Accessibility menu
+
+The same top bar is on every screen, with four buttons (four Tab stops): **Get help**, **Language** (when more than one language is offered; it opens the language screen), **Dark mode** and **Accessibility**. Each is labelled in the chosen language only (on the language screen, before a choice, in every offered language); the Language button (marked with a globe) also has "Language" in English in its name, said by read aloud and screen readers but not shown, for anyone lost in a language they can't read. The buttons are compact so the four fit on one line; on a phone or at large text sizes they wrap into full-width rows. Accessibility is a disclosure button (`aria-expanded`): it opens a panel right below it, next in the Tab order, with Read aloud, Answer by speaking, Text size and Simple mode, and a Close button. Escape (on the button or anywhere in the panel) closes it and puts focus back on the button. The panel stays open while the person tries the settings out.
+
 ### Language, Simple mode, Read aloud, text size
 
-- **Language.** The language screen shows each language in its own script. The choice is kept on the device (`localStorage` key `bo:lang`) and wins over the `lang` attribute next time. The header has a Language button when more than one language is offered. Your `languages` setting limits the choice; without it every language we have is offered.
-- **Simple mode** (header button, or the `simple` attribute) makes the text a little larger. It is saved on the learner's account but not restored on the next visit.
-- **Read aloud** is on by default because we can't know whether someone can see the screen. Browsers allow no sound before a key press or tap, so a notice at the top says "Press any key or tap anywhere to start listening"; it is also announced to screen readers. The first key press or tap anywhere on the page starts it. Screen-reader users can turn it off with the Read aloud button; it stays off on that device (`bo:read_aloud`). Each piece of text is read by a recorded clip if one exists, else the device's own voice, else our server voice (fixed interface text only). A learner's own answers are only ever read by the device's voice. If no voice exists for the language, it says once that read aloud isn't available in that language on this device.
-- **Answer by speaking** (header button, off by default, `bo:answer_by_speaking`): after a question is read, the microphone listens by itself and fills the field. Say again and Type instead stay on screen.
+- **Language.** The language screen shows each language in its own script. The choice is kept on the device (`localStorage` key `bo:lang`) and wins over the `lang` attribute next time. The top bar has a Language button when more than one language is offered. Your `languages` setting limits the choice; without it every language we have is offered.
+- **Simple mode** (Accessibility menu, the language screen, or the `simple` attribute) makes the text a little larger. It is saved on the learner's account but not restored on the next visit.
+- **Read aloud** is on by default because we can't know whether someone can see the screen. Browsers allow no sound before a key press or tap, so a notice at the top says "Press any key or tap anywhere to start listening"; it is also announced to screen readers. The first key press or tap anywhere on the page starts it:
+  - **First, top to bottom.** The first reading says the top bar (Get help, Language, Dark mode, "Accessibility, button, closed. Press Enter to open it."), then the screen (question, hint, options), then "Press Tab to go from one item to the next".
+  - **Then, where you are.** When the person moves themselves (Tab, the arrow keys, a tap), the reading stops and the element they landed on is described: its name, role and state, then for a field its hint and error and what to do ("Type your answer, then press Enter."), for a list or a group of options how to choose ("Use the up and down arrow keys to choose."). When the widget moves focus itself (for example after a voice answer), that is said after what is being read, never over it.
+  - Screen-reader users can turn it off in the Accessibility menu; it stays off on that device (`bo:read_aloud`). Each piece of text is read by a recorded clip if one exists, else the device's own voice, else our server voice (fixed interface text only). A learner's own answers are only ever read by the device's voice. If no voice exists for the language, it says once that read aloud isn't available in that language on this device.
+- **Answer by speaking** (Accessibility menu, off by default, `bo:answer_by_speaking`): after a question is read, the microphone listens by itself and fills the field. Say again and Type instead stay on screen.
 - **Text size**: 100%, 150%, 200%, 300% or 400% (`bo:text_size`). Everything grows and reflows; nothing scrolls sideways.
+- **Dark mode** (top bar, `bo:theme`): a toggle named "Dark mode" that says on or off.
+
+### Get help
+
+Get help opens a dialog with the partner's help contacts (`help.phone`, `help.telegram` in the partner settings, returned by `GET /config`). Each has a big button that opens the phone's own app: **Call support** (`tel:` link: the dialler opens with the number filled in), **Send an SMS** (`sms:`) and **Open Telegram** (`https://t.me/<handle>`). The number is also shown as text. Change the contacts in the partner settings (section 6) and the buttons follow; no new release is needed.
 
 ### Voice input
 
@@ -231,7 +246,9 @@ While a question is on screen, the widget sets the page title to `Question 4 of 
 - **I agree**: the browser's own speech recognition is used where it exists (Chrome sends audio to Google, Edge to Microsoft). The consent is also recorded on the account (`cloud_speech`), which lets our server use a cloud provider.
 - **Use another way**: the voice is recorded on the device (at most 30 seconds) and sent to our server, which uses only providers that keep audio on our side.
 
-The text is cleaned up for the field (for example "zero nine one one…" becomes `0911 …`) and shown in a "We heard…" card. Recordings are deleted from the device after one try and never stored on the server. The microphone works only on `https://` pages (or `localhost`).
+The text is cleaned up for the field (for example "zero nine one one…" becomes `0911 …`), put straight into the field, and shown and said back ("We heard: …"), with Say again and Type instead (the field can always be corrected by typing). One listening session gives one answer: the first final result is used, the microphone is closed at once, and read aloud speaks again only after it is closed, so "We heard: …" can never be heard as a new answer. Recordings are deleted from the device after one try and never stored on the server. The microphone works only on `https://` pages (or `localhost`).
+
+Without a speech key on the server (`STT_PROVIDERS=mock`), recordings are answered with sample text labelled "Test voice service". For real Amharic voice answers use a browser with built-in speech recognition (Chrome), or configure a server provider.
 
 ### Offline
 
@@ -404,10 +421,12 @@ The order and branches come from [`shared/flows/signup.json`](shared/flows/signu
 | Step ID | Type | Required | Values and rules | Asked when |
 |---|---|---|---|---|
 | `full_name` | text | yes | at least 2 characters (`too_short`) | always |
-| `preferred_name` | text | no | | always |
 | `contact_method` | single choice | yes | `phone`, `telegram`, `partner`, `none` | always |
 | `phone` | phone | yes | Ethiopian mobile (`09…`/`07…`, any common spelling), stored as `+2519…`; else `phone_invalid` | contact is `phone` or `telegram` |
 | `dob` | date | no | a real date between 1900 and 2100 (`date_invalid`) | always |
+| `sex` | single choice | no | `female`, `male` | always |
+| `region` | single choice | no | `addis_ababa`, `afar`, `amhara`, `benishangul_gumuz`, `central_ethiopia`, `dire_dawa`, `gambela`, `harari`, `oromia`, `sidama`, `somali`, `south_ethiopia`, `south_west_ethiopia`, `tigray`, `outside_ethiopia` | always |
+| `education` | single choice | no | `none`, `primary`, `secondary`, `tvet`, `degree`, `postgraduate` | always |
 | `id_route` | single choice | yes | `fayda`, `kebele_id`, `refugee_id`, `unhcr_proof`, `other_document`, `none` | always |
 | `id_doc_type` | single choice | yes | `student_id`, `birth_certificate`, `idir_equb_id`, `kebele_letter`, `driving_licence`, `passport`, `other` | `id_route` is `other_document` |
 | `id_upload` | file | no | a JPEG, PNG or WebP photo, at most 1.5 MB, sent as `{"name", "data"}` with `data` a `data:image/…;base64,…` URL (`file_invalid`, `file_too_large`). The server stores it encrypted and only ever returns `{"name"}`. The widget shrinks photos to JPEG first | `id_route` is `other_document` |
@@ -454,15 +473,15 @@ curl -s "$API/partner-api/learners/9a8b7c6d-…" -H "Authorization: Bearer $PT"
 
 ```json
 { "items": [ {
-    "learner_id": "9a8b7c6d-…", "full_name": "Abebe Kebede", "preferred_name": "Abe",
+    "learner_id": "9a8b7c6d-…", "full_name": "Abebe Kebede Tesfaye", "preferred_name": "",
     "language": "am", "status": "registered", "identity_level": "self_declared",
     "contact": { "method": "phone", "phone": "+251912345678", "verified": false },
     "registered_at": "2026-11-15T09:40:02Z" } ],
   "next_cursor": null }
 ```
 
-- **Included:** learner ID, full and preferred name, language, status, identity level, contact method, phone (if any) and whether it was verified (never, today), registration time.
-- **Never included:** support needs, ID route, document type or last 4 characters, date of birth, sign-up answers, referrals, consents.
+- **Included:** learner ID, full name (and `preferred_name`, which the sign-up no longer asks, so it is normally empty), language, status, identity level, contact method, phone (if any) and whether it was verified (never, today), registration time.
+- **Never included:** support needs, ID route, document type or last 4 characters, date of birth, the other sign-up answers (sex, region, education), referrals, consents.
 - The list has only learners of **your** partner who **finished** signing up, newest first, at most `limit` (1–200, default 50). `cursor` is accepted but paging isn't built yet, so use `updated_since` to fetch only changes since your last call. Another partner's learner is `404`.
 - Match learners to your own users with the `learner_id` from the `bridge-onboarding:completed` event.
 
@@ -529,7 +548,7 @@ The employer gets this address back when they publish (`jsonld_url`) and in the 
 
 ```json
 {
-  "@context": ["https://schema.org", { "acc": "https://bridge.example/ns/accommodations#" }],
+  "@context": ["https://schema.org", { "acc": "https://accessible-onboarding.vercel.app/ns/accommodations#" }],
   "@type": "JobPosting",
   "acc:offers": ["remote_work", "screen_reader", "large_text", "own_device", "flexible_hours"],
   "applicantLocationRequirements": { "@type": "Country", "name": "Ethiopia" },
@@ -547,7 +566,9 @@ The employer gets this address back when they publish (`jsonld_url`) and in the 
 - **Standard properties:** `title`, `description`, `hiringOrganization`, `datePosted`, `employmentType` (`FULL_TIME`, `PART_TIME`, `CONTRACTOR`, `INTERN`, `TEMPORARY`), `workHours`, and `jobLocation` with a `PostalAddress` in Ethiopia. Remote jobs get `jobLocationType: TELECOMMUTE` and `applicantLocationRequirements`.
 - **Accommodations.** schema.org has no property for workplace accommodations, so we use both:
   - `jobBenefits`: plain English that every JobPosting reader understands;
-  - `acc:offers`: our extension, the list of codes, so a machine can match them to a person's needs. The `acc` prefix is `PUBLIC_WEB_URL` + `/ns/accommodations#` (an identifier; no page is served there yet).
+  - `acc:offers`: our extension, the list of codes, so a machine can match them to a person's needs. The `acc` prefix is `PUBLIC_WEB_URL` + `/ns/accommodations#`.
+- **The vocabulary is published.** `GET /ns/accommodations` (no key, any site may read it, `application/ld+json`) says what `acc:offers` and every code mean: a schema.org `DefinedTermSet` with one `DefinedTerm` per code (`termCode` is the code, `name` the text below). The hosted site forwards `/ns/` to the API, so the prefix address opens it: https://accessible-onboarding.vercel.app/ns/accommodations.
+- **Set `PUBLIC_WEB_URL`** on the API to the public address of the site (for the hosted demo, `https://accessible-onboarding.vercel.app`). It is used for the `acc` prefix, the `jsonld_url` returned on publish and resume links. If it is not set (the default is `http://localhost:5173`), or it is a localhost address outside `APP_ENV=dev`, the API logs a `WARNING` at start.
 
 | Code | Meaning (as written in `jobBenefits`) |
 |---|---|
@@ -582,7 +603,7 @@ Each partner has a JSON `config` column. `GET /api/v1/config` returns it, with d
 | `languages` | `["am","en"]` | `["am","en"]` | **Yes:** the languages offered (only those with a locale file). With one language, the language screen is skipped. |
 | `default_language` | `"am"` | `"am"` (or the first language if `am` is not offered) | Not yet: the widget starts in the device's chosen language, then the `lang` attribute, then English. |
 | `id_routes` | `["fayda","kebele_id","none"]` | all six routes | Not yet: the widget shows the routes in the flow file. |
-| `help` | `{"phone":"+251 11 000 0000","telegram":"@acme_help"}` | none | **Yes:** the "Get help" panel and the "no organisations" message. |
+| `help` | `{"phone":"+251 11 000 0000","telegram":"@acme_help"}` | none | **Yes:** the "Get help" panel (Call support, Send an SMS, Open Telegram) and the "no organisations" message. The demo data has a placeholder number: replace it with your real help line. |
 | `theme` | `{"primary":"#0b6e4f"}` | `{"primary":"#cc3636"}` | Not yet. |
 | `speech` | `{"server":true,"cloud_available":false}` | from `STT_PROVIDERS` | Not yet (returned for information). |
 
@@ -615,7 +636,7 @@ Every form is a JSON file in [`shared/flows/`](shared/flows): `signup.json`, `jo
 }
 ```
 
-- **`type`:** `info`, `consent`, `text`, `long_text`, `phone`, `date`, `digits`, `single_choice`, `multi_choice`, `check_answers`, `done`.
+- **`type`:** `info`, `consent`, `text`, `long_text`, `phone`, `date`, `digits`, `file`, `single_choice`, `multi_choice`, `check_answers`, `done`.
 - **`title`, `hint`, option `label`:** keys in the locale files (`frontend/src/i18n/locales/*.json`), never text.
 - **`storage`:** `answer` (saved with `PUT …/answers/{id}`), `support` (encrypted support request) or `none` (stays on the device).
 - **`validate`:** `min_length`, `max_length`, `pattern`, `digits`, `phone_et`, `date_valid`, each with the error code to show.
@@ -623,11 +644,38 @@ Every form is a JSON file in [`shared/flows/`](shared/flows): `signup.json`, `jo
 - **`next`:** a step ID, or a list of `{ "when": { "step": "contact_method", "in": ["phone","telegram"] }, "goto": "phone" }` rules checked in order (a rule without `when` always matches).
 - **`version`:** a registration remembers the flow version it started with.
 
+**The sign-up questions** (`signup.json`, in order; optional ones have a Skip button):
+
+| Step | Question | Notes |
+|---|---|---|
+| `welcome`, `consent_data` | Welcome; how we use your answers | Consent is required and stays on the device. |
+| `full_name` | What is your full name? | One field: name, father's name and grandfather's name, the Ethiopian way. There is no separate "preferred name" question (the API field `preferred_name` still exists and is normally empty). |
+| `contact_method`, `phone` | How can we reach you? Phone number | Phone only for phone or Telegram. |
+| `dob` | When were you born? | Optional; Ethiopian or Gregorian calendar. |
+| `sex` | What is your sex? | Optional: `female`, `male`. |
+| `region` | Where do you live? | Optional: the 12 regions, Addis Ababa, Dire Dawa, or `outside_ethiopia`. |
+| `education` | Highest level of school finished | Optional: `none`, `primary`, `secondary`, `tvet`, `degree`, `postgraduate`. |
+| `id_route` and after | Which of these do you have? | Fayda, Kebele ID, refugee ID, UNHCR proof, another document (type, optional encrypted photo), or none (referral organisation and how it can reach you). |
+| `id_last4` | Last 4 letters or numbers of the document | Optional. **Not an ID check** (see section 9). |
+| `support_needs`, `support_other`, `support_share` | What would help you, and who may see it | Encrypted support request. |
+| `check`, `done` | Check your answers; you are signed up | Done offers **Find a job** first. |
+
+The new answers (`sex`, `region`, `education`) are saved like every other answer (`PUT …/answers/{id}`) and returned with the registration.
+
 **What a partner can change today, honestly:** nothing by themselves. Flows are built into the widget script and loaded by the API at start-up, so changing questions means editing the file, rebuilding the widget and restarting the API, done by us. Only the `signup` flow can be started through the API, and every partner gets the same questions. Per-partner flows, a settings page, and extra partner questions are planned, not built.
 
 ### Languages
 
-Every file in `frontend/src/i18n/locales/` is a language (Amharic and English today, both complete). To add one, copy `en.json` to `<code>.json`, have a native speaker translate it (never machine translation), set `language.name` (the name in its own script) and `language.speech_tag` (for example `om-ET`), rebuild the widget, and add the code to the partner's `languages`. Missing keys show in English. See [`frontend/README.md`](frontend/README.md).
+Every file in `frontend/src/i18n/locales/` is a language (Amharic and English today, both complete). Nothing else in the code lists the languages. To add one, for example Afaan Oromoo (`om`), from `frontend/`:
+
+1. **Create the file:** `npm run i18n:new -- om "Afaan Oromoo" om-ET`. It copies `en.json` to `om.json` with every text marked `TODO-om` (shown in English until translated), and sets `language.name` (the name in its own script, shown on the language screen) and `language.speech_tag` (the BCP-47 tag for speech recognition and voices).
+2. **Translate:** a native speaker replaces every `TODO-om …` text. Never machine translation.
+3. **Check:** `npm run i18n:check -- om` lists missing keys, texts still `TODO-`, and `{placeholders}` that differ from English (it fails on missing keys or wrong placeholders). Without a code it checks every language.
+4. **Offer it:** add the code to the partner's `languages` setting (above), for example `UPDATE partners SET config = jsonb_set(config, '{languages}', '["am","en","om"]') WHERE slug = 'savanna';`
+5. **Recordings (optional):** read-aloud clips in `frontend/public/audio/om/<key>.mp3` (`npm run audio:check` lists what is missing). Without them, the device's voice is used, if it has the language.
+6. **Rebuild** the widget (`npm run build:widget`) and deploy it.
+
+Dates: the Ethiopian month names exist in Amharic and English; other languages show the English names until they are added in `src/lib/ethiopianCalendar.ts`. See also [`frontend/README.md`](frontend/README.md).
 
 ### The needs list
 
@@ -694,7 +742,7 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 | `CODE_HASH_KEY` | strongly recommended | | `openssl rand -base64 32`. Keys the hash of resume and consent codes. Empty = a zero key (development only). |
 | `APP_ENV` | optional | `dev` | `dev` or `production`. `dev` turns on `GET /api/v1/dev/messages`, the tunnel and extra origins below, and the Telegram webhook without a secret. |
 | `PORT` | optional | `8080` | |
-| `PUBLIC_WEB_URL` | optional | `http://localhost:5173` | The public site address, used in resume links, JobPosting links and the `acc` namespace. |
+| `PUBLIC_WEB_URL` | required when hosted | `http://localhost:5173` | The public site address, used in resume links, JobPosting links and the `acc` namespace (`/ns/accommodations`). The API logs a `WARNING` at start if it is not set, or is a localhost address outside `dev`. |
 | `FLOWS_DIR` | optional | `../shared/flows` | Folder of flow files. |
 | `NEEDS_FILE` | optional | `../shared/vocab/needs.json` | The needs list. |
 | `STT_PROVIDERS` | optional | empty (no server speech-to-text) | Comma list tried in order: `mock`, `azure`, `local`. `mock` returns sample text and needs nothing. |
@@ -708,6 +756,7 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 | `SEED_STAFF_PASSWORD` | for `seed` | random, printed | Password of every demo staff account. |
 | `SEED_CLIENT_SECRET` | for `seed` | random, printed | OAuth secret of `savanna-demo`. |
 | `TEST_DATABASE_URL` | tests only | | Any empty database; turns on the database and end-to-end tests. |
+| `QA_BASE_URL` | tests only | | The address of a running API (e.g. `http://localhost:8080`); turns on the live QA suite `backend/qa_test.go`, which writes to that API's database and cleans up. |
 | `GIN_MODE` | optional | debug | Gin's own setting; use `release` in production. |
 
 Frontend (`frontend/.env.local`, build time): `VITE_API_PROXY_TARGET` (where the dev server forwards `/api`, default `http://localhost:8080`) and `VITE_API_ORIGIN` (API origin for the staff app; empty = same site). The widget gets its API origin from the `api` attribute.
@@ -749,7 +798,7 @@ To start from empty: `docker compose down -v`.
 cd backend
 gofmt -l .                     # prints nothing when formatted
 go vet ./...
-GOTOOLCHAIN=local go test ./...     # add TEST_DATABASE_URL=… for the database and end-to-end tests
+GOTOOLCHAIN=local go test ./...     # add TEST_DATABASE_URL=… for the database and end-to-end tests, QA_BASE_URL=… for the live QA suite
 sqlc diff                      # generated database code is up to date (sqlc 1.31.1)
 
 cd ../frontend
@@ -764,7 +813,8 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 ### Deploying
 
 - Set `APP_ENV=production` (no dev inbox, no tunnel or extra origins, Telegram webhook only with a secret) and `GIN_MODE=release`.
-- Set `PUBLIC_WEB_URL` to your public `https://` address.
+- Set `PUBLIC_WEB_URL` to your public `https://` address (the API logs a `WARNING` at start while it isn't). If the site and the API are on different hosts, forward `/api/`, `/health` and `/ns/` from the site to the API (`frontend/vercel.json` and `docker/nginx.conf` do this).
+- **Free hosting plans sleep.** The first request after a quiet time can take up to a minute. The widget retries reading requests for about 75 seconds and says "Connecting to the service…" meanwhile; before a demo, open the site once to wake the API.
 - Serve everything over **HTTPS** (put a TLS proxy in front of the `web` container). The microphone needs it.
 - Set real partners and their `https://` origins in `partners.allowed_origins`, and don't load the demo data: remove `seed --if-empty` from the `api` command in `docker-compose.yml` (the demo keys allow `localhost` and the demo staff share one password).
 - Keep `DATA_ENCRYPTION_KEY`, `CODE_HASH_KEY` and the OAuth secrets out of Git and backed up separately from the database.
@@ -819,6 +869,15 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 
 Things to know: the simulated messages (`messages_outbox` and the API log) contain the phone number and the resume or consent code in plain text, because real sending isn't built; there is no automatic clean-up of old drafts or messages yet; and phone numbers are never verified yet.
 
+### Identity: what we do and don't check
+
+Bridge does **not verify identity** today, and doesn't claim to. Every learner is recorded as `identity_level: self_declared`.
+
+- **The last 4 characters of a document** (`id_last4`, optional) are a reference, not a check: they are printed on the card and have only 10,000 possible values for a number, and nothing compares them with an ID system. They help staff match a document when they meet the person. The question says so to the learner.
+- **The photo of a document** (`id_upload`, optional) is stored encrypted; nobody checks it automatically.
+- **No ID at all** is a supported path: the learner is referred to an organisation (such as AAAPD) that can help them in person.
+- **Real verification (roadmap).** For Fayda, it means authentication through the National ID Program (NIDP), where the person confirms with a one-time code sent to the phone registered with Fayda (or biometrics). That needs an agreement as a relying party with NIDP. A second, community route is a trusted referral: partner staff who met the person confirm it with a one-time code, and the identity level becomes "confirmed by a partner". Neither is built yet.
+
 ### Consent
 
 - The sign-up starts with a plain-language consent screen; agreeing is recorded as `data_processing`.
@@ -852,12 +911,13 @@ We aim at **WCAG 2.2 AA**. What is built in:
 - **One question per screen** with the question as the page's `h1`; the label is the heading (GOV.UK pattern); native `input`, `button`, `fieldset` and `dialog` only.
 - **Focus** moves to each new heading after Continue (never on first load); an **error summary** gets focus and links to the field; answers are checked on Continue, not while typing.
 - **One live region** for status messages; nothing is announced twice.
-- **Read aloud** on by default, started by the first key press or tap, reading screens, errors, dialogs, the focused element and whole option groups. Learners' own words are read only by the device's voice.
-- **Voice input** with a review card, alternatives when unsure, and help when the microphone is blocked.
+- **Read aloud** on by default, started by the first key press or tap: first the whole page top to bottom (top bar, then the screen), then whatever the person moves to with Tab or a tap, with what to do in each field. It also reads errors, dialogs and whole option groups. Learners' own words are read only by the device's voice.
+- **Keyboard only**: every flow works with Tab, Enter, Space and the arrow keys. The top bar has four stops; the job filter is behind one button; when a button opens another view (Find a job, Apply, Sign up), focus goes to the new heading; a dialog starts at its title; Escape closes dialogs and the Accessibility menu.
+- **Voice input** that fills the field at once and says back what it heard, alternatives when unsure, and help when the microphone is blocked.
 - **Text size** 100–400% inside the widget, reflow without sideways scrolling, 48 px targets, visible focus, colours with tested contrast (primary `#cc3636`).
 - **Amharic** with correct `lang` attributes and taller line height for Ethiopic script; the **Ethiopian calendar** (13 months, Pagume) for dates; Ethiopian phone formats.
 - **No time limits**, nothing lost on reload, offline queue, "Forget me on this phone" for shared phones.
-- **Help in the same place** on every screen (phone and Telegram from the partner settings).
+- **Help in the same place** on every screen (phone and Telegram from the partner settings), with buttons that open the phone's dialler, messages or Telegram.
 - A bilingual **404 page** with Read aloud.
 - Checks: ESLint with `jsx-a11y`, unit tests, and Playwright end-to-end tests with axe (run locally).
 

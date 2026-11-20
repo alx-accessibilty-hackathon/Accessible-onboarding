@@ -16,12 +16,12 @@ export interface VoiceChoice {
 export interface VoiceInputProps {
   step: Step; // tells the clean-up rules the field type
   lang: string; // 'am' | 'en'
-  /** Put this value in the field (Keep on the "We heard" card; at once in Answer by speaking). */
+  /** Put this value in the field (as soon as something was heard). */
   onConfirm: (value: unknown) => void;
   /** Recorded clip saved on the phone: turn it into text (the field is filled by the flow). */
   onPending: (clipId: string) => Promise<VoiceClipOutcome | null> | void;
   onSpeechConsent?: (granted: boolean) => void; // SH-6 answer, recorded with POST …/consents
-  /** Answer by speaking mode: what is heard goes straight into the field (no Keep). */
+  /** Answer by speaking mode (with `autoStart`, listening starts by itself). */
   mode?: boolean;
   /** Start listening by itself, once (Answer by speaking, after the question was read). */
   autoStart?: boolean;

@@ -16,17 +16,20 @@
           color-scheme: dark;
         }
       }
-      html, body {
+      html,
+      body {
         margin: 0;
         padding: 0;
         min-height: 100vh;
         background-color: #ffffff;
       }
-      :root[data-theme='dark'], :root[data-theme='dark'] body {
+      :root[data-theme='dark'],
+      :root[data-theme='dark'] body {
         background-color: #0f141c;
       }
       @media (prefers-color-scheme: dark) {
-        :root:not([data-theme='light']), :root:not([data-theme='light']) body {
+        :root:not([data-theme='light']),
+        :root:not([data-theme='light']) body {
           background-color: #0f141c;
         }
       }

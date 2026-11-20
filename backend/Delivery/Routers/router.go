@@ -106,6 +106,10 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 	v1 := router.Group("/api/v1")
 	partnerKey, learnerAuth, staffAuth := orPass(mw.PartnerKey), orPass(mw.LearnerAuth), orPass(mw.StaffAuth)
 
+	// The JSON-LD vocabulary of the "acc" prefix in JobPostings (PUBLIC_WEB_URL/ns/accommodations;
+	// the web host forwards /ns/ here). Public.
+	router.GET("/ns/accommodations", ctrl.Job.AccommodationsVocabularyController)
+
 	// Public: no key, no token
 	v1.GET("/jobs/:id/jobposting.jsonld", ctrl.Job.GetJobPostingController)
 	v1.POST("/auth/staff/login", mw.strict(), ctrl.Auth.StaffLoginController)

@@ -10,6 +10,10 @@
       "destination": "https://accessible-onboarding.onrender.com/health"
     },
     {
+      "source": "/ns/:path*",
+      "destination": "https://accessible-onboarding.onrender.com/ns/:path*"
+    },
+    {
       "source": "/r/:path*",
       "destination": "/index.html"
     }

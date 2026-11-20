@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Partner Onboarding & Key Generator | Bridge Onboarding</title>
+    <title>Partner Guide | Bridge Onboarding</title>
     <link rel="stylesheet" href="./demo/savanna/savanna.css" />
     <style>
       :root {
@@ -52,6 +52,7 @@
         list-style: none;
         margin: 0;
         padding: 0;
+        flex-wrap: wrap;
       }
       .nav-links a {
         color: var(--color-text-muted);
@@ -104,6 +105,24 @@
         border-radius: var(--radius);
         padding: 2rem;
         box-shadow: var(--shadow);
+        min-width: 0;
+      }
+      @media (max-width: 600px) {
+        .card {
+          padding: 1.25rem;
+        }
+      }
+      .section-card {
+        margin: 2rem 0;
+      }
+      .section-card h3 {
+        font-size: 1.05rem;
+        margin: 1.5rem 0 0.5rem;
+      }
+      .section-card p,
+      .section-card li {
+        font-size: 0.95rem;
+        color: #334155;
       }
       .card-title {
         font-size: 1.35rem;
@@ -150,9 +169,11 @@
       .row {
         display: flex;
         gap: 1rem;
+        flex-wrap: wrap;
       }
       .row > * {
         flex: 1;
+        min-width: 12rem;
       }
       .checkbox-group {
         display: flex;
@@ -217,7 +238,9 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 0.75rem;
         margin-bottom: 1rem;
+        word-break: break-all;
       }
       .copy-btn {
         background: rgba(255, 255, 255, 0.15);
@@ -232,6 +255,12 @@
       }
       .copy-btn:hover {
         background: rgba(255, 255, 255, 0.25);
+      }
+      .code-header .copy-btn {
+        background: #334155;
+      }
+      .code-header .copy-btn:hover {
+        background: #1e293b;
       }
       pre {
         background: #0f172a;
@@ -248,6 +277,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 0.5rem;
         font-size: 0.85rem;
         font-weight: 600;
         color: var(--color-text-muted);
@@ -273,6 +303,7 @@
       }
       .tab-bar {
         display: flex;
+        flex-wrap: wrap;
         border-bottom: 1px solid var(--color-border);
         margin-bottom: 1rem;
       }
@@ -281,6 +312,9 @@
         cursor: pointer;
         font-weight: 600;
         font-size: 0.9rem;
+        border: none;
+        background: none;
+        font-family: inherit;
         border-bottom: 2px solid transparent;
         color: var(--color-text-muted);
       }
@@ -288,15 +322,44 @@
         color: var(--color-primary);
         border-bottom-color: var(--color-primary);
       }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      .info-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        margin: 0.75rem 0 1rem;
+      }
+      .info-table th,
+      .info-table td {
+        border-bottom: 1px solid var(--color-border);
+        padding: 0.55rem 0.5rem;
+        text-align: left;
+        vertical-align: top;
+      }
+      .info-table th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 600;
+      }
+      .callout {
+        background: #fff7ed;
+        border-left: 4px solid #ea580c;
+        border-radius: 6px;
+        padding: 0.85rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      .callout p {
+        margin: 0.25rem 0;
+      }
     </style>
   </head>
   <body>
     <header class="nav-bar">
-      <a href="/" class="logo">
-        <span>🌉</span> Bridge Onboarding
-      </a>
+      <a href="/" class="logo"> <span>🌉</span> Bridge Onboarding </a>
       <ul class="nav-links">
-        <li><a href="/partners.html" class="active">Partner Portal</a></li>
+        <li><a href="/partners.html" class="active">Partner Guide</a></li>
         <li><a href="/docs.html">REST API Docs</a></li>
         <li><a href="/demo/savanna/signup.html">Savanna Demo</a></li>
         <li><a href="/staff.html">Staff Login</a></li>
@@ -304,77 +367,191 @@
     </header>
 
     <div class="hero-banner">
-      <h1>Partner Onboarding & Key Provisioning</h1>
+      <h1>Partner Guide</h1>
       <p>
-        Register your organization, whitelist your website origin, and generate your custom
-        embed code with accessible voice guidance and multi-lingual support.
+        Add an accessible sign-up to your website with one script tag. Amharic and English, read
+        aloud, voice answers, text size up to 400%, and it keeps working on a weak connection.
       </p>
     </div>
 
     <main class="container">
+      <!-- Overview: numbered steps -->
+      <section class="card section-card" id="steps">
+        <h2 class="card-title">How to adopt Bridge</h2>
+        <p class="card-subtitle">
+          Bridge is a web component, <code>&lt;bridge-onboarding&gt;</code>, plus a REST API and
+          schema.org JobPosting JSON-LD. Most partners only need steps 1 to 4.
+        </p>
+        <ol>
+          <li>
+            <strong>Prepare your settings.</strong> Fill in the form below: your organisation, the
+            exact address (origin) of every site that will show the component, your help contacts
+            and your languages.
+          </li>
+          <li>
+            <strong>Send them to the Bridge operator.</strong> There is no self-service sign-up yet.
+            The operator creates your partner in the database (the SQL tab shows the query) and
+            confirms your partner key. The key works only after that. A new origin can take up to 2
+            minutes to be accepted.
+          </li>
+          <li>
+            <strong>Add the component to your page.</strong> Copy the HTML snippet. Put the element
+            where the form should appear, in a container with a sensible maximum width.
+          </li>
+          <li>
+            <strong>Listen for events.</strong> <code>bridge-onboarding:completed</code> gives you
+            the <code>learner_id</code>. No event ever contains names, phone numbers or support
+            needs. See <a href="#events">Events</a>.
+          </li>
+          <li>
+            <strong>Optional: read your learners from your server.</strong> Ask the operator for a
+            client ID and secret, then use the
+            <a href="/docs.html#oauth-setup">partner server API</a> (OAuth 2.0 client credentials,
+            scope <code>learners:read</code>).
+          </li>
+          <li>
+            <strong>Optional: show jobs with their accommodations.</strong> Read published jobs as
+            <a href="/docs.html#get-jsonld">JobPosting JSON-LD</a>, with no key.
+          </li>
+        </ol>
+        <div class="callout">
+          <p>
+            <strong>The first load can be slow.</strong> The hosted API runs on a free plan that
+            sleeps when nobody uses it. The component retries reading requests for up to about 75
+            seconds and shows: "Connecting to the service. The first time, this can take up to a
+            minute."
+          </p>
+        </div>
+      </section>
+
       <div class="grid-layout">
         <!-- Partner Setup Form -->
         <section class="card">
-          <h2 class="card-title">1. Organization & Security Info</h2>
+          <h2 class="card-title">1. Your organisation and settings</h2>
           <p class="card-subtitle">
-            Configure your brand identity, whitelisted domain, and support contacts.
+            This form runs only in your browser. It prepares the code and the settings to send to
+            the Bridge operator. Nothing is saved or sent.
           </p>
 
           <form id="partnerForm">
             <div class="form-group">
-              <label for="orgName">Organization Name *</label>
-              <input
-                type="text"
-                id="orgName"
-                class="form-control"
-                placeholder="e.g. TechHire Africa"
-                value="TechHire Africa"
-                required
-              />
+              <label for="orgName">Organisation name *</label>
+              <input type="text" id="orgName" class="form-control" value="Acme Learning" required />
             </div>
 
             <div class="row">
               <div class="form-group">
-                <label for="orgSlug">Identifier Slug *</label>
-                <input
-                  type="text"
-                  id="orgSlug"
-                  class="form-control"
-                  placeholder="e.g. techhire"
-                  value="techhire"
-                  required
-                />
+                <label for="orgSlug">Short ID (slug) *</label>
+                <input type="text" id="orgSlug" class="form-control" value="acme" required />
+                <div class="hint">Lower-case letters, digits and dashes.</div>
               </div>
 
               <div class="form-group">
-                <label for="orgKind">Partner Type *</label>
+                <label for="orgKind">Partner type *</label>
                 <select id="orgKind" class="form-control">
-                  <option value="platform">Platform (Job Board / LMS)</option>
-                  <option value="referral_org">Referral Org (NGO / Disability Support)</option>
+                  <option value="platform">Platform (learning site or job board)</option>
+                  <option value="referral_org">
+                    Referral organisation (helps people without ID)
+                  </option>
                 </select>
+                <div class="hint">
+                  Every referral organisation is offered to learners who choose "I have none of
+                  these".
+                </div>
               </div>
             </div>
 
             <div class="form-group">
-              <label for="allowedOrigins">Allowed Domains / Origins (CORS Security) *</label>
+              <label for="allowedOrigins">Allowed origins *</label>
               <input
                 type="text"
                 id="allowedOrigins"
                 class="form-control"
-                placeholder="https://techhire.africa, http://localhost:3000"
-                value="https://techhire.africa, http://localhost:3000"
+                value="https://your-site.example"
+                aria-describedby="originsHint"
                 required
               />
-              <div class="hint">
-                Only browser requests originating from these exact domains can use your key.
+              <div class="hint" id="originsHint">
+                Separate several with commas. Write each exactly as the browser sends it: scheme,
+                host and port if not the default. No path, no trailing slash, no wildcards. Browsers
+                may use your key only from these origins.
               </div>
             </div>
 
             <div class="row">
               <div class="form-group">
-                <label>Primary Brand Color</label>
+                <label for="helpPhone">Help phone number</label>
+                <input
+                  type="text"
+                  id="helpPhone"
+                  class="form-control"
+                  value="+251 11 123 4567"
+                  aria-describedby="helpHint"
+                />
+              </div>
+              <div class="form-group">
+                <label for="helpTelegram">Help Telegram</label>
+                <input
+                  type="text"
+                  id="helpTelegram"
+                  class="form-control"
+                  value="@your_handle"
+                  aria-describedby="helpHint"
+                />
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="hint" id="helpHint">
+                Shown in the component's "Get help" panel, with the buttons "Call support", "Send an
+                SMS" and "Open Telegram". Both are optional.
+              </div>
+            </div>
+
+            <div class="form-group">
+              <fieldset style="border: 0; margin: 0; padding: 0">
+                <legend style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.35rem">
+                  Languages offered
+                </legend>
+                <div class="checkbox-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="langAm" value="am" checked />
+                    <span lang="am">አማርኛ</span> (Amharic)
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="langEn" value="en" checked />
+                    English
+                  </label>
+                </div>
+              </fieldset>
+              <div class="hint">
+                With one language only, the language screen is skipped. To add another language, see
+                <a href="#languages">Adding a language</a>.
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="form-group">
+                <label for="defaultLang">Starting language</label>
+                <select id="defaultLang" class="form-control">
+                  <option value="am">አማርኛ (Amharic)</option>
+                  <option value="en">English</option>
+                </select>
+                <div class="hint">
+                  Set as the <code>lang</code> attribute. The learner's own choice on the device
+                  wins next time.
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="colorHex">Brand colour</label>
                 <div class="color-picker-wrap">
-                  <input type="color" id="primaryColor" class="color-preview" value="#cc3636" />
+                  <input
+                    type="color"
+                    id="primaryColor"
+                    class="color-preview"
+                    value="#cc3636"
+                    aria-label="Pick brand colour"
+                  />
                   <input
                     type="text"
                     id="colorHex"
@@ -383,177 +560,699 @@
                     style="font-family: monospace"
                   />
                 </div>
-              </div>
-
-              <div class="form-group">
-                <label for="defaultLang">Default Language</label>
-                <select id="defaultLang" class="form-control">
-                  <option value="am">Amharic (አማርኛ)</option>
-                  <option value="en">English</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Offered Languages</label>
-              <div class="checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="langAm" value="am" checked />
-                  Amharic (አማርኛ)
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" id="langEn" value="en" checked />
-                  English
-                </label>
-              </div>
-              <div class="hint">
-                If only one language is checked, the initial language selection screen is automatically skipped!
-              </div>
-            </div>
-
-            <div class="row">
-              <div class="form-group">
-                <label for="helpPhone">Support Phone (Optional)</label>
-                <input
-                  type="text"
-                  id="helpPhone"
-                  class="form-control"
-                  placeholder="+251 11 555 0199"
-                  value="+251 11 555 0199"
-                />
-              </div>
-              <div class="form-group">
-                <label for="helpTelegram">Telegram Handle (Optional)</label>
-                <input
-                  type="text"
-                  id="helpTelegram"
-                  class="form-control"
-                  placeholder="@techhire_support"
-                  value="@techhire_support"
-                />
+                <div class="hint">
+                  Saved in your settings. The component does not apply it yet; it uses its own
+                  tested palette.
+                </div>
               </div>
             </div>
 
             <button type="button" id="generateBtn" class="btn" style="margin-top: 1rem">
-              ⚡ Generate Partner Key & Embed Code
+              Make a new suggested key
             </button>
           </form>
         </section>
 
         <!-- Output & Integration Snippets -->
         <section class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center">
-            <h2 class="card-title" style="margin-bottom: 0">2. Your Integration Code</h2>
-            <span class="badge" id="statusBadge">Ready to Embed</span>
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              gap: 0.5rem;
+              flex-wrap: wrap;
+            "
+          >
+            <h2 class="card-title" style="margin-bottom: 0">2. Your integration code</h2>
+            <span class="badge" id="statusBadge" role="status">Up to date</span>
           </div>
-          <p class="card-subtitle">
-            Copy and paste this snippet directly into your website's HTML.
+          <p class="card-subtitle">The code updates as you type.</p>
+
+          <label style="font-weight: 600; font-size: 0.9rem" for="keyDisplay"
+            >Suggested partner key</label
+          >
+          <div class="key-display">
+            <output id="keyDisplay">pk_live_acme_000000000000</output>
+            <button type="button" class="copy-btn" id="copyKeyBtn">Copy key</button>
+          </div>
+          <p class="card-subtitle" style="margin-top: -0.5rem">
+            The key is public (it goes in your HTML). It works only after the operator has created
+            your partner with it.
           </p>
 
-          <label style="font-weight: 600; font-size: 0.9rem">Publishable Partner Key:</label>
-          <div class="key-display">
-            <span id="keyDisplay">pk_live_techhire_7d4a2b</span>
-            <button class="copy-btn" id="copyKeyBtn">Copy Key</button>
-          </div>
-
-          <div class="tab-bar">
-            <div class="tab active" data-tab="embedTab">HTML Embed</div>
-            <div class="tab" data-tab="sqlTab">Database SQL Setup</div>
-            <div class="tab" data-tab="curlTab">cURL Test</div>
+          <div class="tab-bar" role="tablist" aria-label="Integration code">
+            <button
+              type="button"
+              class="tab active"
+              role="tab"
+              aria-selected="true"
+              aria-controls="embedTab"
+              data-tab="embedTab"
+            >
+              HTML snippet
+            </button>
+            <button
+              type="button"
+              class="tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="sqlTab"
+              data-tab="sqlTab"
+            >
+              SQL for the operator
+            </button>
+            <button
+              type="button"
+              class="tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="curlTab"
+              data-tab="curlTab"
+            >
+              Test with curl
+            </button>
           </div>
 
           <!-- HTML Embed Tab -->
-          <div id="embedTab" class="tab-content">
+          <div id="embedTab" class="tab-content" role="tabpanel">
             <div class="code-header">
-              <span>Frontend Embed Snippet:</span>
-              <button class="copy-btn" id="copyEmbedBtn">Copy Snippet</button>
+              <span>Put this in your page:</span>
+              <button type="button" class="copy-btn" id="copyEmbedBtn">Copy snippet</button>
             </div>
-            <pre><code id="embedCode">&lt;!-- 1. Include Bridge Onboarding Script --&gt;
-&lt;script src="https://accessible-onboarding.vercel.app/v1/bridge-onboarding.js"&gt;&lt;/script&gt;
-
-&lt;!-- 2. Place Custom Element --&gt;
-&lt;bridge-onboarding
-  partner="pk_live_techhire_7d4a2b"
-  api="https://accessible-onboarding.vercel.app"
-  flow="signup"
-  lang="am"&gt;
-&lt;/bridge-onboarding&gt;
-
-&lt;!-- 3. Optional: Listen for Completion --&gt;
-&lt;script&gt;
-  document.addEventListener('bridge-onboarding:completed', (e) =&gt; {
-    console.log('Learner registered successfully! ID:', e.detail.learner_id);
-  });
-&lt;/script&gt;</code></pre>
+            <pre><code id="embedCode"></code></pre>
           </div>
 
           <!-- SQL Tab -->
-          <div id="sqlTab" class="tab-content" style="display: none">
+          <div id="sqlTab" class="tab-content" role="tabpanel" style="display: none">
             <div class="code-header">
-              <span>PostgreSQL Provisioning Query (Run in DB):</span>
-              <button class="copy-btn" id="copySqlBtn">Copy SQL</button>
+              <span>The operator runs this in the Bridge database:</span>
+              <button type="button" class="copy-btn" id="copySqlBtn">Copy SQL</button>
             </div>
-            <pre><code id="sqlCode">-- Run this query in your PostgreSQL database (Neon / Render)
-INSERT INTO partners (
-  slug, name, kind, publishable_key, allowed_origins, config
-) VALUES (
-  'techhire',
-  'TechHire Africa',
-  'platform',
-  'pk_live_techhire_7d4a2b',
-  ARRAY['https://techhire.africa', 'http://localhost:3000'],
-  '{"languages":["am","en"],"default_language":"am","help":{"phone":"+251 11 555 0199","telegram":"@techhire_support"},"theme":{"primary":"#cc3636"}}'::jsonb
-);</code></pre>
+            <pre><code id="sqlCode"></code></pre>
           </div>
 
           <!-- cURL Tab -->
-          <div id="curlTab" class="tab-content" style="display: none">
+          <div id="curlTab" class="tab-content" role="tabpanel" style="display: none">
             <div class="code-header">
-              <span>Terminal Smoke Test:</span>
-              <button class="copy-btn" id="copyCurlBtn">Copy cURL</button>
+              <span>Once the partner exists, check your settings:</span>
+              <button type="button" class="copy-btn" id="copyCurlBtn">Copy curl</button>
             </div>
-            <pre><code id="curlCode">curl -i -H "X-Partner-Key: pk_live_techhire_7d4a2b" \
-  https://accessible-onboarding.vercel.app/api/v1/config</code></pre>
+            <pre><code id="curlCode"></code></pre>
+            <p class="card-subtitle">
+              It returns your languages, help contacts and referral organisations. A wrong key
+              answers <code>401 partner_key_invalid</code>.
+            </p>
           </div>
 
           <h3 style="font-size: 1.05rem; margin-top: 1.5rem; margin-bottom: 0.5rem">
-            Integration Checklist:
+            Before you go live
           </h3>
           <ol class="steps-list">
             <li>
-              <strong>Ensure Whitelisting:</strong> Make sure your host URL matches the allowed
-              origins so CORS won't block the request.
+              <strong>Origins match exactly.</strong> <code>https://www.your-site.example</code> and
+              <code>https://your-site.example</code> are different origins. A page from a missing
+              origin gets <code>403 origin_not_allowed</code>.
             </li>
             <li>
-              <strong>Accessible Design:</strong> Your embedded widget inherits full screen-reader
-              support, offline IndexedDB sync, and high-contrast styling automatically.
+              <strong>Your page works over https.</strong> Voice answers need the microphone, which
+              browsers allow only on <code>https://</code> pages.
             </li>
             <li>
-              <strong>Event Hooks:</strong> Catch <code>bridge-onboarding:completed</code> and
-              <code>bridge-onboarding:step-changed</code> to integrate with your existing user session.
+              <strong>Your Content-Security-Policy allows the component.</strong> See
+              <a href="#csp">Styling and CSP</a>.
+            </li>
+            <li>
+              <strong>Don't redirect at once on completion.</strong> Let the person read the Done
+              screen at their own pace.
             </li>
           </ol>
         </section>
       </div>
+
+      <!-- Attributes -->
+      <section class="card section-card" id="attributes">
+        <h2 class="card-title">Using the component</h2>
+        <p class="card-subtitle">
+          Load the script once per page (a classic script, not <code>type="module"</code>). One
+          script can serve several <code>&lt;bridge-onboarding&gt;</code> elements. The element
+          fills the width of its container.
+        </p>
+
+        <h3>Attributes</h3>
+        <div class="table-wrap">
+          <table class="info-table">
+            <thead>
+              <tr>
+                <th>Attribute</th>
+                <th>Values</th>
+                <th>Default</th>
+                <th>What it does</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>partner</code></td>
+                <td>your partner key</td>
+                <td>none</td>
+                <td>Sent as <code>X-Partner-Key</code> on every API call. Required.</td>
+              </tr>
+              <tr>
+                <td><code>api</code></td>
+                <td>
+                  the API origin, for example
+                  <code>https://accessible-onboarding.vercel.app</code> (no <code>/api/v1</code>)
+                </td>
+                <td>the same site as the page</td>
+                <td>
+                  Where the component sends API calls. Set it whenever the API is not on your site.
+                </td>
+              </tr>
+              <tr>
+                <td><code>flow</code></td>
+                <td>
+                  <code>signup</code>, <code>language</code>, <code>jobs</code>,
+                  <code>job-application</code>, <code>profile</code>
+                </td>
+                <td><code>signup</code></td>
+                <td>Which part to show (see below).</td>
+              </tr>
+              <tr>
+                <td><code>lang</code></td>
+                <td><code>am</code> or <code>en</code> (any language with a locale file)</td>
+                <td><code>en</code></td>
+                <td>
+                  The starting language, used only until the person chooses a language on this
+                  device.
+                </td>
+              </tr>
+              <tr>
+                <td><code>simple</code></td>
+                <td>bare <code>simple</code> or <code>simple="true"</code></td>
+                <td>off</td>
+                <td>Starts in Simple mode.</td>
+              </tr>
+              <tr>
+                <td><code>manage-title</code></td>
+                <td><code>"false"</code> to turn off</td>
+                <td>on</td>
+                <td>
+                  Whether the component may set the page title, for example "Question 4 of 11: …".
+                  Turn it off on a busy page.
+                </td>
+              </tr>
+              <tr>
+                <td><code>job-id</code></td>
+                <td>a job's ID (UUID)</td>
+                <td>none</td>
+                <td>For <code>flow="job-application"</code>: the job to apply for.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Set attributes in your HTML. <code>flow</code>, <code>lang</code> and
+          <code>simple</code> are read once, at start.
+        </p>
+
+        <h3>Flows</h3>
+        <div class="table-wrap">
+          <table class="info-table">
+            <thead>
+              <tr>
+                <th><code>flow</code></th>
+                <th>What the person sees</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>signup</code></td>
+                <td>
+                  The sign-up. The first time on a device, the language screen comes first (unless
+                  only one language is offered). A person who started on this device continues where
+                  they stopped. The Done screen offers "Find a job" and "See or change my details".
+                </td>
+              </tr>
+              <tr>
+                <td><code>language</code></td>
+                <td>The language screen first, every time, then the sign-up.</td>
+              </tr>
+              <tr>
+                <td><code>jobs</code></td>
+                <td>
+                  Jobs with a "Support I need" filter, pre-filled with the needs given at sign-up on
+                  this device. Matching happens on the device.
+                </td>
+              </tr>
+              <tr>
+                <td><code>job-application</code></td>
+                <td>
+                  The application for <code>job-id</code>. Only a learner who finished signing up on
+                  this device can apply; anyone else is asked to sign up first.
+                </td>
+              </tr>
+              <tr>
+                <td><code>profile</code></td>
+                <td>
+                  "My profile": see, change or delete what is kept (for the sign-up made on this
+                  device).
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>The sign-up questions</h3>
+        <p>One question per screen, in this order (some depend on earlier answers):</p>
+        <ol>
+          <li>Welcome, then consent to data use.</li>
+          <li>Full name: your name, your father's name and your grandfather's name (one field).</li>
+          <li>How can we reach you: phone, Telegram, through an organisation, or no way.</li>
+          <li>Phone number (if phone or Telegram).</li>
+          <li>Date of birth, in the Ethiopian or Gregorian calendar (optional).</li>
+          <li>Sex (optional).</li>
+          <li>
+            Region or city (optional): the 12 regions, Addis Ababa, Dire Dawa, or outside Ethiopia.
+          </li>
+          <li>Highest education (optional).</li>
+          <li>
+            Which ID do you have: Fayda, Kebele ID, refugee ID, UNHCR proof, another document, or
+            none.
+          </li>
+          <li>
+            For another document: its type and an optional photo (stored encrypted). Then,
+            optionally, the last 4 characters of the document.
+          </li>
+          <li>For no ID: which referral organisation can help, and how they can reach you.</li>
+          <li>What would help you (supports), anything else, and who may see the supports.</li>
+          <li>Check your answers, then Done.</li>
+        </ol>
+        <div class="callout">
+          <p>
+            <strong>Bridge does not verify identity.</strong> Identity is recorded as
+            <code>self_declared</code>, or handled through a referral organisation for people
+            without ID. The last 4 characters are an optional reference that helps staff match a
+            document in person, not a check. Real Fayda verification (OTP or biometric
+            authentication through the national ID programme, NIDP, as a licensed relying party) is
+            on the roadmap, not built.
+          </p>
+        </div>
+      </section>
+
+      <!-- Events -->
+      <section class="card section-card" id="events">
+        <h2 class="card-title">Events</h2>
+        <p class="card-subtitle">
+          Every event bubbles and is composed, so you can listen on the element or on
+          <code>document</code>. <code>detail</code> never contains names, phone numbers or support
+          needs; it may contain IDs.
+        </p>
+        <div class="table-wrap">
+          <table class="info-table">
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>When</th>
+                <th><code>detail</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>bridge-onboarding:ready</code></td>
+                <td>Once, when the component appears</td>
+                <td><code>{ "flow": "signup" }</code></td>
+              </tr>
+              <tr>
+                <td><code>bridge-onboarding:step-changed</code></td>
+                <td>A new question shows (sign-up and job application)</td>
+                <td><code>{ "step": "phone", "index": 4, "total": 11 }</code></td>
+              </tr>
+              <tr>
+                <td><code>bridge-onboarding:saved</code></td>
+                <td>An answer was saved on the device, or answers reached the server</td>
+                <td><code>{ "where": "device" }</code> or <code>{ "where": "server" }</code></td>
+              </tr>
+              <tr>
+                <td><code>bridge-onboarding:support-requested</code></td>
+                <td>The learner's support needs reached the server</td>
+                <td><code>{}</code></td>
+              </tr>
+              <tr>
+                <td><code>bridge-onboarding:completed</code></td>
+                <td>The sign-up was submitted</td>
+                <td><code>{ "registration_id": "…", "learner_id": "…" }</code></td>
+              </tr>
+              <tr>
+                <td><code>bridge-onboarding:application-submitted</code></td>
+                <td>A job application was sent</td>
+                <td><code>{ "job_id": "…", "application_id": "…" }</code></td>
+              </tr>
+              <tr>
+                <td><code>bridge-onboarding:error</code></td>
+                <td>The API refused something (not for being offline)</td>
+                <td><code>{ "code": "origin_not_allowed" }</code> (an API error code)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- What learners get -->
+      <section class="card section-card" id="learners">
+        <h2 class="card-title">What your learners get</h2>
+        <h3>The top bar</h3>
+        <ul>
+          <li>
+            <strong>Get help</strong> shows your help phone and Telegram, with the buttons "Call
+            support" (opens the phone's dialler with the number), "Send an SMS" and "Open Telegram".
+          </li>
+          <li>
+            <strong>Language</strong> (when you offer more than one) opens the language screen. Its
+            globe icon marks it in any language, and read aloud also says "Language" in English.
+          </li>
+          <li><strong>Dark mode</strong> switches between light and dark colours.</li>
+          <li>
+            <strong>Accessibility</strong> opens a panel with Read aloud, Answer by speaking, Text
+            size (100% to 400%) and Simple mode, and a Close button. Escape also closes it.
+          </li>
+          <li>Every label is in the language the learner chose.</li>
+        </ul>
+        <h3>Read aloud</h3>
+        <ul>
+          <li>
+            On by default, because we can't know whether someone can see the screen. Browsers allow
+            no sound before a key press or tap, so it starts at the first key press or tap.
+          </li>
+          <li>
+            It first reads the page from top to bottom: the top bar, then the screen, then "Press
+            Tab to go from one item to the next."
+          </li>
+          <li>
+            After a Tab (or a tap), it describes the focused item. Fields say what they are and what
+            to do, for example "Type your answer, then press Enter."
+          </li>
+          <li>
+            A learner's own answers are only ever read by the device's own voice, never sent to a
+            server.
+          </li>
+        </ul>
+        <h3>Voice answers</h3>
+        <ul>
+          <li>
+            The first time, the person is asked whether their voice may be sent to a speech service.
+          </li>
+          <li>
+            What is heard goes straight into the field and is said back ("We heard: …"), with Say
+            again and Type instead.
+          </li>
+          <li>The microphone closes after one answer.</li>
+        </ul>
+        <h3>Offline</h3>
+        <p>
+          Every answer is saved on the device first, then sent. If the connection drops, answers
+          wait on the phone and are sent when it comes back. The script itself must load once
+          online.
+        </p>
+      </section>
+
+      <!-- Partner settings -->
+      <section class="card section-card" id="settings">
+        <h2 class="card-title">Partner settings</h2>
+        <p class="card-subtitle">
+          Each partner has a JSON <code>config</code> in the <code>partners</code> table.
+          <code>GET /api/v1/config</code> returns it, with defaults for anything missing. There is
+          no settings page yet: the operator changes it with SQL.
+        </p>
+        <div class="table-wrap">
+          <table class="info-table">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Example</th>
+                <th>Used by the component today?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>languages</code></td>
+                <td><code>["am","en"]</code></td>
+                <td>
+                  <strong>Yes:</strong> the languages offered. With one, the language screen is
+                  skipped.
+                </td>
+              </tr>
+              <tr>
+                <td><code>help</code></td>
+                <td><code>{"phone":"+251 11 123 4567","telegram":"@your_handle"}</code></td>
+                <td><strong>Yes:</strong> the "Get help" panel.</td>
+              </tr>
+              <tr>
+                <td><code>default_language</code></td>
+                <td><code>"am"</code></td>
+                <td>Not yet (use the <code>lang</code> attribute).</td>
+              </tr>
+              <tr>
+                <td><code>id_routes</code></td>
+                <td><code>["fayda","kebele_id","none"]</code></td>
+                <td>Not yet: every partner gets the same questions.</td>
+              </tr>
+              <tr>
+                <td><code>theme</code></td>
+                <td><code>{"primary":"#0b6e4f"}</code></td>
+                <td>Not yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="help-settings">Change the help phone and Telegram</h3>
+        <div class="code-header">
+          <span>SQL (operator):</span>
+          <button type="button" class="copy-btn" data-copy="sqlHelp">Copy</button>
+        </div>
+        <pre><code id="sqlHelp">UPDATE partners
+SET config = jsonb_set(config, '{help}', '{"phone":"+251 11 123 4567","telegram":"@your_handle"}')
+WHERE publishable_key = 'pk_…';</code></pre>
+
+        <h3>Change the languages</h3>
+        <div class="code-header">
+          <span>SQL (operator):</span>
+          <button type="button" class="copy-btn" data-copy="sqlLangs">Copy</button>
+        </div>
+        <pre><code id="sqlLangs">UPDATE partners
+SET config = jsonb_set(config, '{languages}', '["am","en"]')
+WHERE publishable_key = 'pk_…';</code></pre>
+
+        <h3>Add or remove an allowed origin</h3>
+        <div class="code-header">
+          <span>SQL (operator):</span>
+          <button type="button" class="copy-btn" data-copy="sqlOrigins">Copy</button>
+        </div>
+        <pre><code id="sqlOrigins">UPDATE partners SET allowed_origins = array_append(allowed_origins, 'https://your-site.example')
+WHERE publishable_key = 'pk_…';
+
+UPDATE partners SET allowed_origins = array_remove(allowed_origins, 'https://your-site.example')
+WHERE publishable_key = 'pk_…';</code></pre>
+        <p>
+          Settings are read on every request, so a change shows the next time the component loads.
+          The browser permission (CORS) list of origins is reloaded every 2 minutes, so a new origin
+          can take up to 2 minutes to work.
+        </p>
+      </section>
+
+      <!-- Languages -->
+      <section class="card section-card" id="languages">
+        <h2 class="card-title">Adding a language</h2>
+        <p class="card-subtitle">
+          Every file <code>frontend/src/i18n/locales/&lt;code&gt;.json</code> is a language. Amharic
+          and English are complete today. Run these from the <code>frontend/</code> folder.
+        </p>
+        <ol>
+          <li>
+            <strong>Create the file.</strong>
+            <code>npm run i18n:new -- om "Afaan Oromoo" om-ET</code> creates
+            <code>om.json</code> with every text marked <code>TODO-om</code>. TODO texts show in
+            English until they are translated.
+          </li>
+          <li>
+            <strong>Translate.</strong> A native speaker translates every text. Never use machine
+            translation.
+          </li>
+          <li>
+            <strong>Check.</strong> <code>npm run i18n:check -- om</code> lists missing keys, texts
+            still marked TODO, and <code>{placeholders}</code> that differ from English.
+          </li>
+          <li>
+            <strong>Offer it.</strong> Add the code to the partner's <code>languages</code> setting
+            (see <a href="#settings">Partner settings</a>). <code>GET /config</code> then returns
+            it.
+          </li>
+          <li>
+            <strong>Optional: recordings.</strong> Read-aloud clips go in
+            <code>frontend/public/audio/&lt;code&gt;/&lt;key&gt;.mp3</code>.
+            <code>npm run audio:check</code> lists which are missing.
+          </li>
+          <li>
+            <strong>Rebuild the component.</strong> <code>npm run build:widget</code>, then deploy
+            the new <code>bridge-onboarding.js</code>.
+          </li>
+        </ol>
+      </section>
+
+      <!-- Data -->
+      <section class="card section-card" id="data">
+        <h2 class="card-title">What data your platform receives</h2>
+        <ul>
+          <li>
+            <strong>In the browser (events):</strong> IDs only, such as <code>learner_id</code> and
+            <code>registration_id</code>, plus step IDs and error codes. Never names, phone numbers,
+            support needs or answers.
+          </li>
+          <li>
+            <strong>From the partner server API:</strong> only your own learners who finished
+            signing up: learner ID, full name, preferred name (normally empty), language, status,
+            identity level (<code>self_declared</code>), contact method, phone (if any) and whether
+            it was verified (never, today), and the registration time.
+          </li>
+          <li>
+            <strong>Never shared with platforms:</strong> support needs, ID route, document type,
+            document photo, last 4 characters, date of birth, sex, region, education, other answers,
+            referrals and consents.
+          </li>
+          <li>
+            <strong>Employers</strong> see an applicant's support needs only when the learner
+            attaches them to that application. Each read is audit-logged.
+          </li>
+          <li>
+            <strong>On the learner's device, under your site's origin:</strong> IndexedDB
+            <code>bridge-onboarding</code> (session, waiting answers, a copy of the answers) and a
+            few <code>localStorage</code> keys starting with <code>bo:</code> (language, read aloud,
+            text size, speech consent). "Forget me on this phone" deletes them.
+          </li>
+        </ul>
+        <p>Full field lists are in the <a href="/docs.html#data-received">REST API docs</a>.</p>
+      </section>
+
+      <!-- Styling & CSP -->
+      <section class="card section-card" id="csp">
+        <h2 class="card-title">Styling and Content-Security-Policy</h2>
+        <ul>
+          <li>
+            The component draws inside its own shadow root. Your CSS can't break it, and its CSS
+            can't touch your page.
+          </li>
+          <li>
+            It never changes your address, history, scroll position or styles, and never moves focus
+            on first load. The only exception is the page title (turn it off with
+            <code>manage-title="false"</code>).
+          </li>
+          <li>
+            It loads no web fonts. If your users' phones lack an Ethiopic font, load Noto Sans
+            Ethiopic on your page; the component will use it.
+          </li>
+        </ul>
+        <p>If your page sends a Content-Security-Policy header, allow:</p>
+        <div class="table-wrap">
+          <table class="info-table">
+            <thead>
+              <tr>
+                <th>Directive</th>
+                <th>Add</th>
+                <th>Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>script-src</code></td>
+                <td><code>https://accessible-onboarding.vercel.app</code></td>
+                <td>the component script</td>
+              </tr>
+              <tr>
+                <td><code>connect-src</code></td>
+                <td><code>https://accessible-onboarding.vercel.app</code></td>
+                <td>API calls</td>
+              </tr>
+              <tr>
+                <td><code>style-src</code></td>
+                <td><code>'unsafe-inline'</code></td>
+                <td>the component puts a <code>&lt;style&gt;</code> in its shadow root</td>
+              </tr>
+              <tr>
+                <td><code>media-src</code></td>
+                <td>
+                  <code>https://accessible-onboarding.vercel.app</code>, <code>blob:</code>,
+                  <code>data:</code>
+                </td>
+                <td>read-aloud audio</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          If you send a <code>Permissions-Policy</code> header, keep
+          <code>microphone=(self)</code> for voice answers.
+        </p>
+      </section>
+
+      <!-- Local development -->
+      <section class="card section-card" id="local-dev">
+        <h2 class="card-title">Local development</h2>
+        <p class="card-subtitle">Only when you run Bridge on your own computer.</p>
+        <ul>
+          <li>
+            Development web server: <code>http://localhost:5173</code>. API:
+            <code>http://localhost:8080</code> (Swagger UI at <code>/api/docs</code>).
+          </li>
+          <li>
+            Use <code>api="http://localhost:8080"</code> on the element, or leave
+            <code>api</code> empty on pages served by the development server (it forwards
+            <code>/api</code> to the API).
+          </li>
+          <li>
+            The demo partner <code>pk_demo_savanna</code> from <code>seed</code> allows
+            <code>http://localhost:5173</code> and <code>http://localhost:8081</code>, among others.
+            <code>localhost</code> and <code>127.0.0.1</code> are different origins.
+          </li>
+          <li>
+            <code>npm run build:widget</code> (in <code>frontend/</code>) writes
+            <code>dist-widget/bridge-onboarding.js</code> if you want to host the script yourself.
+          </li>
+        </ul>
+      </section>
     </main>
 
     <script>
-      function generateRandomHex(length = 6) {
-        return Math.random().toString(16).substring(2, 2 + length);
+      const HOST = 'https://accessible-onboarding.vercel.app';
+
+      function randomHex(bytes = 6) {
+        const a = new Uint8Array(bytes);
+        crypto.getRandomValues(a);
+        return Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
       }
 
+      // SQL text literal: single quotes doubled.
+      const sqlText = (s) => `'${String(s).replace(/'/g, "''")}'`;
+      // HTML attribute value: quotes and angle brackets escaped.
+      const attr = (s) =>
+        String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+      let suffix = randomHex();
+
       function updateOutputs() {
-        const name = document.getElementById('orgName').value.trim() || 'My Organization';
+        const name = document.getElementById('orgName').value.trim() || 'My Organisation';
         const slug =
           document.getElementById('orgSlug').value.trim() ||
-          name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
         const kind = document.getElementById('orgKind').value;
         const color = document.getElementById('colorHex').value.trim() || '#cc3636';
         const defaultLang = document.getElementById('defaultLang').value;
-        const originsInput = document.getElementById('allowedOrigins').value.trim();
-        const origins = originsInput
-          .split(',')
-          .map((s) => s.trim())
+        const origins = document
+          .getElementById('allowedOrigins')
+          .value.split(',')
+          .map((s) => s.trim().replace(/\/+$/, ''))
           .filter(Boolean);
         const phone = document.getElementById('helpPhone').value.trim();
         const telegram = document.getElementById('helpTelegram').value.trim();
@@ -562,64 +1261,69 @@ INSERT INTO partners (
         if (document.getElementById('langAm').checked) languages.push('am');
         if (document.getElementById('langEn').checked) languages.push('en');
         if (languages.length === 0) languages.push('en');
+        const lang = languages.includes(defaultLang) ? defaultLang : languages[0];
 
-        // Extract or maintain current key random suffix
-        let currentKey = document.getElementById('keyDisplay').innerText;
-        if (!currentKey.startsWith(`pk_live_${slug}`)) {
-          currentKey = `pk_live_${slug}_${generateRandomHex()}`;
-          document.getElementById('keyDisplay').innerText = currentKey;
-        }
+        const key = `pk_live_${slug.replace(/[^a-z0-9]+/gi, '_')}_${suffix}`;
+        document.getElementById('keyDisplay').textContent = key;
 
-        // HTML Embed Code
-        const embedHtml = `<!-- 1. Include Bridge Onboarding Script -->
-<script src="https://accessible-onboarding.vercel.app/v1/bridge-onboarding.js"><\/script>
+        const embedHtml = `<!-- 1. Where the form should appear -->
+<div style="max-width: 40rem">
+  <bridge-onboarding
+    partner="${attr(key)}"
+    api="${HOST}"
+    flow="signup"
+    lang="${lang}"
+  ></bridge-onboarding>
+</div>
 
-<!-- 2. Place Custom Element -->
-<bridge-onboarding
-  partner="${currentKey}"
-  api="https://accessible-onboarding.vercel.app"
-  flow="signup"
-  lang="${defaultLang}"
-  style="--bo-primary: ${color};">
-</bridge-onboarding>
+<!-- 2. Once per page, anywhere (a classic script, not type="module") -->
+<script src="${HOST}/v1/bridge-onboarding.js" defer><\/script>
 
-<!-- 3. Optional: Listen for Completion -->
+<!-- 3. Optional: react to events (they never contain personal data) -->
 <script>
-  document.addEventListener('bridge-onboarding:completed', (e) => {
-    console.log('Learner registered successfully! ID:', e.detail.learner_id);
+  document.addEventListener('bridge-onboarding:completed', (event) => {
+    // Keep the learner ID to read the learner later with the partner server API.
+    console.log('Signed up:', event.detail.learner_id);
+  });
+  document.addEventListener('bridge-onboarding:error', (event) => {
+    console.warn('Bridge error:', event.detail.code);
   });
 <\/script>`;
         document.getElementById('embedCode').textContent = embedHtml;
 
-        // SQL Setup
-        const originsArrayStr = `ARRAY[${origins.map((o) => `'${o}'`).join(', ')}]`;
-        const configJson = JSON.stringify({
-          languages,
-          default_language: defaultLang,
-          help: { phone, telegram },
-          theme: { primary: color },
-        });
+        const help = {};
+        if (phone) help.phone = phone;
+        if (telegram) help.telegram = telegram;
+        const config = { languages, default_language: lang, help, theme: { primary: color } };
 
-        const sql = `-- Run this in your PostgreSQL database to persist this partner:
-INSERT INTO partners (
-  slug, name, kind, publishable_key, allowed_origins, config
-) VALUES (
-  '${slug}',
-  '${name.replace(/'/g, "''")}',
-  '${kind}',
-  '${currentKey}',
-  ${originsArrayStr},
-  '${configJson}'::jsonb
-);`;
+        const sql = `-- Create the partner (run by the Bridge operator)
+INSERT INTO partners (slug, name, kind, publishable_key, allowed_origins, config)
+VALUES (
+  ${sqlText(slug)},
+  ${sqlText(name)},
+  ${sqlText(kind)},
+  ${sqlText(key)},
+  ARRAY[${origins.map(sqlText).join(', ')}]::text[],
+  ${sqlText(JSON.stringify(config))}::jsonb
+);
+
+-- Optional: credentials for the partner server API (OAuth, scope learners:read).
+-- Make the secret with: openssl rand -base64 32, and give it to the partner once.
+UPDATE partners
+SET client_id = ${sqlText(`${slug}-server`)},
+    client_secret_hash = sha256(convert_to('<a long random secret>', 'UTF8'))
+WHERE publishable_key = ${sqlText(key)};`;
         document.getElementById('sqlCode').textContent = sql;
 
-        // cURL
-        const curl = `curl -i -H "X-Partner-Key: ${currentKey}" \\
-  https://accessible-onboarding.vercel.app/api/v1/config`;
+        const curl = `curl -s -H "X-Partner-Key: ${key}" \\
+  ${HOST}/api/v1/config`;
         document.getElementById('curlCode').textContent = curl;
+
+        const badge = document.getElementById('statusBadge');
+        badge.textContent = 'Up to date';
       }
 
-      // Sync color picker with text
+      // Keep the colour picker and the text field in step
       const colorPicker = document.getElementById('primaryColor');
       const colorHex = document.getElementById('colorHex');
       colorPicker.addEventListener('input', (e) => {
@@ -633,64 +1337,70 @@ INSERT INTO partners (
         updateOutputs();
       });
 
-      // Auto-slug from name
+      // Slug from the name
       document.getElementById('orgName').addEventListener('input', (e) => {
-        const slugInput = document.getElementById('orgSlug');
-        slugInput.value = e.target.value
+        document.getElementById('orgSlug').value = e.target.value
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/^-|-$/g, '');
         updateOutputs();
       });
 
-      // Form input listeners
       ['orgSlug', 'orgKind', 'allowedOrigins', 'defaultLang', 'helpPhone', 'helpTelegram'].forEach(
         (id) => {
           document.getElementById(id).addEventListener('input', updateOutputs);
+          document.getElementById(id).addEventListener('change', updateOutputs);
         },
       );
       ['langAm', 'langEn'].forEach((id) => {
         document.getElementById(id).addEventListener('change', updateOutputs);
       });
 
-      // Generate button forces fresh key
+      // A fresh random part for the suggested key
       document.getElementById('generateBtn').addEventListener('click', () => {
-        const slug = document.getElementById('orgSlug').value.trim() || 'partner';
-        document.getElementById('keyDisplay').innerText = `pk_live_${slug}_${generateRandomHex()}`;
+        suffix = randomHex();
         updateOutputs();
-        alert('New Partner Key generated successfully!');
+        document.getElementById('statusBadge').textContent = 'New key suggested';
       });
 
-      // Tab switcher
-      document.querySelectorAll('.tab').forEach((tab) => {
+      // Tabs
+      const tabs = document.querySelectorAll('.tab');
+      tabs.forEach((tab) => {
         tab.addEventListener('click', () => {
-          document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+          tabs.forEach((t) => {
+            t.classList.remove('active');
+            t.setAttribute('aria-selected', 'false');
+          });
           document.querySelectorAll('.tab-content').forEach((c) => (c.style.display = 'none'));
           tab.classList.add('active');
+          tab.setAttribute('aria-selected', 'true');
           document.getElementById(tab.dataset.tab).style.display = 'block';
         });
       });
 
-      // Copy helpers
-      function setupCopy(btnId, targetId, isPre = false) {
-        document.getElementById(btnId).addEventListener('click', async () => {
-          const el = document.getElementById(targetId);
-          const text = el.innerText || el.textContent;
-          await navigator.clipboard.writeText(text);
-          const originalText = document.getElementById(btnId).innerText;
-          document.getElementById(btnId).innerText = 'Copied!';
-          setTimeout(() => {
-            document.getElementById(btnId).innerText = originalText;
-          }, 2000);
+      // Copy buttons
+      function copyFrom(btn, targetId) {
+        const el = document.getElementById(targetId);
+        const text = el.innerText || el.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          const original = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => (btn.textContent = original), 2000);
         });
       }
+      [
+        ['copyKeyBtn', 'keyDisplay'],
+        ['copyEmbedBtn', 'embedCode'],
+        ['copySqlBtn', 'sqlCode'],
+        ['copyCurlBtn', 'curlCode'],
+      ].forEach(([btnId, targetId]) => {
+        const btn = document.getElementById(btnId);
+        btn.addEventListener('click', () => copyFrom(btn, targetId));
+      });
+      document.querySelectorAll('[data-copy]').forEach((btn) => {
+        btn.addEventListener('click', () => copyFrom(btn, btn.dataset.copy));
+      });
 
-      setupCopy('copyKeyBtn', 'keyDisplay');
-      setupCopy('copyEmbedBtn', 'embedCode', true);
-      setupCopy('copySqlBtn', 'sqlCode', true);
-      setupCopy('copyCurlBtn', 'curlCode', true);
-
-      // Initial update
       updateOutputs();
     </script>
   </body>

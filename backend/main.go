@@ -124,6 +124,11 @@ func orRandom(v string) (string, bool) {
 }
 
 func serve(cfg config.Config) {
+	// Links built from PUBLIC_WEB_URL (JobPosting JSON-LD, resume links) must be public.
+	if problem := cfg.PublicWebURLProblem(); problem != "" {
+		log.Printf("WARNING: %s", problem)
+	}
+
 	// Initialize dependencies
 	db := repository.InitializeDB(cfg.DatabaseURL)
 

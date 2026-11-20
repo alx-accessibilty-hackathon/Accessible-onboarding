@@ -250,7 +250,7 @@ func TestSaveAnswerStoresCleanValues(t *testing.T) {
 	assert.JSONEq(t, `"`+aaapdPartnerID.String()+`"`, string(partner.Value))
 
 	// An optional answer can be cleared.
-	cleared := f.save(t, actor, reg.ID, "preferred_name", `""`)
+	cleared := f.save(t, actor, reg.ID, "id_last4", `""`)
 	assert.JSONEq(t, `""`, string(cleared.Value))
 }
 
@@ -294,7 +294,6 @@ func TestSubmitFillsTheLearnerAndIdentityEvidence(t *testing.T) {
 	f := newRegFixture(t)
 	reg, actor := f.start(t)
 	f.save(t, actor, reg.ID, "full_name", `"Abebe Kebede"`)
-	f.save(t, actor, reg.ID, "preferred_name", `"Abe"`)
 	f.save(t, actor, reg.ID, "contact_method", `"phone"`)
 	f.save(t, actor, reg.ID, "phone", `"+251 91 234 5678"`)
 	f.save(t, actor, reg.ID, "dob", `{"calendar":"ethiopian","ethiopian":{"year":2010,"month":1,"day":15},"iso":"2017-09-25"}`)
@@ -307,7 +306,6 @@ func TestSubmitFillsTheLearnerAndIdentityEvidence(t *testing.T) {
 	assert.Equal(t, domain.LearnerStatusRegistered, res.Learner.Status)
 	assert.Equal(t, domain.IdentitySelfDeclared, res.Learner.IdentityLevel)
 	assert.Equal(t, "Abebe Kebede", res.Learner.FullName)
-	assert.Equal(t, "Abe", res.Learner.PreferredName)
 	assert.Equal(t, "+251912345678", res.Learner.PhoneE164)
 	require.NotNil(t, res.Learner.DOB)
 	assert.Equal(t, "2017-09-25", res.Learner.DOB.Format("2006-01-02"))

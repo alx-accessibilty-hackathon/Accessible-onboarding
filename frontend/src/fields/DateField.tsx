@@ -163,6 +163,8 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
     <fieldset
       id={fieldsetId}
       aria-describedby={describedBy || undefined}
+      // Read aloud: coming into the date from elsewhere says the question first.
+      data-bo-context={t(lang, step.title)}
       style={{
         border: 'none',
         padding: 0,
@@ -256,17 +258,18 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
           >
             {t(lang, 'date.day')}
           </label>
+          {/* Text with a number keypad (not type="number": the arrow keys would change it) */}
           <input
             id={`${fieldsetId}-day`}
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={1}
-            max={calendar === 'ethiopian' ? (Number(month) === 13 ? 6 : 30) : 31}
+            pattern="[0-9]*"
+            maxLength={2}
             autoComplete={calendar === 'gregorian' ? 'bday-day' : 'off'}
             value={day}
             aria-invalid={!!error}
             onChange={(e) => {
-              const val = e.target.value;
+              const val = e.target.value.replace(/\D/g, '');
               setDay(val);
               updateDate(calendar, val, month, year);
             }}
@@ -323,7 +326,8 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
             <option value="">{t(lang, 'date.select_month')}</option>
             {monthsList.map((m) => (
               <option key={m.id} value={m.id}>
-                {lang === 'am' ? `${m.id}. ${m.nameAm}` : `${m.id} - ${m.nameEn}`}
+                {/* The name first, so typing "sep" on a keyboard picks September */}
+                {lang === 'am' ? `${m.nameAm} (${m.id})` : `${m.nameEn} (${m.id})`}
               </option>
             ))}
           </select>
@@ -347,15 +351,15 @@ export function DateField({ step, lang, value, onChange, error, headingRef }: Da
           </label>
           <input
             id={`${fieldsetId}-year`}
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={1900}
-            max={calendar === 'ethiopian' ? 2030 : 2040}
+            pattern="[0-9]*"
+            maxLength={4}
             autoComplete={calendar === 'gregorian' ? 'bday-year' : 'off'}
             value={year}
             aria-invalid={!!error}
             onChange={(e) => {
-              const val = e.target.value;
+              const val = e.target.value.replace(/\D/g, '');
               setYear(val);
               updateDate(calendar, day, month, val);
             }}

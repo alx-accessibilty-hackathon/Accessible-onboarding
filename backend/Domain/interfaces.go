@@ -77,6 +77,8 @@ type JobUsecaseI interface {
 	ListJobs(ctx context.Context, limit int, cursor string) ([]*Job, *string, error)
 	GetJob(ctx context.Context, id uuid.UUID) (*Job, error)
 	GetJobPosting(ctx context.Context, id uuid.UUID) (map[string]any, error)
+	// AccommodationsVocabulary is the JSON-LD document that defines the "acc" prefix of a JobPosting.
+	AccommodationsVocabulary() map[string]any
 	ListEmployerJobs(ctx context.Context, actor Actor) ([]*Job, error)
 	CreateEmployerJob(ctx context.Context, actor Actor, job *Job) (*Job, error)
 	// PublishEmployerJob returns the published job and the address of its JobPosting JSON-LD.

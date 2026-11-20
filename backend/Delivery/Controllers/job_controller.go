@@ -50,6 +50,21 @@ func (jc *JobController) GetJobController(c *gin.Context) {
 	c.JSON(http.StatusOK, toJobDTO(job, job.EmployerName))
 }
 
+// GET /ns/accommodations, public (outside /api/v1: the web host forwards PUBLIC_WEB_URL/ns/ here).
+// The JSON-LD document that defines the "acc" prefix used in every JobPosting (acc:offers and
+// its codes).
+func (jc *JobController) AccommodationsVocabularyController(c *gin.Context) {
+	body, err := json.Marshal(jc.JobUc.AccommodationsVocabulary())
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	// Anyone may read it, from any site (JSON-LD tools fetch it from the browser too).
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.Data(http.StatusOK, "application/ld+json; charset=utf-8", body)
+}
+
 // GET /api/v1/jobs/:id/jobposting.jsonld
 // The job as schema.org JobPosting JSON-LD, for job boards and search engines.
 func (jc *JobController) GetJobPostingController(c *gin.Context) {

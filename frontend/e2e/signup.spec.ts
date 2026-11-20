@@ -73,17 +73,23 @@ test.describe('End-to-end Onboarding and Accessibility Journey', () => {
     await page.getByRole('textbox').fill('Abebe Bikila');
     await page.getByRole('button', { name: 'Continue' }).click();
 
-    // 4. Preferred Name (optional)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('What should we call you?');
-    await page.getByRole('button', { name: 'Skip this question' }).click();
-
-    // 5. Contact Method
+    // 4. Contact Method
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('How can we reach you?');
     await page.getByLabel('Through an organisation that helps me').click();
     await page.getByRole('button', { name: 'Continue' }).click();
 
-    // 6. Date of birth
+    // 5. Date of birth
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('When were you born?');
+    await page.getByRole('button', { name: 'Skip this question' }).click();
+
+    // 6. Sex, region and education (optional)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('What is your sex?');
+    await page.getByRole('button', { name: 'Skip this question' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Where do you live?');
+    await page.getByRole('button', { name: 'Skip this question' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'What is the highest level of school you finished?',
+    );
     await page.getByRole('button', { name: 'Skip this question' }).click();
 
     // 7. ID route

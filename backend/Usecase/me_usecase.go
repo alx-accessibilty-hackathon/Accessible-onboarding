@@ -5,12 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	domain "bridge/Domain"
 
 	"github.com/google/uuid"
 )
+
+// maxPreferredNameRunes: the longest preferred name accepted once the sign-up flow no longer
+// asks for one (PATCH /me from older clients).
+const maxPreferredNameRunes = 100
 
 // MeUsecase: the signed-in learner sees, changes and deletes their own data (Q4):
 // GET, PATCH, DELETE and GET /me/export.
@@ -180,12 +186,23 @@ func (uc *MeUsecase) Update(ctx context.Context, actor domain.Actor, ch *domain.
 		}
 	}
 	if ch.PreferredName != nil {
-		clean, ok, err := check("preferred_name", str(*ch.PreferredName))
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			next.PreferredName = answerString(clean)
+		if _, asked := flow.Step("preferred_name"); asked {
+			clean, ok, err := check("preferred_name", str(*ch.PreferredName))
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				next.PreferredName = answerString(clean)
+			}
+		} else {
+			// The sign-up flow no longer asks for it (names in Ethiopia are the person's name,
+			// father's and grandfather's: one full name). Still accepted from older clients.
+			name := strings.TrimSpace(*ch.PreferredName)
+			if utf8.RuneCountInString(name) > maxPreferredNameRunes {
+				verr.Fields = append(verr.Fields, domain.FieldError{Field: "preferred_name", Code: codeTooLong})
+			} else {
+				next.PreferredName = name
+			}
 		}
 	}
 	if ch.ContactMethod != nil {

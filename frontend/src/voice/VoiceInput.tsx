@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { announce } from '../a11y/announce';
 import { useModes } from '../a11y/modes';
 import { keyPart } from '../a11y/readParts';
@@ -11,13 +11,12 @@ import { t } from '../i18n/t';
 import { useOnline } from '../offline/useOnline';
 import { MicHelp } from './MicHelp';
 import { matchChoice, normalizeVoiceInput } from './normalize';
-import { ReviewCard } from './ReviewCard';
 import { SpeechConsent } from './SpeechConsent';
 import type { VoiceClipOutcome, VoiceInputProps } from './types';
 import { useRecorder } from './useRecorder';
 import { useWebSpeech, type SpeechAlternative } from './useWebSpeech';
 
-type VoiceState = 'idle' | 'listening' | 'recording' | 'transcribing' | 'review' | 'heard';
+type VoiceState = 'idle' | 'listening' | 'recording' | 'transcribing' | 'heard';
 
 /** What we understood: the value for the field and how to show (and say) it. */
 interface Heard {
@@ -35,7 +34,7 @@ interface Alternative {
   display: string;
 }
 
-type Focusable = 'stop' | 'keep' | 'sayAgain' | 'voice';
+type Focusable = 'stop' | 'sayAgain' | 'voice';
 
 const UNSURE = 0.75; // below this confidence, offer the other guesses
 const RECORD_LIMIT_MS = 29_500;
@@ -43,10 +42,10 @@ const RECORD_LIMIT_MS = 29_500;
 const show = (v: string | string[]) => (Array.isArray(v) ? v.join(', ') : v);
 
 /**
- * "Answer by voice". Without Answer by speaking mode: press the button, speak, check the
- * "We heard" card and press Keep. In the mode: listening starts by itself after the question
- * was read, and what was heard goes straight into the field ("We heard: …"); Say again and
- * Type instead stay on screen, and the field can always be corrected by typing.
+ * "Answer by voice": press the button and speak (in Answer by speaking mode, listening starts
+ * by itself after the question was read). What was heard goes straight into the field and is
+ * shown and said ("We heard: …"); Say again and Type instead stay on screen, and the field can
+ * always be corrected by typing.
  */
 export function VoiceInput({
   step,
@@ -69,17 +68,15 @@ export function VoiceInput({
   const [micHelpOpen, setMicHelpOpen] = useState(false);
   const [heard, setHeard] = useState<Heard | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const mounted = useRef(true);
   const autoStarted = useRef(false);
   const recordTimer = useRef<number | null>(null);
   const focusNext = useRef<Focusable | null>(null);
   const stopRef = useRef<HTMLButtonElement>(null);
-  const keepRef = useRef<HTMLButtonElement>(null);
   const sayAgainRef = useRef<HTMLButtonElement>(null);
   const voiceRef = useRef<HTMLButtonElement>(null);
-  const refs = { stop: stopRef, keep: keepRef, sayAgain: sayAgainRef, voice: voiceRef };
+  const refs = { stop: stopRef, sayAgain: sayAgainRef, voice: voiceRef };
 
   const isChoice = step.type === 'single_choice';
   const fieldLabel = step.title ? t(lang, step.title) : step.id;
@@ -174,8 +171,9 @@ export function VoiceInput({
     return { ...base, value, display, personal: true, noMatch: false, alternatives: others };
   };
 
-  /** Mode (or a recorded clip the flow already put in the field): straight in, then
-   * "We heard: …". Otherwise the "We heard" card with Keep. */
+  /** What was heard goes straight into the field (unless the flow already put a recorded
+   * clip's text there), then "We heard: …" is shown and said. Focus moves to Say again (the
+   * button that was pressed is gone); its name is said after "We heard", not over it. */
   const present = (h: Heard, alreadyFilled: boolean) => {
     if (!mounted.current) return;
     if (h.noMatch) {
@@ -186,25 +184,17 @@ export function VoiceInput({
       say([keyPart(lang, 'voice.no_choice_match')]);
       return;
     }
-    const heardParts: Part[] = [
+    if (!alreadyFilled) onConfirm(h.value);
+    keepFocus('sayAgain');
+    setHeard(h);
+    setState('heard');
+    const mockNote = h.mock ? ` ${t(lang, 'voice.mock_note')}` : '';
+    announce(`${t(lang, 'voice.heard')} ${h.display}.${mockNote}`);
+    say([
       keyPart(lang, 'voice.heard'),
       { text: h.display, personal: h.personal, fallbackKey: 'speech.answer_in_box' },
-    ];
-    if (mode || alreadyFilled) {
-      if (!alreadyFilled) onConfirm(h.value);
-      keepFocus('sayAgain');
-      setHeard(h);
-      setState('heard');
-      const mockNote = h.mock ? ` ${t(lang, 'voice.mock_note')}` : '';
-      announce(`${t(lang, 'voice.heard')} ${h.display}.${mockNote}`);
-      say([...heardParts, h.mock && keyPart(lang, 'voice.mock_note')]);
-      return;
-    }
-    keepFocus('keep');
-    setHeard(h);
-    setState('review');
-    announce(`${t(lang, 'voice.heard')} ${h.display}`);
-    say(heardParts);
+      h.mock && keyPart(lang, 'voice.mock_note'),
+    ]);
   };
 
   /* ---------------------------------------------------------------- */
@@ -281,6 +271,7 @@ export function VoiceInput({
     announce(t(lang, 'voice.listening'));
     let failed = false;
     webSpeech.start(lang, {
+      // Comes only once the microphone is closed, so "We heard: …" can't be heard as an answer.
       onResult: (alternatives) => {
         holdSpeech(false);
         present(interpret(alternatives), false);
@@ -365,24 +356,15 @@ export function VoiceInput({
     webSpeech.stop();
   };
 
-  const handleKeep = () => {
-    if (!heard) return;
-    onConfirm(heard.value);
-    setState('idle');
-    setHeard(null);
-    announce(`${t(lang, 'voice.filled')} ${heard.display}`);
-    focusField();
-  };
-
   const handleAlternative = (alt: Alternative) => {
     onConfirm(alt.value);
     announce(`${t(lang, 'voice.filled')} ${alt.display}`);
-    if (state === 'review' || !heard) {
+    if (!heard) {
       setState('idle');
-      setHeard(null);
       focusField();
       return;
     }
+    keepFocus('sayAgain'); // the pressed guess goes away with the list
     setHeard({ ...heard, value: alt.value, display: alt.display, alternatives: [] });
   };
 
@@ -398,15 +380,6 @@ export function VoiceInput({
     setHeard(null);
     setNote(null);
     focusField(); // inside the widget the shadow root is the root: look it up from our node
-  };
-
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // Handle audio file fallback
-    const clipId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    void onPending(clipId);
-    announce(t(lang, 'status.saved_local'));
   };
 
   const activeCard = (text: string, recording: boolean) => (
@@ -471,16 +444,6 @@ export function VoiceInput({
             <Icon name="mic" />
             <span>{t(lang, 'voice.button', { field: fieldLabel })}</span>
           </Button>
-
-          {/* File upload fallback when mic is unavailable */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="audio/*"
-            style={{ display: 'none' }}
-            onChange={handleFileUpload}
-            aria-hidden="true"
-          />
         </div>
       )}
 
@@ -496,20 +459,6 @@ export function VoiceInput({
         <p className="bo-hint" style={{ margin: 0, fontWeight: 600 }}>
           {t(lang, 'voice.transcribing')}
         </p>
-      )}
-
-      {state === 'review' && heard && (
-        <ReviewCard
-          rawTranscript={heard.raw}
-          normalizedValue={heard.display}
-          lang={lang}
-          keepRef={refs.keep}
-          onKeep={handleKeep}
-          onSayAgain={handleSayAgain}
-          onTypeInstead={handleTypeInstead}
-          alternatives={heard.alternatives.map((a) => a.display)}
-          onAlternative={(i) => handleAlternative(heard.alternatives[i])}
-        />
       )}
 
       {state === 'heard' && heard && (

@@ -12,7 +12,9 @@ export interface SpeechAlternative {
 
 /** What one listening session reports. Only the session that is current reports anything. */
 export interface WebSpeechHandlers {
-  /** What was heard: the best guess first, then other guesses (maxAlternatives = 3). */
+  /** What was heard: the best guess first, then other guesses (maxAlternatives = 3). Called at
+   * most once per session, and only once the microphone is closed (so nothing said next, such
+   * as "We heard: …", can be heard as a new answer). `onEnd(true)` follows straight away. */
   onResult: (alternatives: SpeechAlternative[]) => void;
   onError: (error: Exclude<SpeechError, null>) => void;
   /** The session ended; `gotResult` is false when nothing was heard. */
@@ -33,10 +35,13 @@ export interface UseWebSpeechReturn {
 }
 
 interface SpeechResultEvent {
+  /** The first result that is new in this event. */
+  resultIndex?: number;
   results: {
     length: number;
     [index: number]: {
       length: number;
+      isFinal?: boolean;
       [index: number]: { transcript: string; confidence?: number };
     };
   };
@@ -100,9 +105,37 @@ function detach(r: ISpeechRecognition | null): void {
 }
 
 /**
+ * The guesses of the first final result in this event (best first), or null if it has none.
+ * Only that one result is used: some browsers (WebKit, some Android builds) repeat a phrase
+ * as extra results, and joining them made the answer grow ("abebe kebede abebe kebede …").
+ */
+function firstFinal(event: SpeechResultEvent): SpeechAlternative[] | null {
+  const results = event.results;
+  if (!results) return null;
+  for (let i = event.resultIndex ?? 0; i < results.length; i++) {
+    const result = results[i];
+    if (!result || result.isFinal === false) continue;
+    const alternatives: SpeechAlternative[] = [];
+    for (let j = 0; j < result.length; j++) {
+      const alt = result[j];
+      if (alt?.transcript?.trim()) {
+        alternatives.push({ text: alt.transcript.trim(), confidence: alt.confidence ?? 0 });
+      }
+    }
+    if (alternatives.length > 0) return alternatives;
+  }
+  return null;
+}
+
+/** How long to wait for the browser's "end" after we closed the microphone ourselves. */
+const END_WAIT_MS = 1500;
+
+/**
  * React hook wrapping the Web Speech Recognition API.
  * Never starts without an explicit `start()` call. Each `start()` replaces the previous session,
  * whose events are ignored from then on (so an old "aborted" can't spoil the new one).
+ * A session gives at most one answer: the first final result. The microphone is then closed at
+ * once, and the answer is reported only when it is closed.
  */
 export function useWebSpeech(): UseWebSpeechReturn {
   const Ctor = getSpeechRecognitionCtor();
@@ -110,8 +143,12 @@ export function useWebSpeech(): UseWebSpeechReturn {
 
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
+  // Cancels the current session's pending report (the wait for "end" after a result).
+  const cancelRef = useRef<(() => void) | null>(null);
 
   const abort = useCallback(() => {
+    cancelRef.current?.();
+    cancelRef.current = null;
     const r = recognitionRef.current;
     recognitionRef.current = null;
     detach(r);
@@ -141,42 +178,53 @@ export function useWebSpeech(): UseWebSpeechReturn {
       recognition.interimResults = false;
       recognition.continuous = false;
       recognition.maxAlternatives = 3;
-      let gotResult = false;
+
+      let result: SpeechAlternative[] | null = null;
+      let finished = false;
+      let endTimer: number | undefined;
+
+      // The session is over (the browser said "end", or it didn't in time after a result):
+      // report the one answer, if there is one, then the end.
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        window.clearTimeout(endTimer);
+        if (cancelRef.current === cancel) cancelRef.current = null;
+        if (recognitionRef.current === recognition) recognitionRef.current = null;
+        detach(recognition);
+        setListening(false);
+        if (result) handlers.onResult(result);
+        handlers.onEnd(result !== null);
+      };
+      const cancel = () => {
+        finished = true;
+        window.clearTimeout(endTimer);
+      };
+      cancelRef.current = cancel;
 
       recognition.onresult = (event: SpeechResultEvent) => {
-        const results = event.results;
-        if (!results || results.length === 0) return;
-        let alternatives: SpeechAlternative[];
-        if (results.length === 1) {
-          alternatives = [];
-          for (let j = 0; j < results[0].length; j++) {
-            const alt = results[0][j];
-            if (alt?.transcript?.trim()) {
-              alternatives.push({ text: alt.transcript.trim(), confidence: alt.confidence ?? 0 });
-            }
-          }
-        } else {
-          let text = '';
-          for (let i = 0; i < results.length; i++) text += `${results[i][0].transcript} `;
-          alternatives = [{ text: text.trim(), confidence: results[0][0].confidence ?? 0 }];
+        if (result) return; // one answer per session: later (repeated) results are ignored
+        const alternatives = firstFinal(event);
+        if (!alternatives) return;
+        result = alternatives;
+        recognition.onresult = null;
+        // Close the microphone now: whatever is said next must not become a new answer.
+        try {
+          recognition.abort();
+        } catch {
+          // already stopped
         }
-        if (alternatives.length === 0) return;
-        gotResult = true;
-        handlers.onResult(alternatives);
+        endTimer = window.setTimeout(finish, END_WAIT_MS); // some browsers never say "end"
       };
 
       recognition.onerror = (event: SpeechErrorEvent) => {
         const error = mapError(event.error);
-        if (error === 'aborted') return;
+        // "aborted" is our own abort (after a result, or a new session): not a problem.
+        if (error === 'aborted' || result) return;
         handlers.onError(error);
       };
 
-      recognition.onend = () => {
-        if (recognitionRef.current === recognition) recognitionRef.current = null;
-        detach(recognition);
-        setListening(false);
-        handlers.onEnd(gotResult);
-      };
+      recognition.onend = finish;
 
       recognitionRef.current = recognition;
       setListening(true);
@@ -184,6 +232,8 @@ export function useWebSpeech(): UseWebSpeechReturn {
         recognition.start();
       } catch {
         // Already started or another error
+        cancel();
+        if (cancelRef.current === cancel) cancelRef.current = null;
         recognitionRef.current = null;
         detach(recognition);
         setListening(false);
