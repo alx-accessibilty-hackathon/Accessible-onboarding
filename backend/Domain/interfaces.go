@@ -278,6 +278,15 @@ type FlowStore interface {
 	IsNeedCode(code string) bool
 }
 
+// TTSCacheRepositoryI keeps read-aloud audio in the database: shared by every API instance and
+// kept across restarts and redeploys, so a text-to-speech provider is paid once per clip.
+type TTSCacheRepositoryI interface {
+	// GetAudio returns the clip's audio and counts the hit; ErrNotFound when it isn't stored.
+	GetAudio(ctx context.Context, key string) ([]byte, error)
+	// PutAudio stores a clip (a clip already stored under the same key is kept).
+	PutAudio(ctx context.Context, clip *TTSClip) error
+}
+
 type SpeechService interface {
 	HasServerSpeech() bool
 	HasCloudSpeech() bool

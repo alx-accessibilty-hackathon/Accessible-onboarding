@@ -610,10 +610,15 @@ const serverOffUntil = new Map<string, number>();
 let serverMissing = false; // the API has no synthesis endpoint at all
 const MAX_CLIPS = 200;
 
+// Ethiopic letters (not its punctuation or numerals): the Amharic voice is only given text that
+// has Amharic words in it (the server also strips digits, symbols and Latin text before speaking).
+const ETHIOPIC_LETTER = /[ሀ-፟ᎀ-᎟ⶀ-⷟꬀-꬯]/;
+
 function serverAudio(text: string, lang: string): Promise<string | null> {
   if (!api || serverMissing || (serverOffUntil.get(lang) ?? 0) > Date.now()) {
     return Promise.resolve(null);
   }
+  if (lang === 'am' && !ETHIOPIC_LETTER.test(text)) return Promise.resolve(null);
   const cacheKey = `${lang}|${text}`;
   let clip = serverClips.get(cacheKey);
   if (!clip) {

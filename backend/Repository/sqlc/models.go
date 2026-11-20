@@ -202,6 +202,19 @@ type SupportRequest struct {
 	UpdatedAt      time.Time
 }
 
+type TtsCache struct {
+	CacheKey  string
+	Provider  string
+	Voice     string
+	Language  string
+	Text      string
+	MimeType  string
+	Audio     []byte
+	Hits      int32
+	CreatedAt time.Time
+	LastHitAt *time.Time
+}
+
 type VerificationCode struct {
 	ID             uuid.UUID
 	PhoneE164      string

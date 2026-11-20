@@ -28,8 +28,11 @@ type Config struct {
 	AzureSpeechKey    string        // AZURE_SPEECH_KEY
 	AzureSpeechRegion string        // AZURE_SPEECH_REGION
 	LocalSTTURL       string        // LOCAL_STT_URL
-	GeminiAPIKey      string        // GEMINI_API_KEY: Google AI Studio key for TTS (Amharic + English)
-	TTSCacheDir       string        // TTS_CACHE_DIR: directory for persistent on-disk audio cache (default ./data/tts_cache)
+	AddisAIAPIKey     string        // ADDIS_AI_API_KEY: Addis AI key, turns on the Amharic server voice (read aloud)
+	AddisAIVoiceID    string        // ADDIS_AI_VOICE_ID: the one Amharic voice for every clip (default am-hamen)
+	AddisAISpeed      int           // ADDIS_AI_SPEED: 1–100, or 0 for the provider's default (default 0)
+	TTSCacheDir       string        // TTS_CACHE_DIR: on-disk read-aloud clip cache, "" for none (default ./data/tts_cache)
+	TTSDailyLimit     int           // TTS_DAILY_LIMIT: paid read-aloud calls per day, 0 = no limit (default 300); cache hits are free
 
 	SMSProvider string // SMS_PROVIDER: console | afromessage | africastalking | twilio
 
@@ -60,8 +63,11 @@ func Load() (Config, error) {
 		AzureSpeechKey:         os.Getenv("AZURE_SPEECH_KEY"),
 		AzureSpeechRegion:      os.Getenv("AZURE_SPEECH_REGION"),
 		LocalSTTURL:            os.Getenv("LOCAL_STT_URL"),
-		GeminiAPIKey:           os.Getenv("GEMINI_API_KEY"),
-		TTSCacheDir:            getEnv("TTS_CACHE_DIR", "./data/tts_cache"),
+		AddisAIAPIKey:          os.Getenv("ADDIS_AI_API_KEY"),
+		AddisAIVoiceID:         getEnv("ADDIS_AI_VOICE_ID", "am-hamen"),
+		AddisAISpeed:           getInt("ADDIS_AI_SPEED", 0),
+		TTSCacheDir:            getEnvOrEmpty("TTS_CACHE_DIR", "./data/tts_cache"),
+		TTSDailyLimit:          getInt("TTS_DAILY_LIMIT", 300),
 		SMSProvider:            getEnv("SMS_PROVIDER", "console"),
 		DevAllowedOriginSuffix: os.Getenv("DEV_ALLOWED_ORIGIN_SUFFIX"),
 		ExtraAllowedOrigins:    splitList(os.Getenv("EXTRA_ALLOWED_ORIGINS")),
@@ -102,6 +108,14 @@ func (c Config) PublicWebURLProblem() string {
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+// getEnvOrEmpty is like getEnv, but a variable set to "" stays "" (to turn something off).
+func getEnvOrEmpty(key, fallback string) string {
+	if v, set := os.LookupEnv(key); set {
+		return strings.TrimSpace(v)
 	}
 	return fallback
 }

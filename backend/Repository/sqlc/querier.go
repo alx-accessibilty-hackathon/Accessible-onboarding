@@ -39,6 +39,8 @@ type Querier interface {
 	// Queries for resume tokens, verification codes and outbox messages.
 	CreateResumeToken(ctx context.Context, arg CreateResumeTokenParams) (ResumeToken, error)
 	CreateVerificationCode(ctx context.Context, arg CreateVerificationCodeParams) (VerificationCode, error)
+	// `bridge tts-clear`: forget every clip (they are made again, once, when next asked for).
+	DeleteAllTTSAudio(ctx context.Context) (int64, error)
 	// Everything else about the learner goes with it (ON DELETE CASCADE): registrations → answers
 	// and resume tokens, identity evidence, referrals, the support request, consents,
 	// applications and verification codes.
@@ -83,6 +85,8 @@ type Querier interface {
 	GetStaffByID(ctx context.Context, id uuid.UUID) (StaffUser, error)
 	// For the support inbox (Should). Returns the encrypted payload; decrypt with the learner ID.
 	GetSupportRequestByLearner(ctx context.Context, learnerID uuid.UUID) (GetSupportRequestByLearnerRow, error)
+	// Read-aloud audio cache (tts_cache): counts the hit and returns the audio.
+	GetTTSAudio(ctx context.Context, cacheKey string) ([]byte, error)
 	IncrementResumeTokenFailedAttempts(ctx context.Context, id uuid.UUID) (ResumeToken, error)
 	IncrementVerificationCodeFailedAttempts(ctx context.Context, id uuid.UUID) (VerificationCode, error)
 	ListAllowedOrigins(ctx context.Context) ([]string, error)
@@ -114,6 +118,8 @@ type Querier interface {
 	// Only the employer who owns the job can publish it. Publishing twice keeps the first date.
 	// No row returned: the job doesn't exist, belongs to another employer, or is closed.
 	PublishJob(ctx context.Context, arg PublishJobParams) (PublishJobRow, error)
+	// Two servers may make the same clip at once: the first one stays.
+	PutTTSAudio(ctx context.Context, arg PutTTSAudioParams) error
 	RevokeAuthSession(ctx context.Context, id uuid.UUID) error
 	// Saves an answer only if the client saw the latest version (R15, TECHNICAL_PLAN.md 5.2).
 	// base_version 0 means "nothing saved yet". No row returned means another device saved first.
