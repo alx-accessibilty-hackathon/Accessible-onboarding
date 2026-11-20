@@ -1,5 +1,7 @@
 import needsVocab from '@shared/vocab/needs.json';
-import { useId } from 'react';
+import { useId, useState } from 'react';
+import { Button } from '../components/Button';
+import { Icon } from '../components/Icon';
 import { t } from '../i18n/t';
 
 export interface JobFilterProps {
@@ -8,7 +10,37 @@ export interface JobFilterProps {
   onChange: (needs: string[]) => void;
 }
 
+/**
+ * The supports filter, behind a "Support I need (n chosen)" button (a disclosure), so the jobs
+ * are a few Tab presses away instead of after every checkbox. The needs ticked at sign-up are
+ * already chosen; the count on the button says how many.
+ */
 export function JobFilter({ lang, selectedNeeds, onChange }: JobFilterProps) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const chosen = selectedNeeds.filter((n) => n !== 'other').length;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-3)' }}>
+      <div>
+        <Button
+          variant="secondary"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((o) => !o)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--bo-space-2)' }}
+        >
+          <span>{t(lang, 'jobs.filter_toggle', { n: chosen })}</span>
+          <Icon name={open ? 'expand_less' : 'expand_more'} />
+        </Button>
+      </div>
+      <div id={panelId} hidden={!open}>
+        {open && <NeedsFieldset lang={lang} selectedNeeds={selectedNeeds} onChange={onChange} />}
+      </div>
+    </div>
+  );
+}
+
+function NeedsFieldset({ lang, selectedNeeds, onChange }: JobFilterProps) {
   const hintId = `${useId()}-hint`;
 
   const handleToggle = (code: string) => {

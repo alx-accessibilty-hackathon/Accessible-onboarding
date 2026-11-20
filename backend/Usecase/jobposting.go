@@ -8,7 +8,58 @@ import (
 
 // accommodationsNamespacePath is added to PUBLIC_WEB_URL to name our JSON-LD extension.
 // schema.org has no property for workplace accommodations, so the codes go in "acc:offers".
-const accommodationsNamespacePath = "/ns/accommodations#"
+// The document that defines them is served at PUBLIC_WEB_URL + accommodationsVocabularyPath.
+const (
+	accommodationsVocabularyPath = "/ns/accommodations"
+	accommodationsNamespacePath  = accommodationsVocabularyPath + "#"
+)
+
+// AccommodationsVocabulary is the JSON-LD document at PUBLIC_WEB_URL/ns/accommodations: what the
+// "acc" prefix of a JobPosting means. It defines the property acc:offers and every code it can
+// hold (one schema.org DefinedTerm per accommodation, in the order of the needs vocabulary), so
+// a JobPosting reader can look the codes up instead of guessing.
+func AccommodationsVocabulary(publicURL string, codes []string) map[string]any {
+	doc := strings.TrimRight(publicURL, "/") + accommodationsVocabularyPath
+	terms := make([]any, 0, len(codes))
+	for _, code := range codes {
+		text, ok := accommodationBenefit[code] // "other" is never offered by employers
+		if !ok {
+			continue
+		}
+		terms = append(terms, map[string]any{
+			"@id":                     "acc:" + code,
+			"@type":                   "schema:DefinedTerm",
+			"schema:termCode":         code,
+			"schema:name":             text,
+			"schema:inDefinedTermSet": map[string]any{"@id": doc},
+		})
+	}
+	return map[string]any{
+		"@context": map[string]any{
+			"acc":    doc + "#",
+			"schema": "https://schema.org/",
+			"rdf":    "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+			"rdfs":   "http://www.w3.org/2000/01/rdf-schema#",
+		},
+		"@graph": []any{
+			map[string]any{
+				"@id":         doc,
+				"@type":       "schema:DefinedTermSet",
+				"schema:name": "Workplace accommodations",
+				"schema:description": "The supports (accommodations) an employer offers for a job. " +
+					"A JobPosting lists their codes in acc:offers.",
+				"schema:hasDefinedTerm": terms,
+			},
+			map[string]any{
+				"@id":                   "acc:offers",
+				"@type":                 "rdf:Property",
+				"rdfs:label":            "offers",
+				"rdfs:comment":          "The accommodations this job offers: a list of codes (schema:termCode) from this set.",
+				"schema:domainIncludes": map[string]any{"@id": "schema:JobPosting"},
+			},
+		},
+	}
+}
 
 // schema.org employmentType values.
 var schemaEmploymentType = map[string]string{

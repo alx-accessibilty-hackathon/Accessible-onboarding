@@ -35,6 +35,7 @@ export function Dialog({
 }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const openerRef = useRef<Element | null>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const id = useId();
 
   // Open / close the native dialog and manage focus restoration.
@@ -48,6 +49,9 @@ export function Dialog({
       const shadowActive = rootNode instanceof ShadowRoot ? rootNode.activeElement : null;
       openerRef.current = shadowActive ?? document.activeElement;
       el.showModal();
+      // Start at the title (not at the first button): it says where you are, and Read aloud
+      // then reads the dialog instead of only the name of a button.
+      titleRef.current?.focus();
     } else if (!open && el.open) {
       el.close();
       // Return focus to the element that opened the dialog.
@@ -92,7 +96,9 @@ export function Dialog({
   return (
     <dialog ref={dialogRef} className={cls} onCancel={handleCancel} aria-label={title}>
       <div className="bo-dialog-header">
-        <h2 className="bo-dialog-title">{title}</h2>
+        <h2 ref={titleRef} tabIndex={-1} className="bo-dialog-title">
+          {title}
+        </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--bo-space-2)' }}>
           {open && readParts && lang && <ListenButton lang={lang} parts={readParts} />}
           <button

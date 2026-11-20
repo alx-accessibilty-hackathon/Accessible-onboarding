@@ -37,7 +37,7 @@ describe('focusSpeech toggle buttons', () => {
     vi.useFakeTimers();
   });
 
-  it('speaks toggled state with force:true when clicking a standalone toggle button', async () => {
+  it('speaks toggled state at once (interrupt) when clicking a standalone toggle button', async () => {
     const speakSpy = vi.spyOn(speaker, 'speak').mockResolvedValue(true);
     const { rerender } = render(<TestComponent standalonePressed={false} />);
 
@@ -59,7 +59,7 @@ describe('focusSpeech toggle buttons', () => {
         expect.objectContaining({ text: 'on' }),
       ]),
       'en',
-      { force: true },
+      { interrupt: true },
     );
   });
 
@@ -85,7 +85,7 @@ describe('focusSpeech toggle buttons', () => {
         expect.objectContaining({ text: 'off' }),
       ]),
       'en',
-      { force: true },
+      { interrupt: true },
     );
   });
 

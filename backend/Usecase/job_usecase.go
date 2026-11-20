@@ -80,6 +80,15 @@ func (uc *JobUsecase) GetJobPosting(ctx context.Context, id uuid.UUID) (map[stri
 	return BuildJobPosting(job, job.EmployerName, uc.PublicURL+accommodationsNamespacePath), nil
 }
 
+// AccommodationsVocabulary returns the JSON-LD document that defines the "acc" prefix.
+func (uc *JobUsecase) AccommodationsVocabulary() map[string]any {
+	var codes []string
+	if uc.Flows != nil {
+		codes = uc.Flows.NeedCodes()
+	}
+	return AccommodationsVocabulary(uc.PublicURL, codes)
+}
+
 // ListEmployerJobs returns the signed-in employer's own jobs, drafts included (Q7).
 func (uc *JobUsecase) ListEmployerJobs(ctx context.Context, actor domain.Actor) ([]*domain.Job, error) {
 	employerID, err := employerOf(actor)

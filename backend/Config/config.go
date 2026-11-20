@@ -81,6 +81,24 @@ func (c Config) IsDev() bool {
 	return c.AppEnv == "dev"
 }
 
+// PublicWebURLProblem explains what is wrong with PUBLIC_WEB_URL for a hosted API ("" if
+// nothing). It goes into resume links and every JobPosting (the "acc" namespace and the
+// address returned on publish), so on a hosted API a localhost address breaks them for
+// everyone. Not set at all also counts, because the default is localhost.
+func (c Config) PublicWebURLProblem() string {
+	raw, set := os.LookupEnv("PUBLIC_WEB_URL")
+	if !set || strings.TrimSpace(raw) == "" {
+		return "PUBLIC_WEB_URL is not set, so links use " + c.PublicWebURL +
+			": set it to the public https:// address of the site (e.g. https://accessible-onboarding.vercel.app)"
+	}
+	lower := strings.ToLower(c.PublicWebURL)
+	if !c.IsDev() && (strings.Contains(lower, "localhost") || strings.Contains(lower, "127.0.0.1")) {
+		return "PUBLIC_WEB_URL is " + c.PublicWebURL + " while APP_ENV is " + c.AppEnv +
+			": JobPosting and resume links will point to a local address"
+	}
+	return ""
+}
+
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

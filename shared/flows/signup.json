@@ -30,17 +30,6 @@
       "required": true,
       "storage": "answer",
       "validate": [{ "rule": "min_length", "value": 2, "error": "too_short" }],
-      "next": "preferred_name"
-    },
-    {
-      "id": "preferred_name",
-      "type": "text",
-      "title": "signup.preferred_name.title",
-      "hint": "signup.preferred_name.hint",
-      "icon": "person",
-      "autocomplete": "nickname",
-      "required": false,
-      "storage": "answer",
       "next": "contact_method"
     },
     {
@@ -83,6 +72,65 @@
       "storage": "answer",
       "calendar_default": { "am": "ethiopian", "en": "gregorian" },
       "validate": [{ "rule": "date_valid", "error": "date_invalid" }],
+      "next": "sex"
+    },
+    {
+      "id": "sex",
+      "type": "single_choice",
+      "title": "signup.sex.title",
+      "hint": "signup.sex.hint",
+      "icon": "person",
+      "required": false,
+      "storage": "answer",
+      "options": [
+        { "value": "female", "label": "signup.sex.female", "say": ["female", "woman", "ሴት"] },
+        { "value": "male", "label": "signup.sex.male", "say": ["male", "man", "ወንድ"] }
+      ],
+      "next": "region"
+    },
+    {
+      "id": "region",
+      "type": "single_choice",
+      "title": "signup.region.title",
+      "hint": "signup.region.hint",
+      "icon": "location_on",
+      "required": false,
+      "storage": "answer",
+      "options": [
+        { "value": "addis_ababa", "label": "signup.region.addis_ababa", "say": ["addis ababa", "addis", "አዲስ አበባ"] },
+        { "value": "afar", "label": "signup.region.afar", "say": ["afar", "አፋር"] },
+        { "value": "amhara", "label": "signup.region.amhara", "say": ["amhara", "አማራ"] },
+        { "value": "benishangul_gumuz", "label": "signup.region.benishangul_gumuz", "say": ["benishangul", "ቤኒሻንጉል"] },
+        { "value": "central_ethiopia", "label": "signup.region.central_ethiopia", "say": ["central ethiopia", "ማዕከላዊ ኢትዮጵያ"] },
+        { "value": "dire_dawa", "label": "signup.region.dire_dawa", "say": ["dire dawa", "ድሬዳዋ", "ድሬ ዳዋ"] },
+        { "value": "gambela", "label": "signup.region.gambela", "say": ["gambela", "ጋምቤላ"] },
+        { "value": "harari", "label": "signup.region.harari", "say": ["harari", "harar", "ሐረሪ", "ሐረር"] },
+        { "value": "oromia", "label": "signup.region.oromia", "say": ["oromia", "ኦሮሚያ"] },
+        { "value": "sidama", "label": "signup.region.sidama", "say": ["sidama", "ሲዳማ"] },
+        { "value": "somali", "label": "signup.region.somali", "say": ["somali", "ሶማሌ"] },
+        { "value": "south_ethiopia", "label": "signup.region.south_ethiopia", "say": ["south ethiopia", "ደቡብ ኢትዮጵያ"] },
+        { "value": "south_west_ethiopia", "label": "signup.region.south_west_ethiopia", "say": ["south west", "ደቡብ ምዕራብ"] },
+        { "value": "tigray", "label": "signup.region.tigray", "say": ["tigray", "ትግራይ"] },
+        { "value": "outside_ethiopia", "label": "signup.region.outside_ethiopia" }
+      ],
+      "next": "education"
+    },
+    {
+      "id": "education",
+      "type": "single_choice",
+      "title": "signup.education.title",
+      "hint": "signup.education.hint",
+      "icon": "school",
+      "required": false,
+      "storage": "answer",
+      "options": [
+        { "value": "none", "label": "signup.education.none" },
+        { "value": "primary", "label": "signup.education.primary" },
+        { "value": "secondary", "label": "signup.education.secondary" },
+        { "value": "tvet", "label": "signup.education.tvet", "say": ["tvet", "diploma", "certificate", "ቴክኒክ"] },
+        { "value": "degree", "label": "signup.education.degree", "say": ["degree", "university", "ዲግሪ"] },
+        { "value": "postgraduate", "label": "signup.education.postgraduate", "say": ["masters", "phd", "ማስተርስ"] }
+      ],
       "next": "id_route"
     },
     {

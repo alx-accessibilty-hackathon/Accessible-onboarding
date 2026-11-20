@@ -43,6 +43,9 @@ export interface SpeakOptions {
   force?: boolean;
   /** Wait for what is being said to finish (e.g. a new result count after "Checked …"). */
   after?: boolean;
+  /** The person moved somewhere themselves (Tab, a tap): stop everything, including the first
+   * screen reading and what waits for it, and say this now. */
+  interrupt?: boolean;
 }
 
 export interface SpeakerState {
@@ -189,6 +192,11 @@ function gestureReady(): Promise<void> {
   return new Promise((resolve) => gestureWaiters.push(resolve));
 }
 
+/** Resolves at the person's first key press or tap (at once if that already happened). */
+export function whenActivated(): Promise<void> {
+  return gestureReady();
+}
+
 // A tiny silent WAV: playing it lets mobile and desktop browsers test/unlock audio playback.
 const SILENCE =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
@@ -206,6 +214,7 @@ async function canAutoplay(): Promise<boolean> {
     }
     activated = true;
     setState({ activated: true });
+    gestureWaiters.splice(0).forEach((resolve) => resolve());
     return true;
   } catch {
     return false;
@@ -219,6 +228,11 @@ async function canAutoplay(): Promise<boolean> {
 /** Say these parts in order (cancelling anything else). Resolves true when all were played. */
 export function speak(parts: Part[], lang: string, opts: SpeakOptions = {}): Promise<boolean> {
   if (held && !opts.force) return Promise.resolve(false);
+  if (opts.interrupt) {
+    firstReading = 0; // what is said now replaces the first reading; nothing waits for it
+    queuedLow = null;
+    opts = { ...opts, low: false, after: false };
+  }
   if (opts.low && deferredPending) return Promise.resolve(false);
   if (opts.low && firstReading !== 0 && firstReading === generation && state.speaking) {
     queuedLow = { parts, lang, opts }; // said when the first reading is over
@@ -411,6 +425,7 @@ function stopPlayback(): void {
 export function primeSpeech(): void {
   activated = true;
   setState({ activated: true });
+  gestureWaiters.splice(0).forEach((resolve) => resolve());
   try {
     if (synthSupported() && !window.speechSynthesis.speaking) {
       window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));

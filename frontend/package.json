@@ -21,7 +21,9 @@
     "size": "size-limit",
     "mock": "npx --yes @stoplight/prism-cli mock ../api/openapi.yaml --port 4010",
     "api:types": "npx --yes openapi-typescript ../api/openapi.yaml -o src/api/types.gen.ts",
-    "audio:check": "node scripts/audio-check.mjs"
+    "audio:check": "node scripts/audio-check.mjs",
+    "i18n:new": "node scripts/i18n.mjs new",
+    "i18n:check": "node scripts/i18n.mjs check"
   },
   "dependencies": {
     "@r2wc/react-to-web-component": "^2.0.3",

@@ -17,13 +17,17 @@ export interface ErrorSummaryProps {
   focusKey?: number | string;
 }
 
-const FOCUSABLE = 'input:not([type="hidden"]), select, textarea, button';
+const FIELDS = 'input:not([type="hidden"]), select, textarea';
+const FOCUSABLE = `${FIELDS}, button`;
 
-// Focus the field itself; a fieldset (choices, date) can't take focus, so its first input does.
+// Focus the field itself; a fieldset (choices, date) can't take focus, so its first input does
+// (a date's Day, not the calendar buttons above it).
 function focusField(root: ShadowRoot | Document, id: string): void {
   const el = root.getElementById(id) as HTMLElement | null;
   if (!el) return;
-  const target = el.matches(FOCUSABLE) ? el : el.querySelector<HTMLElement>(FOCUSABLE);
+  const target = el.matches(FOCUSABLE)
+    ? el
+    : (el.querySelector<HTMLElement>(FIELDS) ?? el.querySelector<HTMLElement>(FOCUSABLE));
   (target ?? el).focus();
 }
 
@@ -83,6 +87,7 @@ export function ErrorSummary({ errors, lang, focusKey }: ErrorSummaryProps) {
           <li key={e.fieldId}>
             <a
               href={`#${e.fieldId}`}
+              data-bo-instruction={t(lang, 'speech.hint.error_link')}
               style={{
                 color: 'var(--bo-error)',
                 fontWeight: 700,

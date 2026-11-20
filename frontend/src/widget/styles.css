@@ -261,6 +261,44 @@
   cursor: pointer;
 }
 
+/* The widget's top bar (Get help, Language, Dark mode, Accessibility): compact, so the four
+   buttons fit on one line; they still wrap on a narrow phone or at large text sizes. Still a
+   48 px target (min-height from .bo-btn), text at least 16 px. */
+.bo-bar {
+  gap: var(--bo-space-2);
+}
+
+.bo-bar .bo-btn {
+  font-size: 0.9em;
+  padding: 0.35em 0.6em;
+  gap: var(--bo-space-1);
+}
+
+/* A phone can't fit four buttons on one line: the rows they wrap into are filled edge to edge,
+   so the bar looks even instead of ragged. */
+@media (max-width: 520px) {
+  .bo-bar .bo-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* A link that looks like a button (Call support, Send an SMS). */
+a.bo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--bo-space-2);
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+/* A choice card: the ring goes around the whole card, not only the small radio or box. */
+.bo-root label:has(> input:focus-visible) {
+  outline: 3px solid var(--bo-focus);
+  outline-offset: 2px;
+}
+
 /* Hidden on screen, still read by screen readers. */
 .bo-visually-hidden {
   position: absolute !important;

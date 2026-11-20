@@ -22,22 +22,28 @@ describe('Workflow: Check-your-answers navigation', () => {
     fireEvent.change(nameInput, { target: { value: 'Abebe Bikila' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    // Step 4: Preferred name (optional)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('What should we call you?');
-    fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
-
-    // Step 5: Contact method
+    // Step 4: Contact method
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('How can we reach you?');
     // Choose "Through an organisation that helps me" (partner) -> bypasses phone to dob
     const partnerRadio = screen.getByLabelText('Through an organisation that helps me');
     fireEvent.click(partnerRadio);
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    // Step 6: Date of birth (optional)
+    // Step 5: Date of birth (optional)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('When were you born?');
     fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
 
-    // Step 7: ID route
+    // Steps 6-8: Sex, region, education (optional)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('What is your sex?');
+    fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Where do you live?');
+    fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'What is the highest level of school you finished?',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Skip this question' }));
+
+    // Step 9: ID route
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Which of these do you have?',
     );
@@ -133,7 +139,7 @@ describe('Workflow: Job Application flow', () => {
 
     // Step 4: Attach support
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
-      'Do you want to share what would help you with this employer?',
+      'Do you want to ask this employer for the support you need?',
     );
     const attachNo = screen.getByLabelText('No');
     fireEvent.click(attachNo);

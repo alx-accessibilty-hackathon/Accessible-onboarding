@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -52,7 +53,25 @@ type QASuite struct {
 	cleanupOutboxIDs       []uuid.UUID
 }
 
+// initQASuite sets up the live QA suite. It calls a running API and writes to (then cleans up)
+// that API's database, so it runs only when asked, never in a plain `go test ./...` or in CI:
+//
+//	QA_BASE_URL=http://localhost:8080 go test -run TestCompleteQAExecution -v .
+//
+// DATABASE_URL (from the environment or backend/.env) must be the database of that API.
 func initQASuite(t *testing.T) *QASuite {
+	baseURL := strings.TrimRight(os.Getenv("QA_BASE_URL"), "/")
+	if baseURL == "" {
+		t.Skip("QA_BASE_URL is not set: skipping the live QA suite (it needs a running API and its database)")
+	}
+	// Asked for, but nothing answers: say so plainly instead of failing every case.
+	probe := &http.Client{Timeout: 10 * time.Second}
+	resp, err := probe.Get(baseURL + "/health")
+	if err != nil {
+		t.Fatalf("QA_BASE_URL=%s: the API doesn't answer GET /health (%v). Start it first (go run .)", baseURL, err)
+	}
+	resp.Body.Close()
+
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
@@ -60,7 +79,7 @@ func initQASuite(t *testing.T) *QASuite {
 
 	s := &QASuite{
 		t:       t,
-		baseURL: "http://localhost:8080",
+		baseURL: baseURL,
 		db:      db,
 		cfg:     cfg,
 		client: &http.Client{
@@ -180,7 +199,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SYS-01", Category: "System", Method: "GET", Path: "/health",
 			Scenario: "Liveness health check", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), `"status":"ok"`),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), `"status":"ok"`),
 			DBVerified: false, Evidence: string(body),
 		})
 
@@ -189,7 +208,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SYS-02", Category: "System", Method: "GET", Path: "/api/openapi.yaml",
 			Scenario: "OpenAPI specification document", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), "openapi: 3.0.3") && strings.Contains(hdr.Get("Content-Type"), "yaml"),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), "openapi: 3.0.3") && strings.Contains(hdr.Get("Content-Type"), "yaml"),
 			DBVerified: false,
 		})
 
@@ -198,7 +217,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SYS-03", Category: "System", Method: "GET", Path: "/api/docs",
 			Scenario: "Swagger UI documentation page", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), "swagger-ui") && strings.Contains(hdr.Get("Content-Type"), "html"),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), "swagger-ui") && strings.Contains(hdr.Get("Content-Type"), "html"),
 			DBVerified: false,
 		})
 
@@ -209,7 +228,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "CFG-01", Category: "Config", Method: "GET", Path: "/api/v1/config",
 			Scenario: "Get partner configuration with valid key", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), "Savanna (demo)"),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), "Savanna (demo)"),
 			DBVerified: true, Evidence: "Partner configuration retrieved successfully",
 		})
 
@@ -218,7 +237,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "CFG-02", Category: "Config", Method: "GET", Path: "/api/v1/config?key=...",
 			Scenario: "Partner key passed as query param without header strictly rejected", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401 && strings.Contains(string(body), "partner_key_missing"),
+			Passed:     err == nil && status == 401 && strings.Contains(string(body), "partner_key_missing"),
 			DBVerified: false,
 		})
 
@@ -227,7 +246,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "CFG-03", Category: "Config", Method: "GET", Path: "/api/v1/config",
 			Scenario: "Missing X-Partner-Key header returns 401", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401 && strings.Contains(string(body), "partner_key_missing"),
+			Passed:     err == nil && status == 401 && strings.Contains(string(body), "partner_key_missing"),
 			DBVerified: false,
 		})
 
@@ -238,7 +257,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "CFG-04", Category: "Config", Method: "GET", Path: "/api/v1/config",
 			Scenario: "Invalid partner key returns 401", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401 && strings.Contains(string(body), "partner_key_invalid"),
+			Passed:     err == nil && status == 401 && strings.Contains(string(body), "partner_key_invalid"),
 			DBVerified: false,
 		})
 
@@ -249,7 +268,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "CFG-05", Category: "Routing", Method: "GET", Path: "/api/v1/widget/config",
 			Scenario: "Alternate prefix route check (/widget/config -> 404)", ExpectedStatus: 404, ActualStatus: status,
-			Passed: err == nil && status == 404,
+			Passed:     err == nil && status == 404,
 			DBVerified: false,
 		})
 
@@ -260,7 +279,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "JOB-01", Category: "Jobs", Method: "GET", Path: "/api/v1/jobs",
 			Scenario: "List published jobs", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), "items"),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), "items"),
 			DBVerified: true, Evidence: "Jobs feed retrieved with items",
 		})
 
@@ -284,7 +303,7 @@ func TestCompleteQAExecution(t *testing.T) {
 			s.record(QATestCase{
 				ID: "JOB-02", Category: "Jobs", Method: "GET", Path: "/api/v1/jobs/:id",
 				Scenario: "Get single job details", ExpectedStatus: 200, ActualStatus: status,
-				Passed: err == nil && status == 200 && strings.Contains(string(body), sampleJobID),
+				Passed:     err == nil && status == 200 && strings.Contains(string(body), sampleJobID),
 				DBVerified: true,
 			})
 
@@ -293,7 +312,7 @@ func TestCompleteQAExecution(t *testing.T) {
 			s.record(QATestCase{
 				ID: "JOB-03", Category: "Jobs", Method: "GET", Path: "/api/v1/jobs/:id/jobposting.jsonld",
 				Scenario: "Public schema.org JobPosting JSON-LD (no auth needed)", ExpectedStatus: 200, ActualStatus: status,
-				Passed: err == nil && status == 200 && strings.Contains(string(body), "JobPosting") && strings.Contains(hdr.Get("Content-Type"), "json"),
+				Passed:     err == nil && status == 200 && strings.Contains(string(body), "JobPosting") && strings.Contains(hdr.Get("Content-Type"), "json"),
 				DBVerified: false,
 			})
 		}
@@ -305,7 +324,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "JOB-04", Category: "Jobs", Method: "GET", Path: "/api/v1/jobs/not-a-uuid",
 			Scenario: "Invalid UUID format check returns 400", ExpectedStatus: 400, ActualStatus: status,
-			Passed: err == nil && status == 400 && strings.Contains(string(body), "invalid_id"),
+			Passed:     err == nil && status == 400 && strings.Contains(string(body), "invalid_id"),
 			DBVerified: false,
 		})
 
@@ -316,7 +335,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "JOB-05", Category: "Jobs", Method: "GET", Path: "/api/v1/jobs/:id",
 			Scenario: "Non-existent job UUID returns 404", ExpectedStatus: 404, ActualStatus: status,
-			Passed: err == nil && status == 404 && strings.Contains(string(body), "not_found"),
+			Passed:     err == nil && status == 404 && strings.Contains(string(body), "not_found"),
 			DBVerified: false,
 		})
 	})
@@ -340,7 +359,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-01", Category: "Auth", Method: "POST", Path: "/api/v1/auth/staff/login",
 			Scenario: "Partner staff login with valid credentials", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.HasPrefix(staffToken, "st_") && loginResp.Role == "partner_staff",
+			Passed:     err == nil && status == 200 && strings.HasPrefix(staffToken, "st_") && loginResp.Role == "partner_staff",
 			DBVerified: true, Evidence: fmt.Sprintf("Role: %s, Token prefix: %s", loginResp.Role, staffToken[:5]),
 		})
 
@@ -358,7 +377,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-02", Category: "Auth", Method: "POST", Path: "/api/v1/auth/staff/login",
 			Scenario: "Employer staff login with valid credentials", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.HasPrefix(employerToken, "st_") && empLoginResp.Role == "employer",
+			Passed:     err == nil && status == 200 && strings.HasPrefix(employerToken, "st_") && empLoginResp.Role == "employer",
 			DBVerified: true, Evidence: fmt.Sprintf("Role: %s, Token prefix: %s", empLoginResp.Role, employerToken[:5]),
 		})
 
@@ -370,7 +389,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-03", Category: "Auth", Method: "POST", Path: "/api/v1/auth/staff/login",
 			Scenario: "Staff login with invalid password", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401 && strings.Contains(string(body), "unauthorized"),
+			Passed:     err == nil && status == 401 && strings.Contains(string(body), "unauthorized"),
 			DBVerified: false,
 		})
 
@@ -382,7 +401,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-04", Category: "Auth", Method: "POST", Path: "/api/v1/auth/staff/login",
 			Scenario: "Staff login with unknown email", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401 && strings.Contains(string(body), "unauthorized"),
+			Passed:     err == nil && status == 401 && strings.Contains(string(body), "unauthorized"),
 			DBVerified: false,
 		})
 
@@ -393,7 +412,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-05", Category: "Auth", Method: "GET", Path: "/api/v1/auth/staff/me",
 			Scenario: "Check current staff profile", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), "staff@savanna.example"),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), "staff@savanna.example"),
 			DBVerified: true, Evidence: "Staff profile retrieved",
 		})
 
@@ -402,7 +421,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-06", Category: "Auth", Method: "GET", Path: "/api/v1/auth/staff/me",
 			Scenario: "Missing staff token returns 401", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 
@@ -424,7 +443,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-07", Category: "Auth", Method: "POST", Path: "/api/v1/oauth/token",
 			Scenario: "OAuth client credentials token exchange", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.HasPrefix(partnerServerToken, "pt_") && oauthResp.Scope == "learners:read",
+			Passed:     err == nil && status == 200 && strings.HasPrefix(partnerServerToken, "pt_") && oauthResp.Scope == "learners:read",
 			DBVerified: true, Evidence: fmt.Sprintf("Token: %s, Scope: %s", partnerServerToken[:5], oauthResp.Scope),
 		})
 
@@ -436,7 +455,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-08", Category: "Auth", Method: "POST", Path: "/api/v1/oauth/token",
 			Scenario: "OAuth token request with invalid secret", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 	})
@@ -485,7 +504,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "REG-01", Category: "Registration", Method: "POST", Path: "/api/v1/registrations",
 			Scenario: "Start learner registration (Workflow 3)", ExpectedStatus: 201, ActualStatus: status,
-			Passed: err == nil && status == 201 && regResp.Status == "draft" && strings.HasPrefix(learnerToken, "lt_") && dbCheck1 && dbCheck2 && dbRegStatus == "draft",
+			Passed:     err == nil && status == 201 && regResp.Status == "draft" && strings.HasPrefix(learnerToken, "lt_") && dbCheck1 && dbCheck2 && dbRegStatus == "draft",
 			DBVerified: dbCheck1 && dbCheck2, Evidence: fmt.Sprintf("RegID: %s, LearnerID: %s", regID, learnerID),
 		})
 
@@ -497,7 +516,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "REG-02", Category: "Registration", Method: "GET", Path: "/api/v1/registrations/:id",
 			Scenario: "Read created registration (Workflow 4)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), regID.String()),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), regID.String()),
 			DBVerified: true, Evidence: "Registration record confirmed in database",
 		})
 
@@ -517,7 +536,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "REG-03", Category: "Registration", Method: "PATCH", Path: "/api/v1/registrations/:id",
 			Scenario: "Update registration progress (Workflow 6)", ExpectedStatus: 204, ActualStatus: status,
-			Passed: err == nil && status == 204 && dbCurrentStep == "full_name" && dbSimpleMode == true,
+			Passed:     err == nil && status == 204 && dbCurrentStep == "full_name" && dbSimpleMode == true,
 			DBVerified: true, Evidence: fmt.Sprintf("DB current_step: %s, simple_mode: %v", dbCurrentStep, dbSimpleMode),
 		})
 
@@ -536,7 +555,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "ANS-01", Category: "Answers", Method: "PUT", Path: "/api/v1/registrations/:id/answers/full_name",
 			Scenario: "Save answer step by step: full_name", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && dbAnsCheck && dbAnsVersion == 1,
+			Passed:     err == nil && status == 200 && dbAnsCheck && dbAnsVersion == 1,
 			DBVerified: dbAnsCheck, Evidence: fmt.Sprintf("Answer stored in DB with version: %d", dbAnsVersion),
 		})
 
@@ -552,7 +571,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "ANS-02", Category: "Answers", Method: "PUT", Path: "/api/v1/registrations/:id/answers/:questionId",
 			Scenario: "Optimistic locking 409 conflict detection", ExpectedStatus: 409, ActualStatus: status,
-			Passed: err == nil && status == 409 && strings.Contains(string(body), "conflict"),
+			Passed:     err == nil && status == 409 && strings.Contains(string(body), "conflict"),
 			DBVerified: true, Evidence: "Stale version rejected without database overwrite",
 		})
 
@@ -568,7 +587,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "ANS-03", Category: "Answers", Method: "PUT", Path: "/api/v1/registrations/:id/answers/contact_method",
 			Scenario: "Save answer: contact_method", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200,
+			Passed:     err == nil && status == 200,
 			DBVerified: true,
 		})
 
@@ -584,7 +603,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "ANS-04", Category: "Answers", Method: "PUT", Path: "/api/v1/registrations/:id/answers/phone",
 			Scenario: "Save answer: Ethiopian mobile phone number", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200,
+			Passed:     err == nil && status == 200,
 			DBVerified: true,
 		})
 
@@ -600,7 +619,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "ANS-05", Category: "Answers", Method: "PUT", Path: "/api/v1/registrations/:id/answers/dob",
 			Scenario: "Save answer: date of birth (ISO format)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200,
+			Passed:     err == nil && status == 200,
 			DBVerified: true,
 		})
 
@@ -616,7 +635,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "ANS-06", Category: "Answers", Method: "PUT", Path: "/api/v1/registrations/:id/answers/id_route",
 			Scenario: "Save answer: identification route choice", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200,
+			Passed:     err == nil && status == 200,
 			DBVerified: true,
 		})
 
@@ -632,7 +651,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "ANS-07", Category: "Answers", Method: "PUT", Path: "/api/v1/registrations/:id/answers/id_last4",
 			Scenario: "Save answer: national ID last 4 digits", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200,
+			Passed:     err == nil && status == 200,
 			DBVerified: true,
 		})
 
@@ -653,7 +672,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SUP-01", Category: "Support", Method: "PUT", Path: "/api/v1/registrations/:id/support-request",
 			Scenario: "Create encrypted support request (Workflow 7)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && srEncrypted,
+			Passed:     err == nil && status == 200 && srEncrypted,
 			DBVerified: srEncrypted, Evidence: fmt.Sprintf("Ciphertext size: %d bytes (Plaintext was NOT stored in DB)", len(dbCiphertext)),
 		})
 
@@ -672,7 +691,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "CON-01", Category: "Consent", Method: "POST", Path: "/api/v1/registrations/:id/consents",
 			Scenario: "Record informed consent (Workflow 8)", ExpectedStatus: 201, ActualStatus: status,
-			Passed: err == nil && status == 201 && dbConsentCheck && dbConsentGranted == true,
+			Passed:     err == nil && status == 201 && dbConsentCheck && dbConsentGranted == true,
 			DBVerified: dbConsentCheck, Evidence: "Consent row recorded in PostgreSQL",
 		})
 
@@ -697,7 +716,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "RES-01", Category: "Resume", Method: "POST", Path: "/api/v1/registrations/:id/resume-links",
 			Scenario: "Create cross-device resume link and code (Workflow 9)", ExpectedStatus: 201, ActualStatus: status,
-			Passed: err == nil && status == 201 && resumeCode != "" && dbResumeCheck && len(dbResumeCodeHash) == 32,
+			Passed:     err == nil && status == 201 && resumeCode != "" && dbResumeCheck && len(dbResumeCodeHash) == 32,
 			DBVerified: dbResumeCheck, Evidence: fmt.Sprintf("Code: %s, HMAC-SHA256 Hash stored: %x", resumeCode, dbResumeCodeHash[:8]),
 		})
 
@@ -715,7 +734,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "RES-02", Category: "Resume", Method: "POST", Path: "/api/v1/resume/lookup",
 			Scenario: "Lookup resume session via code without exposing personal data (Workflow 13)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && lookupResp.RegistrationID == regID.String() && (lookupResp.Check == "dob" || lookupResp.Check == "phone"),
+			Passed:     err == nil && status == 200 && lookupResp.RegistrationID == regID.String() && (lookupResp.Check == "dob" || lookupResp.Check == "phone"),
 			DBVerified: false, Evidence: fmt.Sprintf("Challenge check returned: %s", lookupResp.Check),
 		})
 
@@ -736,7 +755,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "RES-03", Category: "Resume", Method: "POST", Path: "/api/v1/resume/verify",
 			Scenario: "Resume verify failure increments failed attempts (Workflow 13)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401 && dbFailedAttempts == 1 && strings.Contains(string(body), "attempts_left"),
+			Passed:     err == nil && status == 401 && dbFailedAttempts == 1 && strings.Contains(string(body), "attempts_left"),
 			DBVerified: dbFailedAttempts == 1, Evidence: fmt.Sprintf("Failed attempts in DB: %d", dbFailedAttempts),
 		})
 
@@ -769,7 +788,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "RES-04", Category: "Resume", Method: "POST", Path: "/api/v1/resume/verify",
 			Scenario: "Resume verify success marks token used and creates session (Workflow 9 & 13)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.HasPrefix(verifyResp.Session.Token, "lt_") && dbUsedCheck && dbUsedAt != nil,
+			Passed:     err == nil && status == 200 && strings.HasPrefix(verifyResp.Session.Token, "lt_") && dbUsedCheck && dbUsedAt != nil,
 			DBVerified: dbUsedCheck && dbUsedAt != nil, Evidence: fmt.Sprintf("New Session Token prefix: %s, used_at in DB: %v", tokenPrefix, dbUsedAt),
 		})
 
@@ -787,7 +806,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "REG-04", Category: "Registration", Method: "POST", Path: "/api/v1/registrations/:id/submit",
 			Scenario: "Submit registration promotes to registered and creates evidence (Workflow 10)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && dbSubmittedRegStatus == "submitted" && dbSubmittedLearnerStatus == "registered" && dbIdEvidenceCount > 0,
+			Passed:     err == nil && status == 200 && dbSubmittedRegStatus == "submitted" && dbSubmittedLearnerStatus == "registered" && dbIdEvidenceCount > 0,
 			DBVerified: true, Evidence: fmt.Sprintf("Reg Status: %s, Learner Status: %s, Evidence rows: %d", dbSubmittedRegStatus, dbSubmittedLearnerStatus, dbIdEvidenceCount),
 		})
 
@@ -799,7 +818,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "REG-05", Category: "Registration", Method: "POST", Path: "/api/v1/registrations/:id/submit",
 			Scenario: "Submitting again is idempotent and returns 200 with registered status", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), "registered"),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), "registered"),
 			DBVerified: true, Evidence: "Idempotent submit verified with consistent database state",
 		})
 
@@ -815,7 +834,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "REG-06", Category: "Registration", Method: "PUT", Path: "/api/v1/registrations/:id/answers/:questionId",
 			Scenario: "Modifying submitted registration rejected (409 already_submitted)", ExpectedStatus: 409, ActualStatus: status,
-			Passed: err == nil && status == 409 && strings.Contains(string(body), "already_submitted"),
+			Passed:     err == nil && status == 409 && strings.Contains(string(body), "already_submitted"),
 			DBVerified: true, Evidence: "Answers table protected from post-submission tampering",
 		})
 
@@ -845,7 +864,7 @@ func TestCompleteQAExecution(t *testing.T) {
 			s.record(QATestCase{
 				ID: "APP-01", Category: "Applications", Method: "POST", Path: "/api/v1/jobs/:id/applications",
 				Scenario: "Registered learner applies for a job with support needs (Workflow 11)", ExpectedStatus: 201, ActualStatus: status,
-				Passed: err == nil && status == 201 && dbAppCheck && dbAppStatus == "submitted",
+				Passed:     err == nil && status == 201 && dbAppCheck && dbAppStatus == "submitted",
 				DBVerified: dbAppCheck, Evidence: fmt.Sprintf("AppID: %s, Status: %s", parsedAppID, dbAppStatus),
 			})
 
@@ -859,7 +878,7 @@ func TestCompleteQAExecution(t *testing.T) {
 			s.record(QATestCase{
 				ID: "APP-02", Category: "Applications", Method: "POST", Path: "/api/v1/jobs/:id/applications",
 				Scenario: "Duplicate job application rejected (Workflow 12)", ExpectedStatus: 409, ActualStatus: status,
-				Passed: err == nil && status == 409 && strings.Contains(string(body), "already_exists"),
+				Passed:     err == nil && status == 409 && strings.Contains(string(body), "already_exists"),
 				DBVerified: true, Evidence: "Duplicate application prevention verified in DB (already_exists)",
 			})
 		}
@@ -876,7 +895,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-01", Category: "Validation", Method: "POST", Path: "/api/v1/registrations",
 			Scenario: "Malformed JSON syntax returns 400 invalid_request", ExpectedStatus: 400, ActualStatus: status,
-			Passed: err == nil && status == 400 && strings.Contains(string(body), "invalid_request"),
+			Passed:     err == nil && status == 400 && strings.Contains(string(body), "invalid_request"),
 			DBVerified: false,
 		})
 
@@ -890,7 +909,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-02", Category: "Validation", Method: "POST", Path: "/api/v1/registrations",
 			Scenario: "Missing required language returns 422 validation_failed", ExpectedStatus: 422, ActualStatus: status,
-			Passed: err == nil && status == 422 && strings.Contains(string(body), "validation_failed"),
+			Passed:     err == nil && status == 422 && strings.Contains(string(body), "validation_failed"),
 			DBVerified: false,
 		})
 
@@ -904,7 +923,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-03", Category: "Validation", Method: "POST", Path: "/api/v1/registrations",
 			Scenario: "Oversized language string returns 422", ExpectedStatus: 422, ActualStatus: status,
-			Passed: err == nil && status == 422 && strings.Contains(string(body), "validation_failed"),
+			Passed:     err == nil && status == 422 && strings.Contains(string(body), "validation_failed"),
 			DBVerified: false,
 		})
 
@@ -916,7 +935,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-04", Category: "Validation", Method: "GET", Path: "/api/v1/registrations/:id",
 			Scenario: "Invalid UUID parameter returns 400 invalid_id", ExpectedStatus: 400, ActualStatus: status,
-			Passed: err == nil && status == 400 && strings.Contains(string(body), "invalid_id"),
+			Passed:     err == nil && status == 400 && strings.Contains(string(body), "invalid_id"),
 			DBVerified: false,
 		})
 
@@ -928,7 +947,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-05", Category: "Validation", Method: "GET", Path: "/api/v1/registrations/:id",
 			Scenario: "Non-existent registration UUID returns 404 or 403", ExpectedStatus: 404, ActualStatus: status,
-			Passed: err == nil && (status == 404 || status == 403),
+			Passed:     err == nil && (status == 404 || status == 403),
 			DBVerified: false,
 		})
 
@@ -939,7 +958,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-06", Category: "Validation", Method: "DELETE", Path: "/api/v1/config",
 			Scenario: "Unsupported HTTP method rejected (404/405)", ExpectedStatus: 404, ActualStatus: status,
-			Passed: err == nil && (status == 404 || status == 405),
+			Passed:     err == nil && (status == 404 || status == 405),
 			DBVerified: false,
 		})
 
@@ -950,7 +969,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-07", Category: "Validation", Method: "GET", Path: "/api/v1/ghost-route",
 			Scenario: "Unknown API route returns 404", ExpectedStatus: 404, ActualStatus: status,
-			Passed: err == nil && status == 404,
+			Passed:     err == nil && status == 404,
 			DBVerified: false,
 		})
 
@@ -966,7 +985,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-08", Category: "Validation", Method: "PUT", Path: "/api/v1/registrations/:id/answers/:questionId",
 			Scenario: "Invalid choice option rejected (409 or 422)", ExpectedStatus: 409, ActualStatus: status,
-			Passed: err == nil && (status == 409 || status == 422),
+			Passed:     err == nil && (status == 409 || status == 422),
 			DBVerified: false,
 		})
 
@@ -982,7 +1001,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "VAL-09", Category: "Validation", Method: "PUT", Path: "/api/v1/registrations/:id/answers/phone",
 			Scenario: "Invalid Ethiopian phone rejected (409 or 422)", ExpectedStatus: 409, ActualStatus: status,
-			Passed: err == nil && (status == 409 || status == 422),
+			Passed:     err == nil && (status == 409 || status == 422),
 			DBVerified: false,
 		})
 	})
@@ -999,7 +1018,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-01", Category: "Security", Method: "GET", Path: "/api/v1/registrations/:id",
 			Scenario: "Anonymous access to registration rejected (401)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 
@@ -1008,7 +1027,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-02", Category: "Security", Method: "GET", Path: "/api/v1/auth/staff/me",
 			Scenario: "Anonymous access to staff profile rejected (401)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 
@@ -1017,7 +1036,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-03", Category: "Security", Method: "GET", Path: "/api/v1/employer/jobs",
 			Scenario: "Anonymous access to employer jobs rejected (401)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 
@@ -1026,7 +1045,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-04", Category: "Security", Method: "GET", Path: "/api/v1/partner-api/learners",
 			Scenario: "Anonymous access to partner API rejected (401)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 
@@ -1037,7 +1056,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-06", Category: "Security", Method: "GET", Path: "/api/v1/auth/staff/me",
 			Scenario: "Learner token rejected from staff route (401)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 
@@ -1048,7 +1067,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-07", Category: "Security", Method: "POST", Path: "/api/v1/employer/jobs",
 			Scenario: "Learner token rejected from employer job creation (401)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 
@@ -1059,7 +1078,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-08", Category: "Security", Method: "GET", Path: "/api/v1/partner-api/learners",
 			Scenario: "Learner token rejected from partner server API (401)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: false,
 		})
 
@@ -1094,7 +1113,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-09", Category: "Security", Method: "GET", Path: "/api/v1/registrations/:id",
 			Scenario: "Learner B forbidden from viewing Learner A registration (403)", ExpectedStatus: 403, ActualStatus: status,
-			Passed: err == nil && status == 403 && strings.Contains(string(body), "forbidden"),
+			Passed:     err == nil && status == 403 && strings.Contains(string(body), "forbidden"),
 			DBVerified: true, Evidence: "Cross-learner access rejected with 403 forbidden",
 		})
 
@@ -1110,7 +1129,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-10", Category: "Security", Method: "PUT", Path: "/api/v1/registrations/:id/answers/:questionId",
 			Scenario: "Learner B forbidden from writing answers to Learner A registration (403)", ExpectedStatus: 403, ActualStatus: status,
-			Passed: err == nil && status == 403 && strings.Contains(string(body), "forbidden"),
+			Passed:     err == nil && status == 403 && strings.Contains(string(body), "forbidden"),
 			DBVerified: true, Evidence: "Cross-learner write rejected with 403 forbidden",
 		})
 
@@ -1140,7 +1159,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "SEC-11", Category: "Security", Method: "POST", Path: "/api/v1/partner/registrations/:id/consent-code",
 			Scenario: "Savanna staff forbidden from sending consent code for AAAPD learner (403)", ExpectedStatus: 403, ActualStatus: status,
-			Passed: err == nil && status == 403 && strings.Contains(string(body), "forbidden"),
+			Passed:     err == nil && status == 403 && strings.Contains(string(body), "forbidden"),
 			DBVerified: true, Evidence: "Cross-tenant partner boundary enforced with 403 forbidden",
 		})
 	})
@@ -1175,7 +1194,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "EMP-01", Category: "Employer", Method: "POST", Path: "/api/v1/employer/jobs",
 			Scenario: "Employer creates draft job (Workflow 16)", ExpectedStatus: 201, ActualStatus: status,
-			Passed: err == nil && status == 201 && dbJobCheck && dbJobStatus == "draft",
+			Passed:     err == nil && status == 201 && dbJobCheck && dbJobStatus == "draft",
 			DBVerified: dbJobCheck, Evidence: fmt.Sprintf("Created JobID: %s, Status: %s", createdJobID, dbJobStatus),
 		})
 
@@ -1186,7 +1205,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "EMP-02", Category: "Employer", Method: "GET", Path: "/api/v1/employer/jobs",
 			Scenario: "List employer jobs", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), createdJobID.String()),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), createdJobID.String()),
 			DBVerified: true, Evidence: "Employer job listed in company feed",
 		})
 
@@ -1200,7 +1219,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "EMP-03", Category: "Employer", Method: "POST", Path: "/api/v1/employer/jobs/:id/publish",
 			Scenario: "Publish draft job (Workflow 16)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && dbPubStatus == "published",
+			Passed:     err == nil && status == 200 && dbPubStatus == "published",
 			DBVerified: true, Evidence: fmt.Sprintf("Job published status in DB: %s", dbPubStatus),
 		})
 
@@ -1211,7 +1230,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "EMP-04", Category: "Employer", Method: "GET", Path: "/api/v1/jobs",
 			Scenario: "Verify published job is visible in public jobs feed (Workflow 17)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), createdJobID.String()),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), createdJobID.String()),
 			DBVerified: true, Evidence: "Published job visible to public applicants",
 		})
 	})
@@ -1229,7 +1248,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "PART-01", Category: "PartnerStaff", Method: "POST", Path: "/api/v1/partner/registrations/:id/consent-code",
 			Scenario: "Partner staff triggers consent code SMS (Workflow 14)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && dbVCodeCount > 0,
+			Passed:     err == nil && status == 200 && dbVCodeCount > 0,
 			DBVerified: dbVCodeCount > 0, Evidence: fmt.Sprintf("Verification codes created in DB: %d", dbVCodeCount),
 		})
 
@@ -1240,7 +1259,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "PART-02", Category: "PartnerServer", Method: "GET", Path: "/api/v1/partner-api/learners",
 			Scenario: "Partner server lists learners under its organization (Workflow 18)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), learnerID.String()),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), learnerID.String()),
 			DBVerified: true, Evidence: "Partner learner roster contains test learner",
 		})
 
@@ -1253,7 +1272,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "PART-03", Category: "PartnerServer", Method: "GET", Path: "/api/v1/partner-api/learners/:id",
 			Scenario: "Partner server retrieves learner details with privacy protections enforced", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && privacyProtected && strings.Contains(string(body), learnerID.String()),
+			Passed:     err == nil && status == 200 && privacyProtected && strings.Contains(string(body), learnerID.String()),
 			DBVerified: true, Evidence: "Verified: Sensitive accommodation data strictly excluded from partner response",
 		})
 	})
@@ -1267,7 +1286,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "DEV-01", Category: "Dev", Method: "GET", Path: "/api/v1/dev/messages",
 			Scenario: "Simulated SMS/Telegram outbox inspection", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), "items"),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), "items"),
 			DBVerified: true, Evidence: "Outbox messages listed",
 		})
 
@@ -1292,7 +1311,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "TEL-01", Category: "Webhook", Method: "POST", Path: "/api/v1/telegram/webhook",
 			Scenario: "Telegram bot /start webhook receives payload and queues reply", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), `"ok":true`) && finalMsgCount > initMsgCount,
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), `"ok":true`) && finalMsgCount > initMsgCount,
 			DBVerified: finalMsgCount > initMsgCount, Evidence: fmt.Sprintf("Telegram messages outbox grew from %d to %d", initMsgCount, finalMsgCount),
 		})
 	})
@@ -1330,7 +1349,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "STT-01", Category: "Speech", Method: "POST", Path: "/api/v1/speech/transcriptions",
 			Scenario: "Speech-to-text audio transcription with valid input (Workflow 15)", ExpectedStatus: 200, ActualStatus: status,
-			Passed: err == nil && status == 200 && strings.Contains(string(body), "transcript"),
+			Passed:     err == nil && status == 200 && strings.Contains(string(body), "transcript"),
 			DBVerified: false, Evidence: string(body),
 		})
 
@@ -1349,7 +1368,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "STT-02", Category: "Speech", Method: "POST", Path: "/api/v1/speech/transcriptions",
 			Scenario: "Speech transcription rejected when audio file missing (Workflow 15)", ExpectedStatus: 422, ActualStatus: status,
-			Passed: err == nil && status == 422,
+			Passed:     err == nil && status == 422,
 			DBVerified: false, Evidence: "Missing audio form file rejected with 422 validation_failed",
 		})
 	})
@@ -1365,7 +1384,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-09", Category: "Auth", Method: "POST", Path: "/api/v1/auth/logout",
 			Scenario: "Learner session logout (Forget me on this phone)", ExpectedStatus: 204, ActualStatus: status,
-			Passed: err == nil && status == 204,
+			Passed:     err == nil && status == 204,
 			DBVerified: true, Evidence: "Logout returned 204 No Content",
 		})
 
@@ -1377,7 +1396,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "AUTH-10", Category: "Security", Method: "GET", Path: "/api/v1/registrations/:id",
 			Scenario: "Revoked session token rejected upon subsequent request (401)", ExpectedStatus: 401, ActualStatus: status,
-			Passed: err == nil && status == 401,
+			Passed:     err == nil && status == 401,
 			DBVerified: true, Evidence: "Revoked token successfully denied access in DB session lookup",
 		})
 	})
@@ -1396,7 +1415,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "QUAL-01", Category: "Quality", Method: "OPTIONS", Path: "/api/v1/config",
 			Scenario: "CORS preflight request handling for whitelisted origin", ExpectedStatus: 204, ActualStatus: status,
-			Passed: err == nil && corsPassed,
+			Passed:     err == nil && corsPassed,
 			DBVerified: false, Evidence: fmt.Sprintf("Access-Control-Allow-Origin: %s", hdr.Get("Access-Control-Allow-Origin")),
 		})
 
@@ -1407,7 +1426,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "QUAL-02", Category: "Quality", Method: "OPTIONS", Path: "/api/v1/config",
 			Scenario: "Disallowed CORS origin rejected with 403 forbidden", ExpectedStatus: 403, ActualStatus: status,
-			Passed: err == nil && status == 403,
+			Passed:     err == nil && status == 403,
 			DBVerified: false,
 		})
 
@@ -1416,7 +1435,7 @@ func TestCompleteQAExecution(t *testing.T) {
 		s.record(QATestCase{
 			ID: "QUAL-03", Category: "Quality", Method: "GET", Path: "/health/",
 			Scenario: "Trailing slash request resolution", ExpectedStatus: 404, ActualStatus: status,
-			Passed: err == nil && (status == 404 || status == 200),
+			Passed:     err == nil && (status == 404 || status == 200),
 			DBVerified: false,
 		})
 	})

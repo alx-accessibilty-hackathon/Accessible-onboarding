@@ -80,6 +80,14 @@ Use Go 1.24. If `go get` tries to download a newer toolchain, run it with `GOTOO
 TEST_DATABASE_URL="postgres://bridge:bridge@localhost:5432/bridge?sslmode=disable" go test ./...
 ```
 
+**Live QA suite.** `qa_test.go` calls a **running** API over HTTP and checks the results in that API's database (`DATABASE_URL`, from the environment or `.env`), then deletes the rows it created. It is skipped unless `QA_BASE_URL` is set, so `go test ./...` and CI never run it. Start the API, then:
+
+```bash
+QA_BASE_URL=http://localhost:8080 go test -run TestCompleteQAExecution -v .
+```
+
+If nothing answers at `QA_BASE_URL/health`, it stops at once with that message. Point it only at a database you may write to (not the team's shared one during a demo).
+
 ## Database code with sqlc
 
 sqlc reads the migrations (the schema) and the queries in `Repository/queries/`, then writes type-safe Go into `Repository/sqlc/`. Repositories call that code; nothing else does.
@@ -146,7 +154,8 @@ The partner key may also come from the query string (`?key=` or `?partner_key=`)
 - **Registrations:** answers, progress, submit, the support request (encrypted) and consents
 - **Continue on another device:** resume links, lookup and verify
 - **The learner's own data (`/me`):** see, change and delete (below)
-- **Jobs:** public jobs, JobPosting JSON-LD, employer jobs, applications, and the employer's view of the applications to their jobs
+- **Jobs:** public jobs, JobPosting JSON-LD, the JSON-LD vocabulary of its `acc` prefix (`GET /ns/accommodations`, public, outside `/api/v1` so that `PUBLIC_WEB_URL/ns/accommodations` can be forwarded to it), employer jobs, applications, and the employer's view of the applications to their jobs
+- **Start-up check:** `serve` logs a `WARNING` when `PUBLIC_WEB_URL` is not set, or is a localhost address outside `APP_ENV=dev` (`Config.PublicWebURLProblem`): JobPosting and resume links are built from it
 - **Partner staff:** the consent code and the referral queue (below)
 - **Platform:** `/config`, speech-to-text (mock, Azure, local), the partner API (list and detail)
 - **Running it:** `migrate` and `seed`, the dev SMS inbox, and Docker
@@ -177,7 +186,7 @@ Errors use the usual shape `{status, code, title, errors: [{field, code}]}`.
 
 `dob`, `identity`, `support`, `referral` and `registered_at` are `null` when there is nothing.
 
-**`PATCH /api/v1/me`**: only the fields sent change: `full_name`, `preferred_name`, `contact_method`, `phone`, `dob` (same value as the sign-up answer; `null` clears it), `language`, `simple_mode`. Each field is checked with the rule of the sign-up step of the same name, and errors name the field (`{"field":"phone","code":"phone_invalid"}`). Contact by `partner` or `none` clears the stored phone, including the phone answer saved at sign-up. Contact by `phone` or `telegram` with no phone stored or sent is `422 {field: "phone", code: "required"}`. Before submit, only `language` and `simple_mode` may change; anything else is `409 not_registered`. Answers `200` with the `GET /me` body. Support needs are changed with `PUT /registrations/{id}/support-request`.
+**`PATCH /api/v1/me`**: only the fields sent change: `full_name`, `preferred_name`, `contact_method`, `phone`, `dob` (same value as the sign-up answer; `null` clears it), `language`, `simple_mode`. Each field is checked with the rule of the sign-up step of the same name (`preferred_name`, which the sign-up no longer asks, is only trimmed and limited to 100 characters, `too_long`), and errors name the field (`{"field":"phone","code":"phone_invalid"}`). Contact by `partner` or `none` clears the stored phone, including the phone answer saved at sign-up. Contact by `phone` or `telegram` with no phone stored or sent is `422 {field: "phone", code: "required"}`. Before submit, only `language` and `simple_mode` may change; anything else is `409 not_registered`. Answers `200` with the `GET /me` body. Support needs are changed with `PUT /registrations/{id}/support-request`.
 
 **`DELETE /api/v1/me`**: `204`. In one transaction: deletes the learner (registrations, answers, resume tokens, identity evidence, referrals, the support request, consents, applications and verification codes cascade), deletes their sessions (and staff sessions acting for them), and writes an `audit_log` row (`learner`, `learner.deleted`, target `learner`, no personal data). The token stops working (`401`).
 

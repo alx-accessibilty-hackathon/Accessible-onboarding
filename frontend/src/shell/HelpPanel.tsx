@@ -3,6 +3,7 @@ import type { Part } from '../a11y/speaker';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Dialog } from '../components/Dialog';
+import { Icon } from '../components/Icon';
 import { t } from '../i18n/t';
 
 export interface HelpContacts {
@@ -23,12 +24,20 @@ export function telegramUrl(handle: string): string {
   return `https://t.me/${handle.replace(/^@/, '')}`;
 }
 
+/** The number as a phone dials it: digits and a leading +, nothing else ("+251110000000"). */
+export function dialNumber(phone: string): string {
+  const digits = phone.replace(/[^\d+]/g, '');
+  return digits.startsWith('+')
+    ? `+${digits.slice(1).replace(/\+/g, '')}`
+    : digits.replace(/\+/g, '');
+}
+
 /** The help line as a tel: link. Its name keeps the number as shown (WCAG 2.5.3) and adds it
  * digit by digit, so screen readers don't say "two hundred and fifty-one". */
 export function PhoneLink({ phone, lang }: { phone: string; lang: string }) {
   return (
     <a
-      href={`tel:${phone.replace(/[^\d+]/g, '')}`}
+      href={`tel:${dialNumber(phone)}`}
       aria-label={t(lang, 'help_panel.phone_link', { number: `${phone} (${spellDigits(phone)})` })}
       style={{
         color: 'var(--bo-primary)',
@@ -71,10 +80,63 @@ export function helpParts(lang: string, help?: HelpContacts | null): Part[] {
     phone && spellDigits(phone),
     telegram && keyPart(lang, 'help_panel.telegram'),
     telegram,
+    phone && keyPart(lang, 'help_panel.call_hint'),
   ];
 }
 
-// SH-3: how to reach a person. Contacts come from the partner's config; nothing is sent.
+/**
+ * Big buttons that open the phone's own apps: the dialler with the number filled in (tel:),
+ * the messages app (sms:), Telegram. On a computer the browser offers its own app for each.
+ */
+function ContactActions({
+  phone,
+  telegram,
+  lang,
+}: {
+  phone?: string;
+  telegram?: string;
+  lang: string;
+}) {
+  const spoken = phone ? `${phone} (${spellDigits(phone)})` : '';
+  return (
+    <div className="bo-actions" style={{ gap: 'var(--bo-space-2)' }}>
+      {phone && (
+        <a
+          className="bo-btn bo-btn-primary"
+          href={`tel:${dialNumber(phone)}`}
+          aria-label={t(lang, 'help_panel.phone_link', { number: spoken })}
+        >
+          <Icon name="phone" />
+          <span>{t(lang, 'help_panel.call')}</span>
+        </a>
+      )}
+      {phone && (
+        <a
+          className="bo-btn bo-btn-secondary"
+          href={`sms:${dialNumber(phone)}`}
+          aria-label={t(lang, 'help_panel.sms_link', { number: spoken })}
+        >
+          <Icon name="sms" />
+          <span>{t(lang, 'help_panel.sms')}</span>
+        </a>
+      )}
+      {telegram && (
+        <a
+          className="bo-btn bo-btn-secondary"
+          href={telegramUrl(telegram)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon name="send" />
+          <span>{t(lang, 'help_panel.telegram_open')}</span>
+        </a>
+      )}
+    </div>
+  );
+}
+
+// SH-3: how to reach a person. Contacts come from the partner's config (GET /config `help`);
+// nothing is sent. Change the contacts there and the buttons follow.
 export function HelpPanel({ open, lang, onClose, help }: HelpPanelProps) {
   const phone = help?.phone?.trim();
   const telegram = help?.telegram?.trim();
@@ -102,16 +164,17 @@ export function HelpPanel({ open, lang, onClose, help }: HelpPanelProps) {
             >
               {phone && (
                 <p style={{ margin: 0 }}>
-                  <strong>{t(lang, 'help_panel.phone')}</strong>{' '}
-                  <PhoneLink phone={phone} lang={lang} />
+                  {/* The number as text (to read or copy); the buttons below call or write */}
+                  <strong>{t(lang, 'help_panel.phone')}</strong> <span dir="ltr">{phone}</span>
                 </p>
               )}
               {telegram && (
                 <p style={{ margin: 0 }}>
                   <strong>{t(lang, 'help_panel.telegram')}</strong>{' '}
-                  <TelegramLink telegram={telegram} />
+                  <span dir="ltr">{telegram}</span>
                 </p>
               )}
+              <ContactActions phone={phone} telegram={telegram} lang={lang} />
             </Card>
           </>
         ) : (

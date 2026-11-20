@@ -494,7 +494,8 @@ export function ProfilePage({
     };
 
     stepRow('full_name', data.full_name, true);
-    stepRow('preferred_name', data.preferred_name, true);
+    // Only while the sign-up flow asks for it (it no longer does: one full name, Ethiopian style).
+    if (stepFor('preferred_name')) stepRow('preferred_name', data.preferred_name, true);
     stepRow(
       'contact_method',
       data.contact_method ? t(lang, `signup.contact_method.${data.contact_method}`) : '',

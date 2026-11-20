@@ -71,7 +71,11 @@ export default defineConfig(({ mode }) => {
       // Allows importing the flow files from ../shared.
       fs: { allow: ['..'] },
       // Same-site API calls in development: /api/* goes to the Go API.
-      proxy: { '/api': env.VITE_API_PROXY_TARGET || 'http://localhost:8080' },
+      proxy: {
+        '/api': env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
+        // The JSON-LD vocabulary of JobPostings (PUBLIC_WEB_URL/ns/accommodations)
+        '/ns': env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
+      },
     },
     build: {
       rollupOptions: {

@@ -36,6 +36,8 @@
         position: sticky;
         top: 0;
         z-index: 100;
+        flex-wrap: wrap;
+        gap: 0.75rem;
       }
       .logo {
         font-size: 1.25rem;
@@ -55,6 +57,7 @@
         list-style: none;
         margin: 0;
         padding: 0;
+        flex-wrap: wrap;
       }
       .nav-links a {
         color: var(--color-text-muted);
@@ -76,6 +79,7 @@
       }
       .sidebar {
         width: var(--sidebar-width);
+        flex-shrink: 0;
         border-right: 1px solid var(--color-border);
         background: #ffffff;
         position: sticky;
@@ -120,7 +124,9 @@
         text-decoration: none;
         font-size: 0.9rem;
         border-radius: 6px;
-        transition: background 0.15s, color 0.15s;
+        transition:
+          background 0.15s,
+          color 0.15s;
       }
       .sidebar-nav a:hover {
         background: #f1f5f9;
@@ -128,6 +134,7 @@
       }
       .main-content {
         flex: 1;
+        min-width: 0;
         padding: 2.5rem 3rem;
         max-width: 900px;
       }
@@ -153,7 +160,8 @@
         font-weight: 700;
         margin-top: 1.75rem;
       }
-      p, li {
+      p,
+      li {
         font-size: 1rem;
         color: #334155;
       }
@@ -163,7 +171,7 @@
         border-radius: var(--radius);
         margin: 1.75rem 0;
         overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       }
       .endpoint-header {
         display: flex;
@@ -175,6 +183,7 @@
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 0.95rem;
         flex-wrap: wrap;
+        word-break: break-all;
       }
       .method-tag {
         font-weight: 700;
@@ -183,13 +192,31 @@
         font-size: 0.8rem;
         text-transform: uppercase;
       }
-      .method-get { background: #e0f2fe; color: #0369a1; }
-      .method-post { background: #dcfce7; color: #15803d; }
-      .method-put { background: #fef3c7; color: #b45309; }
-      .method-patch { background: #f3e8ff; color: #7e22ce; }
-      .method-delete { background: #fee2e2; color: #b91c1c; }
+      .method-get {
+        background: #e0f2fe;
+        color: #0369a1;
+      }
+      .method-post {
+        background: #dcfce7;
+        color: #15803d;
+      }
+      .method-put {
+        background: #fef3c7;
+        color: #b45309;
+      }
+      .method-patch {
+        background: #f3e8ff;
+        color: #7e22ce;
+      }
+      .method-delete {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
       .endpoint-body {
         padding: 1.25rem;
+      }
+      .table-wrap {
+        overflow-x: auto;
       }
       .param-table {
         width: 100%;
@@ -197,10 +224,12 @@
         font-size: 0.9rem;
         margin: 1rem 0;
       }
-      .param-table th, .param-table td {
+      .param-table th,
+      .param-table td {
         border-bottom: 1px solid var(--color-border);
         padding: 0.6rem 0.5rem;
         text-align: left;
+        vertical-align: top;
       }
       .param-table th {
         background: #f8fafc;
@@ -218,11 +247,14 @@
         position: relative;
         margin: 0.75rem 0;
       }
+      .code-block pre {
+        margin: 0;
+      }
       .copy-btn {
         position: absolute;
         top: 0.5rem;
         right: 0.5rem;
-        background: rgba(255,255,255,0.15);
+        background: rgba(255, 255, 255, 0.15);
         color: #ffffff;
         border: none;
         border-radius: 4px;
@@ -232,7 +264,7 @@
         font-weight: 600;
       }
       .copy-btn:hover {
-        background: rgba(255,255,255,0.25);
+        background: rgba(255, 255, 255, 0.25);
       }
       .swagger-banner {
         background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
@@ -274,15 +306,28 @@
         background: #f1f5f9;
         color: #475569;
       }
+      .callout {
+        background: #fff7ed;
+        border-left: 4px solid #ea580c;
+        border-radius: var(--radius);
+        padding: 0.85rem 1.1rem;
+        margin: 1.25rem 0;
+      }
+      .callout p {
+        margin: 0.25rem 0;
+      }
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--color-border);
+        margin: 2rem 0;
+      }
     </style>
   </head>
   <body>
     <header class="nav-bar">
-      <a href="/" class="logo">
-        <span>🌉</span> Bridge Onboarding API
-      </a>
+      <a href="/" class="logo"> <span>🌉</span> Bridge Onboarding API </a>
       <ul class="nav-links">
-        <li><a href="/partners.html">Get Partner Key</a></li>
+        <li><a href="/partners.html">Partner Guide</a></li>
         <li><a href="/docs.html" class="active">REST API Docs</a></li>
         <li><a href="/demo/savanna/signup.html">Savanna Demo</a></li>
         <li><a href="/staff.html">Staff Portal</a></li>
@@ -291,45 +336,65 @@
 
     <div class="docs-layout">
       <!-- Sidebar Navigation -->
-      <aside class="sidebar">
+      <aside class="sidebar" aria-label="On this page">
         <div class="sidebar-title">Getting Started</div>
         <ul class="sidebar-nav">
-          <li><a href="#overview">Overview & Base URLs</a></li>
-          <li><a href="#authentication">Authentication & Headers</a></li>
-          <li><a href="#errors">Standard Error Envelope</a></li>
+          <li><a href="#overview">Overview &amp; Base URLs</a></li>
+          <li><a href="#levels">Three integration levels</a></li>
+          <li><a href="#cold-start">First request can be slow</a></li>
+          <li><a href="#authentication">Authentication &amp; Callers</a></li>
+          <li><a href="#errors">Errors</a></li>
+          <li><a href="#limits">Rate limits &amp; Pagination</a></li>
         </ul>
 
-        <div class="sidebar-title">Widget & Jobs Endpoints</div>
+        <div class="sidebar-title">Widget &amp; Jobs</div>
         <ul class="sidebar-nav">
-          <li><a href="#get-config">GET /config (Partner Config)</a></li>
-          <li><a href="#get-jobs">GET /jobs (List Jobs)</a></li>
-          <li><a href="#get-job-detail">GET /jobs/:id (Job Detail)</a></li>
-          <li><a href="#get-jsonld">GET /jobs/:id/jobposting.jsonld</a></li>
+          <li><a href="#get-config">GET /config</a></li>
+          <li><a href="#get-jobs">GET /jobs</a></li>
+          <li><a href="#get-job-detail">GET /jobs/{id}</a></li>
         </ul>
 
-        <div class="sidebar-title">Learner Registration API</div>
+        <div class="sidebar-title">JobPosting JSON-LD (Level 3)</div>
         <ul class="sidebar-nav">
-          <li><a href="#post-registrations">POST /registrations (Start)</a></li>
-          <li><a href="#get-registration">GET /learner/registrations/:id</a></li>
-          <li><a href="#put-answers">PUT /.../answers/:questionId</a></li>
-          <li><a href="#put-support">PUT /.../support-request</a></li>
-          <li><a href="#post-submit">POST /.../submit (Complete)</a></li>
-          <li><a href="#post-apply">POST /learner/jobs/:id/applications</a></li>
+          <li><a href="#get-jsonld">GET /jobs/{id}/jobposting.jsonld</a></li>
+          <li><a href="#ns-accommodations">GET /ns/accommodations</a></li>
+          <li><a href="#acc-codes">Accommodation codes</a></li>
         </ul>
 
-        <div class="sidebar-title">Resume & Voice Services</div>
+        <div class="sidebar-title">Sign-up (Level 2)</div>
         <ul class="sidebar-nav">
-          <li><a href="#resume-lookup">POST /resume/lookup (SMS Code)</a></li>
-          <li><a href="#resume-verify">POST /resume/verify (Restore)</a></li>
-          <li><a href="#speech-tts">POST /speech/synthesis (TTS Audio)</a></li>
-          <li><a href="#speech-stt">POST /speech/transcriptions (STT)</a></li>
+          <li><a href="#post-registrations">1. POST /registrations</a></li>
+          <li><a href="#post-consents">2. POST …/consents</a></li>
+          <li><a href="#put-answers">3. PUT …/answers/{questionId}</a></li>
+          <li><a href="#conflicts">4. Conflicts (409)</a></li>
+          <li><a href="#put-support">5. PUT …/support-request</a></li>
+          <li><a href="#patch-progress">6. PATCH /registrations/{id}</a></li>
+          <li><a href="#post-submit">7. POST …/submit</a></li>
+          <li><a href="#read-back">8. Read it back</a></li>
+          <li><a href="#questions">The sign-up questions</a></li>
+          <li><a href="#identity">Identity: what is recorded</a></li>
         </ul>
 
-        <div class="sidebar-title">Server-to-Server (OAuth 2.0)</div>
+        <div class="sidebar-title">Learner</div>
         <ul class="sidebar-nav">
-          <li><a href="#oauth-token">POST /oauth/token (Client Creds)</a></li>
+          <li><a href="#post-apply">POST /jobs/{id}/applications</a></li>
+          <li><a href="#me">/me (profile, export, delete)</a></li>
+          <li><a href="#resume">Resume on another device</a></li>
+          <li><a href="#speech">Speech (STT &amp; TTS)</a></li>
+        </ul>
+
+        <div class="sidebar-title">Partner Server (OAuth 2.0)</div>
+        <ul class="sidebar-nav">
+          <li><a href="#oauth-setup">Get a client ID and secret</a></li>
+          <li><a href="#oauth-token">POST /oauth/token</a></li>
           <li><a href="#partner-learners">GET /partner-api/learners</a></li>
-          <li><a href="#partner-learner-id">GET /partner-api/learners/:id</a></li>
+          <li><a href="#partner-learner-id">GET /partner-api/learners/{id}</a></li>
+          <li><a href="#data-received">What data you receive</a></li>
+        </ul>
+
+        <div class="sidebar-title">Operators</div>
+        <ul class="sidebar-nav">
+          <li><a href="#local-dev">Local development</a></li>
         </ul>
       </aside>
 
@@ -337,145 +402,386 @@
       <main class="main-content">
         <h1 id="overview">Bridge Onboarding REST API</h1>
         <p>
-          Welcome to the <strong>Bridge Onboarding REST API</strong> reference. This API powers both the
-          client-side accessible Web Component (<code>&lt;bridge-onboarding&gt;</code>) and server-to-server
-          integrations for platform partners, employers, and referral NGOs.
+          This is the reference for the <strong>Bridge REST API</strong>. The same API powers the
+          accessible sign-up component <code>&lt;bridge-onboarding&gt;</code>, the career gateway,
+          the staff app, and server-to-server integrations for partner platforms. To embed the
+          component with one script tag, see the <a href="/partners.html">Partner Guide</a>.
         </p>
 
         <div class="swagger-banner">
           <div>
-            <h3>Interactive Swagger UI Available</h3>
-            <p>You can execute live requests directly against the API through our Swagger Explorer.</p>
+            <h3>Interactive Swagger UI</h3>
+            <p>Browse every endpoint, status code and example, and try requests live.</p>
           </div>
-          <a href="/api/docs" class="swagger-btn" target="_blank">Open Swagger UI ↗</a>
+          <a href="/api/docs" class="swagger-btn" target="_blank" rel="noopener"
+            >Open Swagger UI ↗</a
+          >
         </div>
 
         <h3>Base URLs</h3>
         <ul>
-          <li><strong>Production (via Vercel Proxy):</strong> <code>https://accessible-onboarding.vercel.app/api/v1</code></li>
-          <li><strong>Direct Backend:</strong> <code>https://accessible-onboarding.onrender.com/api/v1</code></li>
-          <li><strong>Local Dev:</strong> <code>http://localhost:8080/api/v1</code></li>
-          <li><strong>Health Check:</strong> <code>GET https://accessible-onboarding.vercel.app/health</code></li>
+          <li>
+            <strong>API base:</strong>
+            <code>https://accessible-onboarding.vercel.app/api/v1</code> (the hosted site forwards
+            <code>/api</code>, <code>/health</code> and <code>/ns</code> to the API server)
+          </li>
+          <li>
+            <strong>API server (direct):</strong>
+            <code>https://accessible-onboarding.onrender.com/api/v1</code>
+          </li>
+          <li>
+            <strong>Health check:</strong>
+            <code>GET https://accessible-onboarding.vercel.app/health</code> →
+            <code>{"status":"ok"}</code>
+          </li>
+          <li>
+            <strong>Contract (OpenAPI 3.0.3):</strong>
+            <code>https://accessible-onboarding.vercel.app/api/openapi.yaml</code>
+          </li>
+        </ul>
+        <p>
+          JSON everywhere, with snake_case fields. Two exceptions: <code>POST /oauth/token</code> is
+          form-encoded and <code>POST /speech/transcriptions</code> is multipart. IDs are UUIDs.
+          Step IDs (<code>full_name</code>, <code>phone</code>…) and flow IDs (<code>signup</code>)
+          are text. Times are RFC 3339 in UTC.
+        </p>
+
+        <h2 id="levels">Three integration levels</h2>
+        <div class="table-wrap">
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th>Level</th>
+                <th>What you do</th>
+                <th>Where it is documented</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. Script tag</strong></td>
+                <td>
+                  Add one <code>&lt;script&gt;</code> and a <code>&lt;bridge-onboarding&gt;</code>
+                  element to your page. The component calls this API for you.
+                </td>
+                <td><a href="/partners.html">Partner Guide</a></td>
+              </tr>
+              <tr>
+                <td><strong>2. REST API</strong></td>
+                <td>
+                  Build your own sign-up screens on the REST API, and/or read the learners who
+                  signed up on your site from your server with OAuth 2.0.
+                </td>
+                <td>
+                  <a href="#post-registrations">Sign-up</a>,
+                  <a href="#oauth-token">Partner server API</a>
+                </td>
+              </tr>
+              <tr>
+                <td><strong>3. JobPosting JSON-LD</strong></td>
+                <td>
+                  Read every published job as schema.org JobPosting, with the accommodations each
+                  job offers.
+                </td>
+                <td><a href="#get-jsonld">JobPosting JSON-LD</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout" id="cold-start">
+          <p><strong>The first request can be slow.</strong></p>
+          <p>
+            The hosted API runs on a free plan that sleeps when nobody uses it. The first request
+            after a quiet period can take up to about a minute. The component retries reading
+            requests (GET) for up to about 75 seconds and tells the learner: "Connecting to the
+            service. The first time, this can take up to a minute." In your own server code, use a
+            generous timeout, or call <code>GET /health</code> first to wake the API.
+          </p>
+        </div>
+
+        <hr class="divider" />
+
+        <h2 id="authentication">Authentication &amp; Callers</h2>
+        <p>Each caller proves who it is in its own way:</p>
+
+        <div class="table-wrap">
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th>Caller</th>
+                <th>Send</th>
+                <th>Get it from</th>
+                <th>Lifetime</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>A website</strong></td>
+                <td>
+                  <code>X-Partner-Key: pk_…</code>. The browser also sends <code>Origin</code>,
+                  which must be on the partner's allowed list.
+                </td>
+                <td>the Bridge operator</td>
+                <td>until changed</td>
+              </tr>
+              <tr>
+                <td><strong>A learner</strong></td>
+                <td>
+                  <code>X-Partner-Key</code> <strong>and</strong>
+                  <code>Authorization: Bearer lt_…</code>
+                </td>
+                <td><code>POST /registrations</code> or <code>POST /resume/verify</code></td>
+                <td>30 days, renewed each time it is used</td>
+              </tr>
+              <tr>
+                <td><strong>Staff</strong> (employers, partner staff)</td>
+                <td><code>Authorization: Bearer st_…</code></td>
+                <td><code>POST /auth/staff/login</code></td>
+                <td>12 hours</td>
+              </tr>
+              <tr>
+                <td><strong>A partner's server</strong></td>
+                <td>
+                  <code>Authorization: Bearer pt_…</code> with the scope
+                  <code>learners:read</code>
+                </td>
+                <td><code>POST /oauth/token</code></td>
+                <td>1 hour</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ul>
+          <li>
+            The partner key is <strong>public</strong>: it goes in your HTML. It is not a secret.
+          </li>
+          <li>
+            Tokens are opaque random strings (not JWTs). The server stores only their SHA-256 hash.
+          </li>
+          <li>
+            A learner token works only with the key of the partner the learner signed up with (<code
+              >403 forbidden</code
+            >
+            otherwise).
+          </li>
+          <li>
+            Calls from curl or a server send no <code>Origin</code> header, so they skip the origin
+            check. The partner key is still required.
+          </li>
+          <li>
+            If a page can't set headers, the partner key may also be sent as <code>?key=</code> or
+            <code>?partner_key=</code>.
+          </li>
         </ul>
 
-        <hr style="border: 0; border-top: 1px solid var(--color-border); margin: 2rem 0;" />
+        <hr class="divider" />
 
-        <h2 id="authentication">Authentication & Caller Types</h2>
-        <p>The API enforces role-based security based on caller headers and tokens:</p>
-
-        <table class="param-table">
-          <thead>
-            <tr>
-              <th>Caller</th>
-              <th>Header / Scheme</th>
-              <th>Used For</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Partner Website</strong></td>
-              <td><code>X-Partner-Key: pk_...</code><br />(checked against <code>Origin</code>)</td>
-              <td>Public widget configuration, job listings, and registration initialization.</td>
-            </tr>
-            <tr>
-              <td><strong>Learner Session</strong></td>
-              <td><code>Authorization: Bearer lt_...</code><br />+ <code>X-Partner-Key</code></td>
-              <td>Saving answers, submitting accommodation requests, submitting registrations.</td>
-            </tr>
-            <tr>
-              <td><strong>Staff / Employer</strong></td>
-              <td><code>Authorization: Bearer st_...</code></td>
-              <td>Posting jobs, managing candidate applications, reviewing learner referrals.</td>
-            </tr>
-            <tr>
-              <td><strong>Partner Server (OAuth)</strong></td>
-              <td><code>Authorization: Bearer pt_...</code><br />(scope: <code>learners:read</code>)</td>
-              <td>Server-to-server queries for learners referred to or registered via your organization.</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <hr style="border: 0; border-top: 1px solid var(--color-border); margin: 2rem 0;" />
-
-        <h2 id="errors">Standard Error Envelope</h2>
-        <p>Every API error returns a uniform JSON response format:</p>
+        <h2 id="errors">Errors</h2>
+        <p>
+          Every error has the same shape (except <code>POST /oauth/token</code>, which uses the
+          OAuth shape <code>{"error": "invalid_client"}</code>):
+        </p>
         <div class="code-block">
-          <pre>{
+          <pre>
+{
   "status": 422,
   "code": "validation_failed",
   "title": "Validation failed",
   "errors": [
-    {
-      "field": "phone",
-      "code": "phone_invalid"
-    }
+    { "field": "value", "code": "phone_invalid" }
   ]
 }</pre>
         </div>
+        <p>
+          Program against <code>code</code>. <code>title</code> is a short English hint and may be
+          missing. <code>errors</code> appears on <code>422</code>.
+        </p>
+        <div class="table-wrap">
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Codes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>400</td>
+                <td>
+                  <code>invalid_request</code> (unreadable body), <code>invalid_id</code> (an ID in
+                  the path is not a UUID)
+                </td>
+              </tr>
+              <tr>
+                <td>401</td>
+                <td>
+                  <code>partner_key_missing</code>, <code>partner_key_invalid</code>,
+                  <code>unauthorized</code> (token missing, wrong kind, expired or revoked),
+                  <code>resume_check_failed</code> (with <code>attempts_left</code>)
+                </td>
+              </tr>
+              <tr>
+                <td>403</td>
+                <td>
+                  <code>origin_not_allowed</code>, <code>forbidden</code>,
+                  <code>insufficient_scope</code>, <code>consent_required</code>
+                </td>
+              </tr>
+              <tr>
+                <td>404</td>
+                <td>
+                  <code>not_found</code> (also for other people's things, so IDs can't be probed),
+                  <code>resume_not_found</code>
+                </td>
+              </tr>
+              <tr>
+                <td>409</td>
+                <td>
+                  <code>answer_conflict</code> (with <code>current</code>),
+                  <code>already_submitted</code>, <code>already_exists</code> (applied twice),
+                  <code>not_registered</code>
+                </td>
+              </tr>
+              <tr>
+                <td>410</td>
+                <td><code>resume_expired</code></td>
+              </tr>
+              <tr>
+                <td>413</td>
+                <td><code>payload_too_large</code> (voice clip over 3 MB)</td>
+              </tr>
+              <tr>
+                <td>422</td>
+                <td>
+                  <code>validation_failed</code> with <code>errors[]</code>: <code>required</code>,
+                  <code>too_short</code>, <code>too_long</code>, <code>invalid</code>,
+                  <code>invalid_choice</code>, <code>email_invalid</code>,
+                  <code>phone_invalid</code>, <code>date_invalid</code>,
+                  <code>digits_invalid</code>, <code>last4_invalid</code>,
+                  <code>file_invalid</code>, <code>file_too_large</code>,
+                  <code>unknown_question</code>, <code>unknown_step</code>
+                </td>
+              </tr>
+              <tr>
+                <td>429</td>
+                <td>
+                  <code>rate_limited</code> (with <code>Retry-After</code>),
+                  <code>too_many_attempts</code>
+                </td>
+              </tr>
+              <tr>
+                <td>500</td>
+                <td><code>internal_error</code> (details are logged, never sent)</td>
+              </tr>
+              <tr>
+                <td>503</td>
+                <td><code>speech_unavailable</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-        <hr style="border: 0; border-top: 1px solid var(--color-border); margin: 2rem 0;" />
+        <h2 id="limits">Rate limits &amp; Pagination</h2>
+        <ul>
+          <li>
+            <strong>Rate limits</strong> (per API process): 120 requests a minute per IP, 1000
+            requests every 10 seconds for the whole server, and 20 a minute per IP on staff sign-in,
+            OAuth tokens, starting a registration and resume lookup/verify. Over the limit you get
+            <code>429 rate_limited</code> and a <code>Retry-After</code> header in seconds.
+          </li>
+          <li>
+            <strong>Lists</strong> look like
+            <code>{ "items": [...], "next_cursor": "…" | null }</code>. Only
+            <code>GET /jobs</code> pages today: pass <code>next_cursor</code> back as
+            <code>?cursor=</code> until it is <code>null</code>. Other lists return everything (or
+            up to <code>limit</code>) with <code>next_cursor: null</code>.
+          </li>
+        </ul>
+
+        <hr class="divider" />
 
         <!-- Endpoint: GET /config -->
-        <h2 id="get-config">1. Partner Configuration</h2>
+        <h2 id="get-config">Partner configuration</h2>
         <div class="endpoint-card">
           <div class="endpoint-header">
             <span class="method-tag method-get">GET</span>
             <span>/api/v1/config</span>
-            <span class="badge">Requires X-Partner-Key</span>
+            <span class="badge">X-Partner-Key</span>
           </div>
           <div class="endpoint-body">
-            <p>Fetches the partner's tailored configuration: supported languages, default language, accepted ID routes, referral partners, support phone/telegram, and primary brand theme.</p>
+            <p>
+              Returns the settings of the partner whose key was sent: languages, ID routes, the
+              referral organisations a learner without ID can choose, the help contact, the theme
+              colour and which speech services the server has. Missing settings get defaults.
+            </p>
+            <p>
+              The component uses <code>languages</code>, <code>help</code> and
+              <code>referral_partners</code> today. It does not use <code>default_language</code>,
+              <code>id_routes</code>, <code>theme</code> or <code>speech</code> yet. The settings
+              are read on every request, so a change shows the next time the component loads. See
+              <a href="/partners.html#settings">Partner settings</a> to change them.
+            </p>
 
-            <h4>Example Request (cURL):</h4>
+            <h4>Example request</h4>
             <div class="code-block">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
-              <pre>curl -i -H "X-Partner-Key: pk_demo_savanna" \
+              <pre>
+curl -s -H "X-Partner-Key: pk_demo_savanna" \
   https://accessible-onboarding.vercel.app/api/v1/config</pre>
             </div>
 
-            <h4>Example Response (200 OK):</h4>
+            <h4>Example response (200)</h4>
             <div class="code-block">
-              <pre>{
-  "partner": {
-    "id": "dbabf95e-ea08-4a6d-a77b-f980b33d8143",
-    "name": "Savanna (demo)"
-  },
+              <pre>
+{
+  "partner": { "id": "7b6f1c2e-…", "name": "Savanna (demo)" },
   "languages": ["am", "en"],
   "default_language": "am",
-  "id_routes": ["fayda", "kebele_id", "refugee_id", "unhcr_proof", "none"],
-  "referral_partners": [
-    { "id": "68f0ee77-b364-4299-84cf-87d1a014cf18", "name": "AAAPD" }
-  ],
-  "help": {
-    "phone": "+251 11 000 0000",
-    "telegram": "@bridge_help_demo"
-  },
-  "theme": { "primary": "#cc3636" }
+  "id_routes": ["fayda", "kebele_id", "refugee_id", "unhcr_proof", "other_document", "none"],
+  "referral_partners": [{ "id": "2c9e8f71-…", "name": "AAAPD" }],
+  "help": { "phone": "+251 11 000 0000", "telegram": "@bridge_help_demo" },
+  "theme": { "primary": "#cc3636" },
+  "speech": { "server": true, "cloud_available": false }
 }</pre>
             </div>
           </div>
         </div>
 
         <!-- Endpoint: GET /jobs -->
-        <h2 id="get-jobs">2. Job Listings & Details</h2>
+        <h2 id="get-jobs">Jobs</h2>
         <div class="endpoint-card">
           <div class="endpoint-header">
             <span class="method-tag method-get">GET</span>
             <span>/api/v1/jobs</span>
-            <span class="badge">Public</span>
+            <span class="badge">X-Partner-Key</span>
           </div>
           <div class="endpoint-body">
-            <p>Lists all published, accessible job openings. Supports cursor-based pagination.</p>
-            
-            <h4>Query Parameters:</h4>
-            <table class="param-table">
-              <tr><td><code>limit</code></td><td>integer (optional, default 20, max 100)</td></tr>
-              <tr><td><code>cursor</code></td><td>string (optional cursor for next page)</td></tr>
-            </table>
+            <p>
+              One page of published jobs, newest first, each with its accommodation codes. Matching
+              jobs to a learner's needs happens in the browser, so needs are never sent here.
+            </p>
+
+            <h4>Query parameters</h4>
+            <div class="table-wrap">
+              <table class="param-table">
+                <tbody>
+                  <tr>
+                    <td><code>limit</code></td>
+                    <td>integer, 1–100 (default 20)</td>
+                  </tr>
+                  <tr>
+                    <td><code>cursor</code></td>
+                    <td>the <code>next_cursor</code> of the previous page</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
             <div class="code-block">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
-              <pre>curl -i https://accessible-onboarding.vercel.app/api/v1/jobs?limit=10</pre>
+              <pre>
+curl -s -H "X-Partner-Key: pk_demo_savanna" \
+  "https://accessible-onboarding.vercel.app/api/v1/jobs?limit=10"</pre>
             </div>
           </div>
         </div>
@@ -483,47 +789,317 @@
         <div class="endpoint-card" id="get-job-detail">
           <div class="endpoint-header">
             <span class="method-tag method-get">GET</span>
-            <span>/api/v1/jobs/:id</span>
-            <span class="badge">Public</span>
+            <span>/api/v1/jobs/{id}</span>
+            <span class="badge">X-Partner-Key</span>
           </div>
           <div class="endpoint-body">
-            <p>Returns complete details for a single job opening, including accessibility accommodations (e.g. screen reader support, step-free access, flexible hours).</p>
-
+            <p>
+              One published job: title, description, employer, location, work hours, employment type
+              and <code>accommodations</code> (codes such as <code>step_free</code>,
+              <code>screen_reader</code>, <code>flexible_hours</code>). Drafts and closed jobs are
+              <code>404</code>.
+            </p>
             <div class="code-block">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
-              <pre>curl -i https://accessible-onboarding.vercel.app/api/v1/jobs/019318b2-32b0-7c22-b5e8-1c4fa42e88a1</pre>
+              <pre>
+curl -s -H "X-Partner-Key: pk_demo_savanna" \
+  https://accessible-onboarding.vercel.app/api/v1/jobs/{id}</pre>
             </div>
           </div>
         </div>
 
-        <!-- Endpoint: POST /registrations -->
-        <h2 id="post-registrations">3. Learner Registration Flow</h2>
-        
+        <hr class="divider" />
+
+        <!-- JSON-LD -->
+        <h2 id="get-jsonld">JobPosting JSON-LD (Level 3)</h2>
+        <p>
+          Every published job is available, with no key, as
+          <a href="https://schema.org/JobPosting" target="_blank" rel="noopener"
+            >schema.org JobPosting</a
+          >. The employer gets this address back when they publish (<code>jsonld_url</code>) and in
+          the staff app.
+        </p>
+        <div class="endpoint-card">
+          <div class="endpoint-header">
+            <span class="method-tag method-get">GET</span>
+            <span>/api/v1/jobs/{id}/jobposting.jsonld</span>
+            <span class="badge">Public</span>
+          </div>
+          <div class="endpoint-body">
+            <p>
+              Content type: <code>application/ld+json</code>. Keys come out in alphabetical order.
+            </p>
+            <div class="code-block">
+              <pre>
+{
+  "@context": [
+    "https://schema.org",
+    { "acc": "https://accessible-onboarding.vercel.app/ns/accommodations#" }
+  ],
+  "@type": "JobPosting",
+  "acc:offers": ["remote_work", "screen_reader", "large_text", "own_device", "flexible_hours"],
+  "applicantLocationRequirements": { "@type": "Country", "name": "Ethiopia" },
+  "datePosted": "2026-11-14",
+  "description": "Build and fix pages on our websites with HTML, CSS and JavaScript. …",
+  "employmentType": "FULL_TIME",
+  "hiringOrganization": { "@type": "Organization", "name": "Example Co" },
+  "jobBenefits": "Supports we offer: remote work; tools and documents that work with screen readers; screen magnification and large-print materials; use of your own assistive device or software; flexible hours and breaks.",
+  "jobLocationType": "TELECOMMUTE",
+  "title": "Junior Web Developer",
+  "workHours": "Mon–Fri, flexible hours"
+}</pre>
+            </div>
+            <ul>
+              <li>
+                <strong>Standard properties:</strong> <code>title</code>, <code>description</code>,
+                <code>hiringOrganization</code>, <code>datePosted</code>,
+                <code>employmentType</code> (<code>FULL_TIME</code>, <code>PART_TIME</code>,
+                <code>CONTRACTOR</code>, <code>INTERN</code>, <code>TEMPORARY</code>),
+                <code>workHours</code>, and <code>jobLocation</code> with a
+                <code>PostalAddress</code> in Ethiopia. Remote jobs get
+                <code>jobLocationType: TELECOMMUTE</code> and
+                <code>applicantLocationRequirements</code>.
+              </li>
+              <li>
+                <strong>Accommodations.</strong> schema.org has no property for workplace
+                accommodations, so every JobPosting has both: readable text in
+                <code>jobBenefits</code> (every JobPosting reader understands it), and the codes in
+                <code>acc:offers</code> (so a machine can match them to a person's needs).
+              </li>
+              <li>
+                The <code>@context</code> always names the prefix <code>acc</code> as
+                <code>&lt;PUBLIC_WEB_URL&gt;/ns/accommodations#</code>. That address serves the
+                vocabulary (below).
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="endpoint-card" id="ns-accommodations">
+          <div class="endpoint-header">
+            <span class="method-tag method-get">GET</span>
+            <span>/ns/accommodations</span>
+            <span class="badge">Public · CORS *</span>
+          </div>
+          <div class="endpoint-body">
+            <p>
+              The vocabulary behind the <code>acc</code> prefix. No key, no token, and
+              <code>Access-Control-Allow-Origin: *</code>, so any site can read it. Content type:
+              <code>application/ld+json</code>. It is a schema.org <code>DefinedTermSet</code> with
+              one <code>DefinedTerm</code> per code (<code>termCode</code> is the code,
+              <code>name</code> the English text also used in <code>jobBenefits</code>), and the
+              property <code>acc:offers</code>.
+            </p>
+            <p>
+              On the hosted site:
+              <a href="https://accessible-onboarding.vercel.app/ns/accommodations"
+                >https://accessible-onboarding.vercel.app/ns/accommodations</a
+              >
+            </p>
+            <div class="code-block">
+              <pre>
+{
+  "@context": {
+    "acc": "https://accessible-onboarding.vercel.app/ns/accommodations#",
+    "schema": "https://schema.org/",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#"
+  },
+  "@graph": [
+    {
+      "@id": "https://accessible-onboarding.vercel.app/ns/accommodations",
+      "@type": "schema:DefinedTermSet",
+      "schema:name": "Workplace accommodations",
+      "schema:hasDefinedTerm": [
+        {
+          "@id": "acc:screen_reader",
+          "@type": "schema:DefinedTerm",
+          "schema:termCode": "screen_reader",
+          "schema:name": "tools and documents that work with screen readers"
+        }
+      ]
+    },
+    {
+      "@id": "acc:offers",
+      "@type": "rdf:Property",
+      "rdfs:label": "offers",
+      "schema:domainIncludes": { "@id": "schema:JobPosting" }
+    }
+  ]
+}</pre>
+            </div>
+            <div class="callout">
+              <p>
+                <strong>For the operator:</strong> set <code>PUBLIC_WEB_URL</code> on the API to the
+                public site (for example <code>https://accessible-onboarding.vercel.app</code>). The
+                <code>acc</code> prefix is built from it. If it is unset, or is
+                <code>localhost</code> outside development, the API logs a WARNING at start.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <h3 id="acc-codes">Accommodation codes</h3>
+        <div class="table-wrap">
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Meaning (as written in <code>jobBenefits</code>)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>screen_reader</code></td>
+                <td>tools and documents that work with screen readers</td>
+              </tr>
+              <tr>
+                <td><code>large_text</code></td>
+                <td>screen magnification and large-print materials</td>
+              </tr>
+              <tr>
+                <td><code>sign_language</code></td>
+                <td>a sign language interpreter for interviews and meetings</td>
+              </tr>
+              <tr>
+                <td><code>captions</code></td>
+                <td>captions and written notes for meetings</td>
+              </tr>
+              <tr>
+                <td><code>step_free</code></td>
+                <td>step-free building access</td>
+              </tr>
+              <tr>
+                <td><code>accessible_toilet</code></td>
+                <td>an accessible toilet</td>
+              </tr>
+              <tr>
+                <td><code>flexible_hours</code></td>
+                <td>flexible hours and breaks</td>
+              </tr>
+              <tr>
+                <td><code>remote_work</code></td>
+                <td>remote work</td>
+              </tr>
+              <tr>
+                <td><code>extra_time</code></td>
+                <td>extra time for tests and tasks</td>
+              </tr>
+              <tr>
+                <td><code>written_instructions</code></td>
+                <td>written, plain-language instructions</td>
+              </tr>
+              <tr>
+                <td><code>quiet_space</code></td>
+                <td>a quiet workspace</td>
+              </tr>
+              <tr>
+                <td><code>own_device</code></td>
+                <td>use of your own assistive device or software</td>
+              </tr>
+              <tr>
+                <td><code>person_to_help</code></td>
+                <td>a named support person or mentor</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The same codes are the learner's support needs. Learners may also choose
+          <code>other</code>, which employers can't offer and which never matches.
+        </p>
+
+        <h3>How a job board uses it</h3>
+        <ol>
+          <li>
+            Fetch the JSON-LD from your server. (Browsers on other sites are blocked by CORS unless
+            their origin is allowed.)
+          </li>
+          <li>Store it with your copy of the job.</li>
+          <li>
+            Put it in the job's page inside
+            <code>&lt;script type="application/ld+json"&gt;</code> so search engines see it.
+          </li>
+          <li>
+            To match a person's needs: a job is a full match when its <code>acc:offers</code>
+            contains every need the person chose, and a partial match otherwise. This is what the
+            component does on the learner's phone.
+          </li>
+        </ol>
+        <p>Importing JobPostings from other boards and a JobPosting feed are not built yet.</p>
+
+        <hr class="divider" />
+
+        <!-- Sign-up -->
+        <h2 id="post-registrations">Sign-up, step by step (Level 2)</h2>
+        <p>
+          Use these calls to build your own sign-up screens. (The component makes them for you.) The
+          examples use any POSIX shell (Git Bash on Windows):
+        </p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+          <pre>
+API=https://accessible-onboarding.vercel.app/api/v1
+KEY=pk_demo_savanna</pre>
+        </div>
+
         <div class="endpoint-card">
           <div class="endpoint-header">
             <span class="method-tag method-post">POST</span>
             <span>/api/v1/registrations</span>
-            <span class="badge">Requires X-Partner-Key</span>
+            <span class="badge">X-Partner-Key</span>
           </div>
           <div class="endpoint-body">
-            <p>Initializes a new learner onboarding registration and returns an opaque 30-day learner session token (<code>lt_...</code>).</p>
-
-            <h4>Request Body:</h4>
+            <p>
+              <strong>Step 1. Start.</strong> Creates a draft learner and registration and returns a
+              learner token. Keep the token: it is shown only once. Only the
+              <code>signup</code> flow can be started today.
+            </p>
             <div class="code-block">
-              <pre>{
-  "flow": "signup",
-  "language": "am",
-  "simple_mode": false
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <pre>
+curl -s -X POST "$API/registrations" -H "X-Partner-Key: $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"flow_id":"signup","language":"en","simple_mode":false}'</pre>
+            </div>
+            <h4>Response (201)</h4>
+            <div class="code-block">
+              <pre>
+{
+  "registration_id": "3f2a9c4e-…",
+  "learner_id": "9a8b7c6d-…",
+  "status": "draft",
+  "current_step": "welcome",
+  "session": { "token": "lt_Q2hhbmdlTWVJc1JhbmRvbQ", "expires_at": "2026-12-15T09:30:00Z" }
 }</pre>
             </div>
-
-            <h4>Response (201 Created):</h4>
             <div class="code-block">
-              <pre>{
-  "id": "7fa6b12a-3721-4f90-a7d1-21bbcae41234",
-  "token": "lt_98f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5",
-  "expires_at": "2026-12-16T12:00:00Z"
-}</pre>
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <pre>
+REG=3f2a9c4e-…     # registration_id
+TOKEN=lt_…         # session.token
+H=(-H "X-Partner-Key: $KEY" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="endpoint-card" id="post-consents">
+          <div class="endpoint-header">
+            <span class="method-tag method-post">POST</span>
+            <span>/api/v1/registrations/{id}/consents</span>
+            <span class="badge">Learner token</span>
+          </div>
+          <div class="endpoint-body">
+            <p>
+              <strong>Step 2. Consent.</strong> Record that the learner agreed to the data-use
+              screen. (The consent screen itself is not saved as an answer.) The component also
+              records <code>cloud_speech</code> when the learner answers the speech question.
+            </p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <pre>
+curl -s -X POST "$API/registrations/$REG/consents" "${H[@]}" \
+  -d '{"kind":"data_processing","granted":true,"method":"tap"}'</pre>
             </div>
           </div>
         </div>
@@ -531,40 +1107,108 @@
         <div class="endpoint-card" id="put-answers">
           <div class="endpoint-header">
             <span class="method-tag method-put">PUT</span>
-            <span>/api/v1/learner/registrations/:id/answers/:questionId</span>
-            <span class="badge">Learner Token Required</span>
+            <span>/api/v1/registrations/{id}/answers/{questionId}</span>
+            <span class="badge">Learner token</span>
           </div>
           <div class="endpoint-body">
-            <p>Saves or updates an answer for a specific question step (e.g., <code>full_name</code>, <code>phone</code>, <code>dob</code>, <code>id_route</code>). Supports concurrency checks via <code>base_version</code>.</p>
-
+            <p>
+              <strong>Step 3. Answers.</strong> One <code>PUT</code> per question.
+              <code>base_version</code> is the <code>version</code> of that answer you last saw, or
+              <code>0</code> the first time. <code>input_method</code> is <code>typed</code>,
+              <code>voice</code>, <code>choice</code> or <code>partner</code>. The server checks and
+              cleans each answer: text is trimmed, an Ethiopian phone number becomes E.164, a date
+              gets both calendars. An empty value (<code>null</code>, <code>""</code>,
+              <code>[]</code>) clears an optional answer.
+            </p>
             <div class="code-block">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
-              <pre>curl -i -X PUT \
-  -H "X-Partner-Key: pk_demo_savanna" \
-  -H "Authorization: Bearer lt_..." \
-  -H "Content-Type: application/json" \
-  -d '{"value": "Abebe Kebede", "input_method": "keyboard", "base_version": 0}' \
-  https://accessible-onboarding.vercel.app/api/v1/learner/registrations/7fa6b12a-3721.../answers/full_name</pre>
+              <pre>
+curl -s -X PUT "$API/registrations/$REG/answers/full_name" "${H[@]}" \
+  -d '{"value":"Abebe Kebede Tadesse","input_method":"typed","base_version":0}'
+# → {"question_id":"full_name","value":"Abebe Kebede Tadesse","input_method":"typed","version":1,"updated_at":"…"}
+
+curl -s -X PUT "$API/registrations/$REG/answers/contact_method" "${H[@]}" \
+  -d '{"value":"phone","input_method":"choice","base_version":0}'
+
+curl -s -X PUT "$API/registrations/$REG/answers/phone" "${H[@]}" \
+  -d '{"value":"0912 345 678","input_method":"typed","base_version":0}'
+# → "value":"+251912345678"
+
+curl -s -X PUT "$API/registrations/$REG/answers/dob" "${H[@]}" \
+  -d '{"value":{"calendar":"ethiopian","year":2010,"month":1,"day":15},"input_method":"typed","base_version":0}'
+# → "value":{"calendar":"ethiopian","ethiopian":{"year":2010,"month":1,"day":15},"iso":"2017-09-25"}
+
+curl -s -X PUT "$API/registrations/$REG/answers/id_route" "${H[@]}" \
+  -d '{"value":"fayda","input_method":"choice","base_version":0}'</pre>
+            </div>
+            <p>
+              A broken rule answers <code>422</code> with the step's error code on the field
+              <code>value</code>:
+            </p>
+            <div class="code-block">
+              <pre>
+{ "status": 422, "code": "validation_failed", "title": "Validation failed",
+  "errors": [ { "field": "value", "code": "phone_invalid" } ] }</pre>
             </div>
           </div>
         </div>
 
+        <h3 id="conflicts">Step 4. Conflicts between devices (409)</h3>
+        <p>
+          If you send an old <code>base_version</code>, another device saved first. Nothing is
+          saved, and you get the stored answer in <code>current</code>:
+        </p>
+        <div class="code-block">
+          <pre>
+{ "status": 409, "code": "answer_conflict", "title": "Answer changed on another device",
+  "current": { "question_id": "full_name", "value": "Abebe Kebede Tadesse", "input_method": "typed",
+               "version": 1, "updated_at": "2026-11-15T09:30:12.418Z" } }</pre>
+        </div>
+        <p>
+          Show <code>current</code> to the person, or adopt it. To overwrite it on purpose, send
+          your value again with <code>"base_version": 1</code>. After submit, every change answers
+          <code>409 already_submitted</code>.
+        </p>
+
         <div class="endpoint-card" id="put-support">
           <div class="endpoint-header">
             <span class="method-tag method-put">PUT</span>
-            <span>/api/v1/learner/registrations/:id/support-request</span>
-            <span class="badge">Learner Token Required</span>
+            <span>/api/v1/registrations/{id}/support-request</span>
+            <span class="badge">Learner token</span>
           </div>
           <div class="endpoint-body">
-            <p>Saves the learner's accessibility support needs (screen reader, sign language, flexible hours). Support requests are encrypted in the database via AES-256-GCM.</p>
-
+            <p>
+              <strong>Step 5. Support needs (optional).</strong> Replaces the learner's support
+              request. Every need must be one of the <a href="#acc-codes">codes</a> (or
+              <code>other</code>). The needs and the free text are encrypted with AES-256-GCM, so
+              the database holds only bytes. The answer never repeats the needs.
+              <code>share_with</code> records who else the learner allows to see them.
+            </p>
             <div class="code-block">
-              <pre>{
-  "needs": ["screen_reader", "extra_time"],
-  "other_description": "Need high contrast screen settings",
-  "share_with_courses": true,
-  "share_with_employers": true
-}</pre>
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <pre>
+curl -s -X PUT "$API/registrations/$REG/support-request" "${H[@]}" \
+  -d '{"needs":["screen_reader","flexible_hours"],"other_text":"Instructions in writing, please.","share_with":{"courses":true,"employers":false}}'
+# → {"status":"saved","updated_at":"…"}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="endpoint-card" id="patch-progress">
+          <div class="endpoint-header">
+            <span class="method-tag method-patch">PATCH</span>
+            <span>/api/v1/registrations/{id}</span>
+            <span class="badge">Learner token</span>
+          </div>
+          <div class="endpoint-body">
+            <p>
+              <strong>Step 6. Progress (optional).</strong> Save the current step, language or
+              Simple mode, so another device can continue there. Answers <code>204</code>.
+            </p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <pre>
+curl -s -X PATCH "$API/registrations/$REG" "${H[@]}" -d '{"current_step":"support_needs"}'</pre>
             </div>
           </div>
         </div>
@@ -572,75 +1216,437 @@
         <div class="endpoint-card" id="post-submit">
           <div class="endpoint-header">
             <span class="method-tag method-post">POST</span>
-            <span>/api/v1/learner/registrations/:id/submit</span>
-            <span class="badge">Learner Token Required</span>
+            <span>/api/v1/registrations/{id}/submit</span>
+            <span class="badge">Learner token</span>
           </div>
           <div class="endpoint-body">
-            <p>Finalizes and submits the registration. Transitions the registration state from <code>in_progress</code> to <code>submitted</code> and creates the permanent learner profile.</p>
+            <p>
+              <strong>Step 7. Submit.</strong> Checks that every required answer on the learner's
+              path is there, then makes the learner <code>registered</code>. For the "I have no ID"
+              route it also creates a referral to the chosen organisation. Submitting twice is safe:
+              you get the same answer.
+            </p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <pre>
+curl -s -X POST "$API/registrations/$REG/submit" "${H[@]}" -d '{}'
+# → {"status":"registered","learner_id":"9a8b7c6d-…","identity_level":"self_declared"}</pre>
+            </div>
+            <p>
+              Missing required answers come back as <code>422</code> with one entry per step, for
+              example <code>{"field":"id_route","code":"required"}</code>.
+            </p>
           </div>
         </div>
 
-        <!-- Endpoint: Resume Sync -->
-        <h2 id="resume-lookup">4. Cross-Device Resume & Verification</h2>
+        <h3 id="read-back">Step 8. Read it back</h3>
+        <p>
+          <code>GET /registrations/{id}</code> returns every answer with its version (never the
+          support needs). <code>GET /me</code> returns the learner's profile; it is the only place
+          support needs are decrypted, for the learner only.
+        </p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+          <pre>
+curl -s "$API/registrations/$REG" "${H[@]}"
+curl -s "$API/me" "${H[@]}"</pre>
+        </div>
+
+        <h3 id="questions">The sign-up questions</h3>
+        <p>
+          The order and branches come from <code>shared/flows/signup.json</code>. The component and
+          the API read the same file. Only questions on the learner's path count on submit.
+        </p>
+        <div class="table-wrap">
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th>Step ID</th>
+                <th>Question</th>
+                <th>Required</th>
+                <th>Values and rules</th>
+                <th>Asked when</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>welcome</code></td>
+                <td>Welcome screen</td>
+                <td>–</td>
+                <td>not saved</td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>consent_data</code></td>
+                <td>Consent to data use</td>
+                <td>yes</td>
+                <td>recorded with <code>POST …/consents</code></td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>full_name</code></td>
+                <td>Your name, your father's name and your grandfather's name (one field)</td>
+                <td>yes</td>
+                <td>at least 2 characters (<code>too_short</code>)</td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>contact_method</code></td>
+                <td>How can we reach you?</td>
+                <td>yes</td>
+                <td>
+                  <code>phone</code>, <code>telegram</code>, <code>partner</code> (through an
+                  organisation), <code>none</code>
+                </td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>phone</code></td>
+                <td>Phone number</td>
+                <td>yes</td>
+                <td>
+                  Ethiopian mobile (<code>09…</code>/<code>07…</code>, any common spelling), stored
+                  in E.164 (<code>+251…</code>); else <code>phone_invalid</code>
+                </td>
+                <td>contact is <code>phone</code> or <code>telegram</code></td>
+              </tr>
+              <tr>
+                <td><code>dob</code></td>
+                <td>Date of birth (Ethiopian or Gregorian calendar)</td>
+                <td>no</td>
+                <td>a real date (<code>date_invalid</code>)</td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>sex</code></td>
+                <td>Sex</td>
+                <td>no</td>
+                <td><code>female</code>, <code>male</code></td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>region</code></td>
+                <td>Region or city</td>
+                <td>no</td>
+                <td>
+                  the 12 regions, <code>addis_ababa</code>, <code>dire_dawa</code>,
+                  <code>outside_ethiopia</code>
+                </td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>education</code></td>
+                <td>Highest education</td>
+                <td>no</td>
+                <td>
+                  <code>none</code>, <code>primary</code>, <code>secondary</code>,
+                  <code>tvet</code>, <code>degree</code>, <code>postgraduate</code>
+                </td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>id_route</code></td>
+                <td>Which ID do you have?</td>
+                <td>yes</td>
+                <td>
+                  <code>fayda</code>, <code>kebele_id</code>, <code>refugee_id</code>,
+                  <code>unhcr_proof</code>, <code>other_document</code>, <code>none</code>
+                </td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>id_doc_type</code></td>
+                <td>Document type</td>
+                <td>yes</td>
+                <td>
+                  <code>student_id</code>, <code>birth_certificate</code>,
+                  <code>idir_equb_id</code>, <code>kebele_letter</code>,
+                  <code>driving_licence</code>, <code>passport</code>, <code>other</code>
+                </td>
+                <td><code>id_route</code> is <code>other_document</code></td>
+              </tr>
+              <tr>
+                <td><code>id_upload</code></td>
+                <td>Photo of the document</td>
+                <td>no</td>
+                <td>
+                  JPEG, PNG or WebP, at most 1.5 MB, sent as <code>{"name", "data"}</code> with a
+                  <code>data:image/…;base64,…</code> URL. Stored encrypted; only
+                  <code>{"name"}</code> is ever returned.
+                </td>
+                <td><code>id_route</code> is <code>other_document</code></td>
+              </tr>
+              <tr>
+                <td><code>id_last4</code></td>
+                <td>Last 4 characters of the document</td>
+                <td>no</td>
+                <td>exactly 4 letters or digits (<code>last4_invalid</code>)</td>
+                <td>
+                  an ID route other than <code>none</code>, except documents
+                  <code>kebele_letter</code> and <code>other</code>
+                </td>
+              </tr>
+              <tr>
+                <td><code>referral_partner</code></td>
+                <td>Which organisation can help you?</td>
+                <td>yes</td>
+                <td>
+                  the <code>id</code> of a referral organisation from <code>GET /config</code>
+                </td>
+                <td><code>id_route</code> is <code>none</code></td>
+              </tr>
+              <tr>
+                <td><code>referral_contact</code></td>
+                <td>How can they reach you?</td>
+                <td>yes</td>
+                <td><code>phone</code>, <code>telegram</code>, <code>in_person</code></td>
+                <td><code>id_route</code> is <code>none</code></td>
+              </tr>
+              <tr>
+                <td>
+                  <code>support_needs</code>, <code>support_other</code>,
+                  <code>support_share</code>
+                </td>
+                <td>What would help you? Anything else? Who may see it?</td>
+                <td>no</td>
+                <td>sent together with <code>PUT …/support-request</code>, not as answers</td>
+                <td>always</td>
+              </tr>
+              <tr>
+                <td><code>check</code>, <code>done</code></td>
+                <td>Check your answers; Done</td>
+                <td>–</td>
+                <td>not saved</td>
+                <td>always</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          "Preferred name" is no longer asked. The API field <code>preferred_name</code> still
+          exists and is normally empty.
+        </p>
+
+        <div class="callout" id="identity">
+          <p><strong>Identity: what is recorded, and what is not.</strong></p>
+          <p>
+            Bridge does <strong>not</strong> verify identity. The learner says which ID they have,
+            and identity is recorded as <code>self_declared</code> (or handled in person through a
+            referral organisation for people with no ID). The last 4 characters of a document are
+            <strong>not</strong> verification: they are an optional reference that helps staff match
+            a document in person. Real Fayda verification would be OTP or biometric authentication
+            through the national ID programme (NIDP) as a licensed relying party. That is on the
+            roadmap and is not built.
+          </p>
+        </div>
+
+        <hr class="divider" />
+
+        <!-- Applications -->
+        <h2 id="post-apply">Job applications</h2>
         <div class="endpoint-card">
           <div class="endpoint-header">
             <span class="method-tag method-post">POST</span>
-            <span>/api/v1/widget/resume/lookup</span>
-            <span class="badge">Requires X-Partner-Key</span>
+            <span>/api/v1/jobs/{id}/applications</span>
+            <span class="badge">Learner token</span>
           </div>
           <div class="endpoint-body">
-            <p>Sends a 6-character keyed hash verification code via SMS to the learner's phone number so they can resume on another phone or browser.</p>
-
+            <p>
+              Apply for a published job. Only a learner who finished signing up can apply (a draft
+              learner gets <code>403 forbidden</code>). One application per job (<code
+                >409 already_exists</code
+              >
+              the second time). <code>answers</code> are the answers of the
+              <code>job-application</code> flow, keyed by step ID.
+              <code>attach_support_request: true</code> lets the employer of this job read the
+              learner's support needs with this application; each read is audit-logged.
+            </p>
             <div class="code-block">
-              <pre>{ "phone": "+251911223344" }</pre>
+              <pre>
+{
+  "answers": {
+    "contact_confirm": { "value": "yes", "input_method": "choice" },
+    "motivation": { "value": "I like building web pages and I learn fast.", "input_method": "voice" },
+    "start_date": { "value": { "calendar": "gregorian", "iso": "2026-12-01" }, "input_method": "typed" },
+    "attach_support": { "value": "yes", "input_method": "choice" }
+  },
+  "attach_support_request": true
+}</pre>
             </div>
           </div>
         </div>
 
-        <div class="endpoint-card" id="resume-verify">
+        <!-- Me -->
+        <h2 id="me">Learner profile (/me)</h2>
+        <p>Every call needs the partner key and the learner's own token.</p>
+        <div class="table-wrap">
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th>Call</th>
+                <th>What it does</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="method-tag method-get">GET</span> <code>/api/v1/me</code></td>
+                <td>
+                  Profile, latest registration, identity evidence (only whether the last 4 were
+                  given, never the characters), referral and support request.
+                </td>
+              </tr>
+              <tr>
+                <td><span class="method-tag method-patch">PATCH</span> <code>/api/v1/me</code></td>
+                <td>
+                  Change own details (only the fields sent). A changed phone number is marked
+                  unverified. Before submit, only <code>language</code> and
+                  <code>simple_mode</code> may change (<code>409 not_registered</code> otherwise).
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="method-tag method-get">GET</span> <code>/api/v1/me/export</code>
+                </td>
+                <td>Download all data stored about the learner as JSON.</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="method-tag method-delete">DELETE</span> <code>/api/v1/me</code>
+                </td>
+                <td>
+                  Delete the learner and everything about them (registrations, answers, identity
+                  evidence, referrals, support request, consents, applications, sessions). Answers
+                  <code>204</code>.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Resume -->
+        <h2 id="resume">Resume on another device</h2>
+        <ol>
+          <li>
+            <strong>Make a link and a code.</strong>
+            <code>POST /api/v1/registrations/{id}/resume-links</code> (learner token, while the
+            registration is a draft) returns a link
+            (<code>&lt;PUBLIC_WEB_URL&gt;/r/&lt;token&gt;</code>) and a short code such as
+            <code>K7M-9P2</code>. Both are single use and valid for 72 hours. With
+            <code>{"send_via":"sms"}</code> they are also texted (SMS is simulated today).
+          </li>
+          <li>
+            <strong>Look it up.</strong> <code>POST /api/v1/resume/lookup</code> with
+            <code>{"code":"K7M-9P2"}</code> (or <code>{"token":"…"}</code>) says which check the
+            learner must pass: <code>dob</code> or <code>phone</code>.
+          </li>
+          <li>
+            <strong>Pass the check.</strong> <code>POST /api/v1/resume/verify</code> with the code
+            and <code>dob</code> (<code>year</code>, <code>month</code>, <code>day</code>) or
+            <code>phone_last4</code> returns a new learner token. A mismatch is
+            <code>401 resume_check_failed</code> with <code>attempts_left</code>; after 5 failures
+            the code is locked (<code>429 too_many_attempts</code>).
+          </li>
+        </ol>
+        <div class="code-block">
+          <pre>
+POST /api/v1/resume/verify
+{ "code": "K7M-9P2", "phone_last4": "5678" }
+# → {"registration_id":"3f2a9c4e-…","session":{"token":"lt_…","expires_at":"…"}}</pre>
+        </div>
+        <p>These calls need the partner key and have the strict rate limit.</p>
+
+        <!-- Speech -->
+        <h2 id="speech">Speech</h2>
+        <div class="endpoint-card" id="speech-stt">
           <div class="endpoint-header">
             <span class="method-tag method-post">POST</span>
-            <span>/api/v1/widget/resume/verify</span>
-            <span class="badge">Requires X-Partner-Key</span>
+            <span>/api/v1/speech/transcriptions</span>
+            <span class="badge">Learner token</span>
           </div>
           <div class="endpoint-body">
-            <p>Verifies the 6-character resume code and returns the active learner session token to resume where the learner left off.</p>
-
+            <p>
+              Turns one recorded voice answer into text. Multipart upload with
+              <code>audio</code> (at most 3 MB) and <code>language</code>. The audio is never
+              stored. A cloud provider is used only if the learner's latest
+              <code>cloud_speech</code> consent is yes. Answers
+              <code>{"transcript", "confidence", "provider"}</code>, or
+              <code>503 speech_unavailable</code>.
+            </p>
+          </div>
+        </div>
+        <div class="endpoint-card" id="speech-tts">
+          <div class="endpoint-header">
+            <span class="method-tag method-post">POST</span>
+            <span>/api/v1/speech/synthesis</span>
+            <span class="badge">X-Partner-Key</span>
+          </div>
+          <div class="endpoint-body">
+            <p>
+              Reads <strong>fixed interface text</strong> aloud as MP3 (at most 600 characters).
+              Never send a learner's own answers here: the component reads those with the device's
+              voice only. Without a speech service configured it answers
+              <code>503 speech_unavailable</code>, and the component falls back to the device's
+              voice.
+            </p>
             <div class="code-block">
-              <pre>{ "phone": "+251911223344", "code": "H7X9K2" }</pre>
+              <pre>{ "text": "What is your full name?", "language": "en" }</pre>
             </div>
           </div>
         </div>
+
+        <hr class="divider" />
 
         <!-- OAuth 2.0 Server-to-Server -->
-        <h2 id="oauth-token">5. Partner Server API (OAuth 2.0)</h2>
-        <p>Partners who want to query their referred learners from their own backend server authenticate using standard OAuth 2.0 Client Credentials.</p>
+        <h2 id="oauth-setup">Partner server API (OAuth 2.0)</h2>
+        <p>
+          Your server can read the learners who signed up on your site. It uses OAuth 2.0 client
+          credentials: a <code>client_id</code> and a secret, swapped for a 1-hour token with the
+          scope <code>learners:read</code>. Never call it from a browser.
+        </p>
+        <h3>Step 1. Get a client ID and secret (operator)</h3>
+        <p>
+          The Bridge operator gives your partner a client ID and secret. The secret is stored only
+          as a SHA-256 hash, so it is handed over once. Make it with
+          <code>openssl rand -base64 32</code>.
+        </p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+          <pre>
+UPDATE partners
+SET client_id = 'your-server',
+    client_secret_hash = sha256(convert_to('&lt;a long random secret&gt;', 'UTF8'))
+WHERE publishable_key = 'pk_…';</pre>
+        </div>
 
-        <div class="endpoint-card">
+        <div class="endpoint-card" id="oauth-token">
           <div class="endpoint-header">
             <span class="method-tag method-post">POST</span>
             <span>/api/v1/oauth/token</span>
-            <span class="badge">Server Auth</span>
+            <span class="badge">Client credentials</span>
           </div>
           <div class="endpoint-body">
-            <p>Exchange your <code>client_id</code> and <code>client_secret</code> for an hourly partner access token (<code>pt_...</code>).</p>
-
+            <p>
+              <strong>Step 2. Get a token.</strong> Form-encoded. Swap your
+              <code>client_id</code> and <code>client_secret</code> for a partner token
+              (<code>pt_…</code>) that lasts one hour.
+            </p>
             <div class="code-block">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
-              <pre>curl -i -X POST \
-  -d "grant_type=client_credentials&client_id=savanna-demo&client_secret=...&scope=learners:read" \
-  https://accessible-onboarding.vercel.app/api/v1/oauth/token</pre>
+              <pre>
+curl -s -X POST "$API/oauth/token" \
+  -d grant_type=client_credentials -d client_id=your-server \
+  -d client_secret="$CLIENT_SECRET" -d scope=learners:read</pre>
             </div>
-
-            <h4>Response:</h4>
+            <h4>Response (200)</h4>
             <div class="code-block">
-              <pre>{
-  "access_token": "pt_3fa85f647c2149b18361092a4e9b72c1",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "scope": "learners:read"
-}</pre>
+              <pre>
+{ "access_token": "pt_…", "token_type": "Bearer", "expires_in": 3600, "scope": "learners:read" }</pre>
             </div>
+            <p>
+              Errors use the OAuth shape: <code>400 {"error": "invalid_request"}</code>,
+              <code>"unsupported_grant_type"</code> or <code>"invalid_scope"</code>;
+              <code>401 {"error": "invalid_client"}</code>.
+            </p>
           </div>
         </div>
 
@@ -648,19 +1654,136 @@
           <div class="endpoint-header">
             <span class="method-tag method-get">GET</span>
             <span>/api/v1/partner-api/learners</span>
-            <span class="badge">Bearer pt_... Required</span>
+            <span class="badge">Bearer pt_… · learners:read</span>
           </div>
           <div class="endpoint-body">
-            <p>Retrieves all learners referred to or enrolled through your organization, including their validated support requirements and accommodation consents.</p>
-
+            <p>
+              <strong>Step 3. List your learners.</strong> Only learners of
+              <strong>your</strong> partner who <strong>finished</strong> signing up, newest first.
+              <code>limit</code> is 1–200 (default 50). <code>cursor</code> is accepted but paging
+              isn't built yet (<code>next_cursor</code> is always <code>null</code>), so use
+              <code>updated_since</code> to fetch only changes since your last call. A token without
+              the scope gets <code>403 insufficient_scope</code>.
+            </p>
             <div class="code-block">
               <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
-              <pre>curl -i -H "Authorization: Bearer pt_..." \
-  https://accessible-onboarding.vercel.app/api/v1/partner-api/learners</pre>
+              <pre>
+curl -s -H "Authorization: Bearer $PT" \
+  "$API/partner-api/learners?updated_since=2026-11-15T00:00:00Z&amp;limit=50"</pre>
+            </div>
+            <h4>Response (200)</h4>
+            <div class="code-block">
+              <pre>
+{
+  "items": [
+    {
+      "learner_id": "9a8b7c6d-…",
+      "full_name": "Abebe Kebede Tadesse",
+      "preferred_name": "",
+      "language": "am",
+      "status": "registered",
+      "identity_level": "self_declared",
+      "contact": { "method": "phone", "phone": "+251912345678", "verified": false },
+      "registered_at": "2026-11-15T09:40:02Z"
+    }
+  ],
+  "next_cursor": null
+}</pre>
             </div>
           </div>
         </div>
 
+        <div class="endpoint-card" id="partner-learner-id">
+          <div class="endpoint-header">
+            <span class="method-tag method-get">GET</span>
+            <span>/api/v1/partner-api/learners/{id}</span>
+            <span class="badge">Bearer pt_… · learners:read</span>
+          </div>
+          <div class="endpoint-body">
+            <p>
+              <strong>Step 4. Read one learner.</strong> The same fields as in the list. Another
+              partner's learner is <code>404</code>, and so is a learner who hasn't finished signing
+              up. Match learners to your own users with the <code>learner_id</code> from the
+              <code>bridge-onboarding:completed</code> event.
+            </p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <pre>
+curl -s -H "Authorization: Bearer $PT" "$API/partner-api/learners/9a8b7c6d-…"</pre>
+            </div>
+          </div>
+        </div>
+
+        <h3 id="data-received">What data a platform receives</h3>
+        <div class="table-wrap">
+          <table class="param-table">
+            <thead>
+              <tr>
+                <th>Channel</th>
+                <th>Included</th>
+                <th>Never included</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Browser events</strong> from the component</td>
+                <td>
+                  IDs (<code>registration_id</code>, <code>learner_id</code>, <code>job_id</code>,
+                  <code>application_id</code>), step IDs and counts, error codes
+                </td>
+                <td>names, phone numbers, support needs, any answer</td>
+              </tr>
+              <tr>
+                <td><strong>Partner server API</strong></td>
+                <td>
+                  learner ID, full name, preferred name (normally empty), language, status, identity
+                  level, contact method, phone (if any) and whether it was verified (never, today),
+                  registration time
+                </td>
+                <td>
+                  support needs, ID route, document type, document photo, last 4 characters, date of
+                  birth, sex, region, education, other answers, referrals, consents
+                </td>
+              </tr>
+              <tr>
+                <td><strong>JobPosting JSON-LD</strong></td>
+                <td>public job data only</td>
+                <td>any learner data</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Employers see an applicant's support needs only when the learner attaches them to that
+          application. The learner sees, changes, exports or deletes their own data with
+          <a href="#me"><code>/me</code></a
+          >.
+        </p>
+
+        <hr class="divider" />
+
+        <h2 id="local-dev">Local development</h2>
+        <p>When you run Bridge on your own computer:</p>
+        <ul>
+          <li>API base: <code>http://localhost:8080/api/v1</code></li>
+          <li>Swagger UI: <code>http://localhost:8080/api/docs</code></li>
+          <li>
+            Development web server: <code>http://localhost:5173</code> (it forwards
+            <code>/api</code> and <code>/ns</code> to <code>http://localhost:8080</code>)
+          </li>
+          <li>
+            Demo partner keys from <code>seed</code>: <code>pk_demo_savanna</code>,
+            <code>pk_demo_jobboard</code> (platforms) and <code>pk_demo_aaapd</code> (referral
+            organisation). They allow <code>http://localhost:5173</code>,
+            <code>http://127.0.0.1:5173</code>, <code>http://localhost:4173</code>,
+            <code>http://127.0.0.1:4173</code>, <code>http://localhost:8080</code> and
+            <code>http://localhost:8081</code>.
+          </li>
+          <li>
+            Set <code>PUBLIC_WEB_URL=http://localhost:5173</code> in development. Before deploying,
+            set it to your public site.
+          </li>
+        </ul>
       </main>
     </div>
 

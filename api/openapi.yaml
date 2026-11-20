@@ -123,6 +123,67 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
 
+  /ns/accommodations:
+    get:
+      operationId: getAccommodationsVocabulary
+      tags: [Jobs]
+      summary: The JSON-LD vocabulary of the "acc" prefix in JobPostings
+      description: |
+        **Who:** anyone (no key, no token, any site: `Access-Control-Allow-Origin: *`).
+        Level 3 integration.
+
+        Every JobPosting names the prefix `acc` as `PUBLIC_WEB_URL + "/ns/accommodations#"`
+        and lists accommodation codes in `acc:offers`. This document says what that property
+        and each code mean: a schema.org `DefinedTermSet` with one `DefinedTerm` per code
+        (`termCode` is the code, `name` the English text also used in `jobBenefits`), and the
+        property `acc:offers`. On the hosted site the web host forwards `/ns/` to the API, so
+        the prefix address opens this document. Cached for an hour.
+      security: []
+      responses:
+        "200":
+          description: The vocabulary.
+          content:
+            application/ld+json:
+              schema:
+                type: object
+                required: ["@context", "@graph"]
+                properties:
+                  "@context":
+                    type: object
+                    additionalProperties:
+                      type: string
+                  "@graph":
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+              example:
+                "@context":
+                  acc: https://accessible-onboarding.vercel.app/ns/accommodations#
+                  schema: https://schema.org/
+                  rdf: http://www.w3.org/1999/02/22-rdf-syntax-ns#
+                  rdfs: http://www.w3.org/2000/01/rdf-schema#
+                "@graph":
+                  - "@id": https://accessible-onboarding.vercel.app/ns/accommodations
+                    "@type": schema:DefinedTermSet
+                    schema:name: Workplace accommodations
+                    schema:description: The supports (accommodations) an employer offers for a job. A JobPosting lists their codes in acc:offers.
+                    schema:hasDefinedTerm:
+                      - "@id": acc:screen_reader
+                        "@type": schema:DefinedTerm
+                        schema:termCode: screen_reader
+                        schema:name: tools and documents that work with screen readers
+                        schema:inDefinedTermSet:
+                          "@id": https://accessible-onboarding.vercel.app/ns/accommodations
+                  - "@id": acc:offers
+                    "@type": rdf:Property
+                    rdfs:label: offers
+                    rdfs:comment: "The accommodations this job offers: a list of codes (schema:termCode) from this set."
+                    schema:domainIncludes:
+                      "@id": schema:JobPosting
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
   /api/openapi.yaml:
     get:
       operationId: getOpenApiSpec
@@ -1285,7 +1346,7 @@ paths:
         Standard schema.org properties plus our extension `acc:offers`, the list of
         accommodation codes. schema.org has no property for workplace accommodations, so the
         readable text goes in `jobBenefits` and the codes in `acc:offers`, where the `acc`
-        prefix is `PUBLIC_WEB_URL + "/ns/accommodations#"`. Remote jobs get
+        prefix is `PUBLIC_WEB_URL + "/ns/accommodations#"` (defined at `GET /ns/accommodations`). Remote jobs get
         `jobLocationType: TELECOMMUTE` and `applicantLocationRequirements` (Ethiopia). The
         keys come out in alphabetical order.
       security: []
@@ -3785,6 +3846,8 @@ components:
           type: string
         preferred_name:
           type: string
+          maxLength: 100
+          description: The sign-up flow no longer asks for it (one full name, the Ethiopian way). Still accepted, trimmed; longer than 100 characters is `422 too_long`.
         contact_method:
           type: string
           enum: [phone, telegram, partner, none]
