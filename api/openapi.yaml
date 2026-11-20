@@ -1151,12 +1151,25 @@ paths:
       description: |
         **Who:** anyone with the partner key, from an allowed origin.
 
-        Turns **fixed interface text** (questions, options, buttons, messages) into MP3 with
-        Azure neural voices: `am` → `am-ET-MekdesNeural`, `en` → `en-US-JennyNeural`. Never
+        Turns **fixed interface text** (questions, options, buttons, messages) into MP3. Never
         send a learner's own answers here; the widget reads those with the device's voice
-        only. At most 600 characters. Needs `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`;
-        without them, or for another language, it answers `503 speech_unavailable` and the
-        widget falls back to recordings or the device's voice.
+        only. At most 600 characters.
+
+        - `am`: Addis AI, always the same voice (`ADDIS_AI_VOICE_ID`, default `am-hamen`),
+          when `ADDIS_AI_API_KEY` is set; then Azure `am-ET-MekdesNeural` if Azure is set up.
+        - `en`: Azure `en-US-JennyNeural`, when `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`
+          are set.
+
+        Amharic text is read as plain Amharic words: numbers and clock times become words,
+        known English words and acronyms are written in Amharic letters (other Latin text is
+        left out), and brackets, quotes, symbols and the punctuation at the end are left out.
+
+        Each clip is made once and cached (memory, disk, and the database table `tts_cache`,
+        shared by every server and kept across restarts): repeated requests, from any device,
+        never call the provider again. Without a voice for the language, when the daily limit
+        of paid calls (`TTS_DAILY_LIMIT`) is used up, or when the provider fails, it answers
+        `503 speech_unavailable`; `429` when the provider is busy. The widget then falls back
+        to recordings or the device's voice.
       security:
         - PartnerKey: []
       requestBody:
@@ -1170,7 +1183,7 @@ paths:
               language: en
       responses:
         "200":
-          description: MP3 audio (24 kHz mono). Sent with `Cache-Control private, max-age=86400`.
+          description: MP3 audio (Addis AI 44.1 kHz, Azure 24 kHz mono). Sent with `Cache-Control private, max-age=86400`.
           headers:
             Cache-Control:
               schema:
@@ -1188,7 +1201,7 @@ paths:
         "403":
           $ref: "#/components/responses/WidgetForbidden"
         "422":
-          description: "`text` (`required`, `too_long` over 600 characters), `language` (`required`, `too_short`, `too_long`)."
+          description: "`text` (`required`, `too_long` over 600 characters, `not_amharic` when an Amharic text has no Amharic words to read once digits, symbols and Latin text are taken out), `language` (`required`, `too_short`, `too_long`)."
           content:
             application/json:
               schema:

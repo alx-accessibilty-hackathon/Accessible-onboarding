@@ -67,7 +67,7 @@ Built for the **ALX Digital Bridge Accessibility Hackathon 2026, Track 1 (access
 | Careers | Job list with private needs filter, job detail, apply, employer form, publish, JobPosting JSON-LD, employer reads applications | Importing JobPosting from other boards, a JobPosting feed |
 | Staff | Sign-in, employer pages, referral list for partner staff, consent code by SMS (API) | Partner staff registering a learner for them, vouching for ID, support inbox, admin pages, account management, Amharic staff pages |
 | Partners | Partner key + allowed origins, OAuth partner API, partner settings in the database | A settings page for partners, per-partner questions, applying the partner's theme colour |
-| Speech | Browser speech recognition, server speech-to-text (mock, Azure, local), read aloud with device voice and Azure voices | Recorded read-aloud clips, a local speech-to-text container in Docker Compose, Telegram bot replies |
+| Speech | Browser speech recognition, server speech-to-text (mock, Azure, local), read aloud with the device voice, an Amharic server voice (Addis AI, one fixed voice) and Azure voices, every server clip cached in the database | Recorded read-aloud clips, a local speech-to-text container in Docker Compose, Telegram bot replies |
 
 ---
 
@@ -231,6 +231,7 @@ The same top bar is on every screen, with four buttons (four Tab stops): **Get h
   - **First, top to bottom.** The first reading says the top bar (Get help, Language, Dark mode, "Accessibility, button, closed. Press Enter to open it."), then the screen (question, hint, options), then "Press Tab to go from one item to the next".
   - **Then, where you are.** When the person moves themselves (Tab, the arrow keys, a tap), the reading stops and the element they landed on is described: its name, role and state, then for a field its hint and error and what to do ("Type your answer, then press Enter."), for a list or a group of options how to choose ("Use the up and down arrow keys to choose."). When the widget moves focus itself (for example after a voice answer), that is said after what is being read, never over it.
   - Screen-reader users can turn it off in the Accessibility menu; it stays off on that device (`bo:read_aloud`). Each piece of text is read by a recorded clip if one exists, else the device's own voice, else our server voice (fixed interface text only). A learner's own answers are only ever read by the device's voice. If no voice exists for the language, it says once that read aloud isn't available in that language on this device.
+- **The server voice** (`POST /api/v1/speech/synthesis`, fixed interface text only) is used when the device has no voice for the language, which is common for Amharic. Amharic is read by **Addis AI** with one fixed voice (`ADDIS_AI_VOICE_ID`), so every part of a screen sounds like the same person. Amharic text is first turned into plain Amharic words (numbers and clock times as words, known English words and acronyms in Amharic letters, other Latin text, brackets, quotes and symbols left out, no punctuation at the end), so the voice never stumbles on them; parts with no Amharic words are not sent. Each clip is made **once** and cached under provider + voice + language + the cleaned text: in memory, on disk (`TTS_CACHE_DIR`) and in the database (table `tts_cache`), which every API instance shares and which survives restarts and redeploys. Every later request, from any device, is served from the cache; two requests for the same new clip make one call; a call that started is finished and kept even if the browser stops waiting. The API log shows `[TTS HIT - RAM|DISK|DB]`, `[TTS MISS - CALLING ADDIS]`, `[TTS MADE - ADDIS]` and `[TTS STORED - …]`. `TTS_DAILY_LIMIT` caps the paid calls per day. `bridge tts-clear` (`go run . tts-clear`) empties the cache (database and folder) after changing the voice or how texts are prepared; restart the API afterwards.
 - **Answer by speaking** (Accessibility menu, off by default, `bo:answer_by_speaking`): after a question is read, the microphone listens by itself and fills the field. Say again and Type instead stay on screen.
 - **Text size**: 100%, 150%, 200%, 300% or 400% (`bo:text_size`). Everything grows and reflows; nothing scrolls sideways.
 - **Dark mode** (top bar, `bo:theme`): a toggle named "Dark mode" that says on or off.
@@ -747,6 +748,11 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 | `NEEDS_FILE` | optional | `../shared/vocab/needs.json` | The needs list. |
 | `STT_PROVIDERS` | optional | empty (no server speech-to-text) | Comma list tried in order: `mock`, `azure`, `local`. `mock` returns sample text and needs nothing. |
 | `STT_TIMEOUT_MS` | optional | `8000` | Time limit per provider try. |
+| `ADDIS_AI_API_KEY` | optional | | Turns on the **Amharic server voice** for read aloud (Addis AI, https://addisassistant.com/apikeys; the key starts with `sk_`). Only fixed interface text is sent, never a learner's answers. |
+| `ADDIS_AI_VOICE_ID` | optional | `am-hamen` | The one Amharic voice used for every clip, so a whole screen sounds like one person. At start-up the API logs Addis AI's Amharic voices (ID, name, gender, available) and warns if this ID isn't one of them. Changing it makes new clips (the old ones stay cached under the old voice). |
+| `ADDIS_AI_SPEED` | optional | `0` | Speaking speed, 1 to 100; `0` keeps Addis AI's default. |
+| `TTS_CACHE_DIR` | optional | `./data/tts_cache` | Folder for the on-disk copy of server voice clips; empty turns it off. A free host loses it on every restart; the database copy (table `tts_cache`) is the one that lasts. |
+| `TTS_DAILY_LIMIT` | optional | `300` | At most this many **paid** server voice calls per day and per API process (`0` = no limit). Cached clips are always served. Protects a free key. |
 | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | optional | | For Azure speech-to-text and the server voice. In the Azure portal create a **Speech** resource (the free F0 tier is enough to try), then open **Keys and Endpoint**: copy **Key 1** and the **Location/Region** (for example `westeurope`). |
 | `LOCAL_STT_URL` | optional | | Base URL of a local speech-to-text server (the API posts the WAV to `<url>/inference`). |
 | `SMS_PROVIDER` | optional | `console` | Only `console` exists: messages are logged and listed by `/api/v1/dev/messages`, never really sent. |
@@ -761,7 +767,7 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 
 Frontend (`frontend/.env.local`, build time): `VITE_API_PROXY_TARGET` (where the dev server forwards `/api`, default `http://localhost:8080`) and `VITE_API_ORIGIN` (API origin for the staff app; empty = same site). The widget gets its API origin from the `api` attribute.
 
-Docker Compose reads the root `.env`: `DATA_ENCRYPTION_KEY`, `CODE_HASH_KEY` and `SEED_STAFF_PASSWORD` are required; `SEED_CLIENT_SECRET`, `STT_PROVIDERS`, `EXTRA_ALLOWED_ORIGINS`, `APP_ENV`, `PUBLIC_WEB_URL`, `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` are optional.
+Docker Compose reads the root `.env`: `DATA_ENCRYPTION_KEY`, `CODE_HASH_KEY` and `SEED_STAFF_PASSWORD` are required; `SEED_CLIENT_SECRET`, `STT_PROVIDERS`, `EXTRA_ALLOWED_ORIGINS`, `APP_ENV`, `PUBLIC_WEB_URL`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `ADDIS_AI_API_KEY`, `ADDIS_AI_VOICE_ID` and `TTS_DAILY_LIMIT` are optional.
 
 ### Docker Compose
 
@@ -813,6 +819,7 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 ### Deploying
 
 - Set `APP_ENV=production` (no dev inbox, no tunnel or extra origins, Telegram webhook only with a secret) and `GIN_MODE=release`.
+- Run `bridge migrate` (or `go run . migrate`) on every upgrade: it adds new tables such as `tts_cache` (the lasting read-aloud cache). The API image starts with `serve` only.
 - Set `PUBLIC_WEB_URL` to your public `https://` address (the API logs a `WARNING` at start while it isn't). If the site and the API are on different hosts, forward `/api/`, `/health` and `/ns/` from the site to the API (`frontend/vercel.json` and `docker/nginx.conf` do this).
 - **Free hosting plans sleep.** The first request after a quiet time can take up to a minute. The widget retries reading requests for about 75 seconds and says "Connecting to the service…" meanwhile; before a demo, open the site once to wake the API.
 - Serve everything over **HTTPS** (put a TLS proxy in front of the `web` container). The microphone needs it.
@@ -843,7 +850,7 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 - **Shared** (`shared/`): the flow files and the needs list, read by both sides.
 - **Contract:** [`api/openapi.yaml`](api/openapi.yaml) (OpenAPI 3.0.3), served by the API at `/api/openapi.yaml` and `/api/docs`.
 
-**Where AI is used.** Only for speech: turning voice into text (the browser's speech recognition, or our server's providers) and reading text aloud (device voices or Azure neural voices). Job matching, answer checks and the clean-up of what was heard are plain rules, not AI.
+**Where AI is used.** Only for speech: turning voice into text (the browser's speech recognition, or our server's providers) and reading text aloud (device voices, the Addis AI Amharic voice, or Azure neural voices). Job matching, answer checks and the clean-up of what was heard are plain rules, not AI.
 
 ---
 

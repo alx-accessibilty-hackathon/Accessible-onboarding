@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	config "bridge/Config"
@@ -28,6 +29,7 @@ import (
 //	bridge            run the API (same as `bridge serve`)
 //	bridge migrate    apply every database migration (embedded in the binary)
 //	bridge seed       add the demo data; `--if-empty` does nothing if it is already there
+//	bridge tts-clear  empty the read-aloud clip cache (database table tts_cache and TTS_CACHE_DIR)
 func main() {
 	// Configuration: the only place environment variables are read
 	cfg, err := config.Load()
@@ -46,9 +48,46 @@ func main() {
 		migrate(cfg)
 	case "seed":
 		seed(cfg, os.Args[2:])
+	case "tts-clear":
+		ttsClear(cfg)
 	default:
-		log.Fatalf("unknown command %q: use serve, migrate or seed", cmd)
+		log.Fatalf("unknown command %q: use serve, migrate, seed or tts-clear", cmd)
 	}
+}
+
+// ttsClear empties the read-aloud clip cache: the database table tts_cache and the files in
+// TTS_CACHE_DIR. Each clip is made again (once) the next time someone hears it. Use it after
+// changing the voice or how texts are prepared for it. Restart the running API too (its memory
+// copy).
+func ttsClear(cfg config.Config) {
+	db := repository.InitializeDB(cfg.DatabaseURL)
+	defer db.Close()
+	n, err := repository.NewTTSCacheRepo(db).Clear(context.Background())
+	if err != nil {
+		log.Fatal("tts-clear: database: ", err)
+	}
+	fmt.Printf("Read-aloud cache cleared: %d clips deleted from the database (tts_cache)\n", n)
+	if cfg.TTSCacheDir != "" {
+		// Only what the cache wrote: the provider folders and loose .mp3 clips, nothing else.
+		removed := 0
+		for _, provider := range []string{"addis", "azure"} {
+			dir := filepath.Join(cfg.TTSCacheDir, provider)
+			if _, err := os.Stat(dir); err == nil {
+				if err := os.RemoveAll(dir); err != nil {
+					log.Fatal("tts-clear: ", err)
+				}
+				removed++
+			}
+		}
+		clips, _ := filepath.Glob(filepath.Join(cfg.TTSCacheDir, "*.mp3"))
+		for _, f := range clips {
+			if err := os.Remove(f); err == nil {
+				removed++
+			}
+		}
+		fmt.Printf("Read-aloud cache folder cleared: %s (%d entries removed)\n", cfg.TTSCacheDir, removed)
+	}
+	fmt.Println("Restart the API so it forgets the clips it keeps in memory.")
 }
 
 func migrate(cfg config.Config) {
@@ -137,8 +176,19 @@ func serve(cfg config.Config) {
 	speech := infrastructure.InitSpeechService(cfg.STTProviders, cfg.STTTimeout)
 	speech.SetAzure(cfg.AzureSpeechKey, cfg.AzureSpeechRegion)
 	speech.SetLocalURL(cfg.LocalSTTURL)
-	speech.SetGemini(cfg.GeminiAPIKey)
+	// Read aloud: Addis AI for Amharic (one fixed voice), cached in RAM, on disk and in the
+	// database (tts_cache), so each clip is paid for once, whatever device asks again.
+	speech.SetAddisAI(cfg.AddisAIAPIKey, cfg.AddisAIVoiceID, cfg.AddisAISpeed)
 	speech.SetCacheDir(cfg.TTSCacheDir)
+	speech.SetTTSStore(repository.NewTTSCacheRepo(db))
+	speech.SetTTSDailyLimit(cfg.TTSDailyLimit)
+	log.Printf("read aloud (server voice): %s", speech.TTSSummary())
+	go func() {
+		// Lists Addis AI's Amharic voices (free) and warns if ADDIS_AI_VOICE_ID isn't one of them.
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		speech.LogAddisVoices(ctx, "am")
+	}()
 	messages := infrastructure.InitMessageService(cfg.SMSProvider)
 
 	// Flow files and the needs vocabulary, shared with the frontend. A broken file stops the server.

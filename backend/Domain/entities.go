@@ -442,6 +442,17 @@ type Transcription struct {
 	Provider   string
 }
 
+// TTSClip is read-aloud audio of fixed interface text, kept so the provider is paid only once.
+type TTSClip struct {
+	Key      string // provider|voice|language|sha256(text)
+	Provider string // addis, azure
+	Voice    string // e.g. am-hamen
+	Language string // am, en
+	Text     string // fixed interface text (never a learner's own words)
+	MimeType string // audio/mpeg
+	Audio    []byte
+}
+
 // Message is an SMS or Telegram message to send.
 type Message struct {
 	Channel   string // sms | telegram

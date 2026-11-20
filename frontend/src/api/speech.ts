@@ -47,7 +47,9 @@ export async function synthesize(cfg: ApiConfig, text: string, language: string)
       method: 'POST',
       headers,
       body: JSON.stringify({ text, language }),
-      signal: AbortSignal.timeout(15_000),
+      // A clip heard for the first time is made by the voice provider (a few seconds, longer
+      // while a screen's other parts are made too); after that it comes from the server's cache.
+      signal: AbortSignal.timeout(30_000),
     });
   } catch {
     throw new ApiError(0, 'network');
