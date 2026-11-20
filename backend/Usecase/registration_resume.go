@@ -262,16 +262,14 @@ func (u *RegistrationUsecase) CreateResumeLink(ctx context.Context, actor domain
 	return link, nil
 }
 
-// sendSMS queues a message in the outbox (the simulated inbox, GET /dev/messages) and hands it
-// to the message service.
+// sendSMS keeps a message in the outbox (with the console provider, the simulated inbox,
+// GET /dev/messages) and hands it to the message service (notify.go).
 func (u *RegistrationUsecase) sendSMS(ctx context.Context, phone, body string) {
-	provider := "console"
-	_, _ = u.SessionRepo.CreateOutboxMessage(ctx, &domain.OutboxMessage{
-		Channel: "sms", Recipient: phone, Body: body, Status: "queued", Provider: &provider,
-	})
-	if u.Messages != nil {
-		_ = u.Messages.SendMessage(ctx, &domain.Message{Channel: "sms", Recipient: phone, Body: body})
+	var outbox outboxWriter
+	if u.SessionRepo != nil {
+		outbox = u.SessionRepo
 	}
+	queueSMS(ctx, outbox, u.Messages, phone, body)
 }
 
 // maskPhone shows only the start and the last 3 digits: "+251912345678" → "+2519•••••678".

@@ -16,7 +16,7 @@ type UpdateReferralRequest struct {
 // One item of GET /partner/referrals, and the 200 of PATCH /partner/referrals/:id.
 type PartnerReferralDTO struct {
 	ID                uuid.UUID          `json:"id"`
-	Status            string             `json:"status"`             // requested | in_progress | closed
+	Status            string             `json:"status"`             // requested | in_progress | attested | closed
 	ContactPreference string             `json:"contact_preference"` // phone | telegram | in_person
 	CreatedAt         time.Time          `json:"created_at"`
 	Learner           ReferralLearnerDTO `json:"learner"`
@@ -55,4 +55,28 @@ func toPartnerReferralDTOs(rs []*domain.PartnerReferral) []PartnerReferralDTO {
 		out = append(out, toPartnerReferralDTO(r))
 	}
 	return out
+}
+
+// POST /partner/referrals/:id/vouch-code
+type MakeVouchCodeRequest struct {
+	// The staff member's statement: "I met or spoke with this person and they are who they say".
+	Confirmed bool `json:"confirmed"`
+}
+
+// 201 from POST /partner/referrals/:id/vouch-code: the code to tell the learner (shown once).
+type VouchCodeDTO struct {
+	Code        string    `json:"code"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	LearnerName string    `json:"learner_name"`
+}
+
+// POST /me/vouch
+type ConfirmVouchRequest struct {
+	Code string `json:"code"`
+}
+
+// 200 from POST /me/vouch
+type VouchedDTO struct {
+	IdentityLevel string `json:"identity_level"` // partner_attested
+	PartnerName   string `json:"partner_name"`
 }

@@ -57,6 +57,8 @@ export interface JobApplication {
     contact_method: string;
     phone: string;
     language: string;
+    /** self_declared | partner_attested (a partner organisation vouched) | verified */
+    identity_level?: string;
   };
   support: { needs: string[]; other_text: string } | null;
 }

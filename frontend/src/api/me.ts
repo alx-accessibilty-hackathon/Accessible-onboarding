@@ -85,3 +85,14 @@ export async function patchMe(cfg: ApiConfig, body: MePatch): Promise<Me> {
 export async function deleteMe(cfg: ApiConfig): Promise<void> {
   await apiFetch<undefined>(cfg, '/me', { method: 'DELETE' });
 }
+
+/**
+ * Enter the code an organisation (such as AAAPD) gave me: I become "confirmed by a partner".
+ * 422 `code`: code_wrong | code_expired | required; 429 too_many_attempts.
+ */
+export async function confirmVouch(
+  cfg: ApiConfig,
+  code: string,
+): Promise<{ identity_level: string; partner_name: string }> {
+  return apiFetch(cfg, '/me/vouch', { method: 'POST', body: JSON.stringify({ code }) });
+}

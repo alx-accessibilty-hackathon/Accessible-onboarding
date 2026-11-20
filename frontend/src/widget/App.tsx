@@ -29,6 +29,7 @@ import { emit, type WidgetEvent } from './emit';
 import { SignupFlow } from './SignupFlow';
 import css from './styles.css?inline';
 import { readFlag, type WidgetProps } from './types';
+import { setServerSpeech } from '../voice/serverSpeech';
 import { useWidgetConfig } from './useConfig';
 
 // Default to English; can be overridden by attribute or user switch
@@ -144,6 +145,11 @@ function WidgetInner(props: WidgetProps) {
   useEffect(() => {
     configureSpeaker(api);
   }, [api]);
+
+  // Whether recorded answers can go to the server's speech service (Addis AI for Amharic).
+  useEffect(() => {
+    setServerSpeech(config?.speech);
+  }, [config?.speech]);
 
   // Read aloud mode: say the element the person moves to, and what they select.
   useFocusSpeech(rootRef, lang, readAloud);

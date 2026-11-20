@@ -28,6 +28,7 @@ type RegistrationUsecase struct {
 	Security         domain.SecurityService
 	Messages         domain.MessageService
 	PublicURL        string // PUBLIC_WEB_URL, for resume links (set in main.go)
+	SMSNotices       bool   // text "you are signed up" (only when real SMS is on, set in main.go)
 }
 
 var _ domain.RegistrationUsecaseI = (*RegistrationUsecase)(nil)
@@ -321,6 +322,14 @@ func (uc *RegistrationUsecase) Submit(ctx context.Context, actor domain.Actor, r
 		if result.ReferralPartnerName, err = uc.referralPartnerName(ctx, result.Referral.PartnerID); err != nil {
 			return nil, err
 		}
+	}
+	// "You are signed up" by SMS, once, if SMS is on and the learner chose to be contacted by phone.
+	if phone, ok := smsPhone(profile.ContactMethod, profile.PhoneE164); ok && uc.SMSNotices {
+		lang := ""
+		if result.Learner != nil {
+			lang = result.Learner.Language
+		}
+		uc.sendSMS(ctx, phone, signupSMS(lang, result.ReferralPartnerName))
 	}
 	return result, nil
 }

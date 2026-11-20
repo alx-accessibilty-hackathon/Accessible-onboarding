@@ -36,6 +36,7 @@ import { syncOutbox } from '../offline/sync';
 import { PhoneLink, TelegramLink, type HelpContacts } from '../shell/HelpPanel';
 import { LOCAL_OUTBOX } from '../shell/StatusBar';
 import { Button } from '../components/Button';
+import { markCloudConsentSent } from '../voice/serverSpeech';
 import { transcribeClip } from '../voice/transcribeClip';
 import type { WidgetEvent } from './emit';
 
@@ -499,7 +500,7 @@ export function SignupFlow({
       onVoiceClip: async (clipId, step) => {
         const s = await ensureSession();
         const res = s
-          ? await transcribeClip(learnerApi(s), clipId, step, langRef.current)
+          ? await transcribeClip(learnerApi(s), clipId, step, langRef.current, s.registrationId)
           : { code: createErrorRef.current };
         if ('text' in res) return res; // with `provider`: "mock" is the test voice service
         announce(t(langRef.current, `errors.${res.code}`));
@@ -510,6 +511,7 @@ export function SignupFlow({
       onSpeechConsent: (granted) => {
         const s = sessionRef.current;
         if (!s) return;
+        if (granted) markCloudConsentSent(s.registrationId);
         void postConsent(learnerApi(s), s.registrationId, 'cloud_speech', granted, 'tap').catch(
           () => {},
         );

@@ -184,6 +184,13 @@ func (r *SessionRepository) CreateOutboxMessage(ctx context.Context, msg *domain
 	}, nil
 }
 
+// MarkOutboxMessage records what the SMS provider said: "sent" (accepted) or "failed" (errText).
+func (r *SessionRepository) MarkOutboxMessage(ctx context.Context, id uuid.UUID, status, provider string, errText *string) error {
+	return r.Q.MarkOutboxMessage(ctx, sqlc.MarkOutboxMessageParams{
+		ID: id, Status: status, Provider: &provider, Error: errText,
+	})
+}
+
 func toDomainAuthSession(s *sqlc.AuthSession) *domain.AuthSession {
 	return &domain.AuthSession{
 		ID:          s.ID,

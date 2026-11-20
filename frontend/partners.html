@@ -850,11 +850,11 @@
         <div class="callout">
           <p>
             <strong>Bridge does not verify identity.</strong> Identity is recorded as
-            <code>self_declared</code>, or handled through a referral organisation for people
-            without ID. The last 4 characters are an optional reference that helps staff match a
-            document in person, not a check. Real Fayda verification (OTP or biometric
-            authentication through the national ID programme, NIDP, as a licensed relying party) is
-            on the roadmap, not built.
+            <code>self_declared</code>, or <code>partner_attested</code> when a referral
+            organisation that met a person without ID vouches for them with a one-time code. The
+            last 4 characters are an optional reference that helps staff match a document in person,
+            not a check. Real Fayda verification (OTP or biometric authentication through the
+            national ID programme, NIDP, as a licensed relying party) is on the roadmap, not built.
           </p>
         </div>
       </section>
@@ -1111,8 +1111,9 @@ WHERE publishable_key = 'pk_…';</code></pre>
           <li>
             <strong>From the partner server API:</strong> only your own learners who finished
             signing up: learner ID, full name, preferred name (normally empty), language, status,
-            identity level (<code>self_declared</code>), contact method, phone (if any) and whether
-            it was verified (never, today), and the registration time.
+            identity level (<code>self_declared</code> or <code>partner_attested</code>), contact
+            method, phone (if any) and whether it was verified (never, today), and the registration
+            time.
           </li>
           <li>
             <strong>Never shared with platforms:</strong> support needs, ID route, document type,

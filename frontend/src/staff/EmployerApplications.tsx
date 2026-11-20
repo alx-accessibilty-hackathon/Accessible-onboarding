@@ -120,6 +120,12 @@ export function EmployerApplications({
         personal: true,
       });
     }
+    if (a.applicant.identity_level) {
+      parts.push(
+        t(lang, 'staff.identity'),
+        t(lang, `staff.identity_level.${a.applicant.identity_level}`),
+      );
+    }
     parts.push(t(lang, 'staff.applied_on'), formatDay(a.created_at, lang));
     parts.push(t(lang, 'staff.their_answers'));
     for (const step of applicationSteps) {
@@ -235,6 +241,14 @@ export function EmployerApplications({
                         <dt style={{ fontWeight: 700 }}>{t(lang, 'staff.language')}</dt>
                         <dd style={{ margin: 0 }} lang={a.applicant.language}>
                           {languageName(a.applicant.language)}
+                        </dd>
+                      </div>
+                    )}
+                    {a.applicant.identity_level && (
+                      <div>
+                        <dt style={{ fontWeight: 700 }}>{t(lang, 'staff.identity')}</dt>
+                        <dd style={{ margin: 0 }}>
+                          {t(lang, `staff.identity_level.${a.applicant.identity_level}`)}
                         </dd>
                       </div>
                     )}

@@ -189,7 +189,12 @@ func serve(cfg config.Config) {
 		defer cancel()
 		speech.LogAddisVoices(ctx, "am")
 	}()
+	// SMS: console (logged only) or SMS Ethiopia (sent in the background; the result is recorded in
+	// messages_outbox).
 	messages := infrastructure.InitMessageService(cfg.SMSProvider)
+	messages.SetOutbox(repository.NewSessionRepo(db))
+	messages.SetSMSEthiopia(cfg.SMSEthiopiaAPIKey, cfg.SMSDailyLimit)
+	log.Printf("SMS: %s", messages.Summary())
 
 	// Flow files and the needs vocabulary, shared with the frontend. A broken file stops the server.
 	flows, err := infrastructure.LoadFlowStore(cfg.FlowsDir, cfg.NeedsFile)
@@ -217,14 +222,24 @@ func serve(cfg config.Config) {
 	// authUsecase is the SessionIssuer: it creates the learner token when a sign-up starts.
 	registrationUsecase := usecase.NewRegistrationUsecase(learnerRepo, registrationRepo, supportRepo, partnerRepo, authUsecase, flows, sessionRepo, security, messages)
 	registrationUsecase.PublicURL = cfg.PublicWebURL
+	registrationUsecase.SMSNotices = messages.Sending() // "you are signed up" SMS only when SMS is on
 	supportUsecase := usecase.NewSupportUsecase(supportRepo, registrationRepo, flows, security)
 	consentUsecase := usecase.NewConsentUsecase(consentRepo, registrationRepo)
 	speechUsecase := usecase.NewSpeechUsecase(consentRepo, speech)
 	jobUsecase := usecase.NewJobUsecase(jobRepo, flows, cfg.PublicWebURL)
 	applicationUsecase := usecase.NewApplicationUsecase(applicationRepo, jobRepo, learnerRepo)
+	if messages.Sending() { // "application sent" SMS only when SMS is on
+		applicationUsecase.Outbox, applicationUsecase.Messages = sessionRepo, messages
+	}
 	learnerUsecase := usecase.NewLearnerUsecase(learnerRepo)
 	meUsecase := usecase.NewMeUsecase(learnerRepo, profileRepo, partnerRepo, registrationRepo, consentRepo, flows, security)
 	referralUsecase := usecase.NewReferralUsecase(referralRepo)
+	// Trusted referral: partner staff vouch for a learner with a one-time code.
+	referralUsecase.Vouch = repository.NewVouchRepo(db)
+	referralUsecase.Security, referralUsecase.Partners, referralUsecase.Learners = security, partnerRepo, learnerRepo
+	if messages.Sending() { // "<organisation> confirmed who you are" SMS only when SMS is on
+		referralUsecase.SMSNotices, referralUsecase.Outbox, referralUsecase.Messages = true, sessionRepo, messages
+	}
 	employerApplicationUsecase := usecase.NewEmployerApplicationUsecase(jobRepo, applicationRepo, auditRepo, security)
 
 	// Controllers

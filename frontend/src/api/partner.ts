@@ -3,7 +3,7 @@
 
 import { apiFetch, type ApiConfig } from './client';
 
-export type ReferralStatus = 'requested' | 'in_progress' | 'closed';
+export type ReferralStatus = 'requested' | 'in_progress' | 'attested' | 'closed';
 
 export interface Referral {
   id: string;
@@ -39,4 +39,26 @@ export async function updateReferral(
     method: 'PATCH',
     body: JSON.stringify({ status }),
   });
+}
+
+/** A one-time code to vouch for this person (trusted referral). Shown once; 30 minutes. */
+export interface VouchCode {
+  code: string;
+  expires_at: string;
+  learner_name: string;
+}
+
+/**
+ * "Vouch for this person": the staff member confirms they met or spoke with them, and gets a
+ * code to tell them. 409 already_exists = already confirmed.
+ */
+export async function makeVouchCode(cfg: ApiConfig, referralId: string): Promise<VouchCode> {
+  return apiFetch<VouchCode>(
+    cfg,
+    `/partner/referrals/${encodeURIComponent(referralId)}/vouch-code`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    },
+  );
 }

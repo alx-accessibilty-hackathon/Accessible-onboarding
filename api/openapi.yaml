@@ -794,8 +794,10 @@ paths:
         optional.
 
         The link opens the hosted page at `/r/<token>` which resumes the sign-up. The code can be
-        used with `POST /api/v1/resume/lookup` and `POST /api/v1/resume/verify`. SMS is simulated:
-        messages are logged and listed by `GET /api/v1/dev/messages`.
+        used with `POST /api/v1/resume/lookup` and `POST /api/v1/resume/verify`. The SMS is
+        sent in the background (`message.status` is always `queued` here): with
+        `SMS_PROVIDER=smsethiopia` through SMS Ethiopia (Ethio Telecom numbers only), with
+        `console` it is only logged and listed by `GET /api/v1/dev/messages`.
       security:
         - PartnerKey: []
           LearnerBearer: []
@@ -865,6 +867,10 @@ paths:
         records the identity evidence (route, document type, last 4; level `self_declared`)
         and, for the "I have no ID" route, creates a referral to the chosen organisation.
         Submitting again returns the same result (safe to retry). The body is ignored.
+
+        If the learner chose to be contacted by phone, the first submit also texts "you are
+        signed up" (and, on the referral route, which organisation will contact them) in the
+        learner's language, in the background; see `SMS_PROVIDER`.
       security:
         - PartnerKey: []
           LearnerBearer: []
@@ -1083,11 +1089,15 @@ paths:
 
         Multipart upload of one clip (at most 3 MB; the whole request at most 4 MB). The
         server converts it to 16 kHz mono WAV with ffmpeg and tries the providers in
-        `STT_PROVIDERS` order: `mock` (a fixed sample that fits the field, for testing),
-        `azure` (cloud: used only if the learner's latest `cloud_speech` consent is a yes)
-        and `local` (`LOCAL_STT_URL`). A provider that fails 3 times in a row is skipped for
-        60 seconds; each try has `STT_TIMEOUT_MS`. The audio is never stored. The text is
-        returned as heard; the widget cleans it up for the field.
+        `STT_PROVIDERS` order: `addis` (Addis AI Scribe, Amharic and English, with
+        `ADDIS_AI_API_KEY`), `azure`, `local` (`LOCAL_STT_URL`) and `mock` (a fixed sample
+        that fits the field, for testing only). `addis` and `azure` are cloud services: used
+        only if the learner's latest `cloud_speech` consent is a yes. A provider that fails
+        3 times in a row for a language is skipped for that language for 60 seconds; each try
+        has `STT_TIMEOUT_MS` (default 20 s). The audio is never stored. The text is returned
+        as heard (`transcript` is empty when no words were heard); the widget cleans it up
+        for the field. The widget sends Amharic answers here (not to the browser) whenever
+        `GET /config` says `speech.cloud_available`.
       security:
         - PartnerKey: []
           LearnerBearer: []
@@ -1421,6 +1431,9 @@ paths:
         `answers` are the answers of the `job-application` flow, keyed by step ID (at most
         32 KB). `attach_support_request: true` lets the employer of this job read the
         learner's support needs with this application (each read is audit-logged).
+
+        If the learner chose to be contacted by phone, they also get an SMS "your application
+        for … was sent" in their language, in the background; see `SMS_PROVIDER`.
       security:
         - PartnerKey: []
           LearnerBearer: []
@@ -1685,6 +1698,191 @@ paths:
           $ref: "#/components/responses/LearnerForbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/vouch:
+    post:
+      operationId: confirmVouch
+      tags: [Learner profile]
+      summary: Enter the code an organisation gave me (trusted referral)
+      description: |
+        **Who:** a learner, with the partner key and their own learner token.
+
+        The learner types the code their referral organisation made for them
+        (`POST /api/v1/partner/referrals/{id}/vouch-code`); entering it is their agreement.
+        Spaces are ignored. On success the learner is "confirmed by a partner"
+        (`identity_level: partner_attested`, with who and when on their identity evidence).
+        A wrong or unknown code gives `code_wrong` (nothing tells whether a code exists); 5
+        wrong tries end the code (`429 too_many_attempts`; the organisation can make a new one).
+        Rate limited like sign-in (20 a minute per address). With real SMS on, a learner who
+        chose phone contact also gets an SMS.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  description: The 6 digits (spaces allowed).
+            example:
+              code: "482 913"
+      responses:
+        "200":
+          description: The learner is confirmed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [identity_level, partner_name]
+                properties:
+                  identity_level:
+                    type: string
+                    enum: [partner_attested]
+                  partner_name:
+                    type: string
+              example:
+                identity_level: partner_attested
+                partner_name: AAAPD
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "422":
+          description: "`code` (`required`, `code_wrong`, `code_expired`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: code
+                    code: code_wrong
+        "429":
+          description: Too many wrong tries for this code (`too_many_attempts`), or too many requests (`rate_limited`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 429
+                code: too_many_attempts
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/applications:
+    get:
+      operationId: listMyApplications
+      tags: [Learner profile]
+      summary: My applications and who can see my support needs (support passport)
+      description: |
+        **Who:** a learner, with the partner key and their own learner token.
+
+        The learner writes their support needs once (sign-up or profile). This lists every job
+        they applied for, newest first, and whether that job's employer may see those needs
+        (`share_support`). Change it with `PATCH /api/v1/me/applications/{id}`. A learner who
+        never applied gets an empty list.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "200":
+          description: The learner's applications.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyApplicationList"
+              example:
+                items:
+                  - id: 7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
+                    job_id: c2c4ad89-6acd-417e-bfd4-56bb75c0ca87
+                    job_title: Data Entry Clerk
+                    employer_name: Example Co
+                    status: submitted
+                    share_support: true
+                    created_at: "2026-11-20T09:30:00Z"
+                next_cursor: null
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/applications/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ApplicationId"
+    patch:
+      operationId: updateMyApplication
+      tags: [Learner profile]
+      summary: Share my support needs with this employer, or stop sharing them
+      description: |
+        **Who:** a learner, with the partner key and their own learner token, for one of their
+        own applications (anyone else's is `404`).
+
+        One tap to share or withdraw. `share_support: false` takes effect at once: the
+        employer's list of applications (`GET /api/v1/employer/jobs/{id}/applications`) no
+        longer includes the support needs. `true` shares them again. Answers the updated item.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMyApplicationRequest"
+            example:
+              share_support: false
+      responses:
+        "200":
+          description: The application after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyApplication"
+              example:
+                id: 7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
+                job_id: c2c4ad89-6acd-417e-bfd4-56bb75c0ca87
+                job_title: Data Entry Clerk
+                employer_name: Example Co
+                status: submitted
+                share_support: false
+                created_at: "2026-11-20T09:30:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: "`share_support` (`required`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: share_support
+                    code: required
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -2106,7 +2304,9 @@ paths:
         only as a keyed hash.
 
         **Not built yet:** the endpoint that checks the code and the rest of "partner staff
-        register a learner" (E1). SMS is simulated (see `GET /api/v1/dev/messages`). No body.
+        register a learner" (E1). The SMS is sent in the background through SMS Ethiopia
+        (`SMS_PROVIDER=smsethiopia`) or only logged (`console`, see `GET /api/v1/dev/messages`).
+        No body.
       security:
         - StaffBearer: []
       responses:
@@ -2253,6 +2453,89 @@ paths:
                 errors:
                   - field: status
                     code: invalid_choice
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/partner/referrals/{id}/vouch-code:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Referral ID.
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: makeVouchCode
+      tags: [Partner staff]
+      summary: Vouch for a learner who has no ID (trusted referral)
+      description: |
+        **Who:** staff with the role `partner_staff`, for a referral to their own organisation
+        (another organisation's referral is `404`).
+
+        The staff member confirms (`confirmed: true`) that they met or spoke with the person and
+        gets a one-time 6-digit code, valid 30 minutes, to tell them. When the learner enters it
+        (`POST /api/v1/me/vouch`), they are "confirmed by a partner": their `identity_level`
+        becomes `partner_attested` and the referral `attested`. A new code replaces an unused
+        older one. The code is shown once and stored only as a keyed hash. Both steps are
+        audit-logged. A referral still `requested` becomes `in_progress`.
+      security:
+        - StaffBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmed]
+              properties:
+                confirmed:
+                  type: boolean
+                  description: The staff member met or spoke with the person and confirms who they are.
+            example:
+              confirmed: true
+      responses:
+        "201":
+          description: The code to tell the learner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VouchCode"
+              example:
+                code: "482913"
+                expires_at: "2026-11-20T10:30:00Z"
+                learner_name: Abebe Kebede
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/TokenUnauthorized"
+        "403":
+          $ref: "#/components/responses/StaffForbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The learner is already confirmed (`already_exists`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 409
+                code: already_exists
+        "422":
+          description: "`confirmed` (`required`: it must be true)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                errors:
+                  - field: confirmed
+                    code: required
         "429":
           $ref: "#/components/responses/RateLimited"
         "500":
@@ -2469,9 +2752,11 @@ paths:
       description: |
         **Only when `APP_ENV=dev`** (in production this route does not exist). No sign-in.
 
-        Every queued message (resume links and codes, consent codes, Telegram replies),
-        oldest first. Messages are never really sent today: this is how you read them in a
-        demo.
+        Every message still `queued` (sign-up and application SMS, resume links and codes,
+        consent codes, Telegram replies), oldest first. With `SMS_PROVIDER=console` SMS are
+        never really sent and stay here: this is how you read them in a demo. With
+        `smsethiopia` an SMS leaves this list once SMS Ethiopia answered (`sent` or `failed`,
+        kept in `messages_outbox`).
       security: []
       responses:
         "200":
@@ -2543,6 +2828,14 @@ components:
       in: path
       required: true
       description: Job ID.
+      schema:
+        type: string
+        format: uuid
+    ApplicationId:
+      name: id
+      in: path
+      required: true
+      description: Application ID (from `GET /api/v1/me/applications`).
       schema:
         type: string
         format: uuid
@@ -2982,7 +3275,10 @@ components:
               description: The API can turn audio into text (`STT_PROVIDERS` is not empty).
             cloud_available:
               type: boolean
-              description: A cloud provider is configured (it needs the learner's consent).
+              description: |
+                A cloud speech-to-text provider is ready (`addis` with `ADDIS_AI_API_KEY`, or
+                `azure` with its key); it needs the learner's consent. The widget then records
+                Amharic answers and sends them to `POST /api/v1/speech/transcriptions`.
 
     # ---------------------------------------------------------- registrations
     CreateRegistrationRequest:
@@ -3349,7 +3645,7 @@ components:
           description: 0 to 1, or -1 when the provider gives none.
         provider:
           type: string
-          enum: [mock, azure, local]
+          enum: [mock, addis, azure, local]
     SynthesisRequest:
       type: object
       required: [text, language]
@@ -3595,6 +3891,61 @@ components:
         created_at:
           type: string
           format: date-time
+    VouchCode:
+      type: object
+      required: [code, expires_at, learner_name]
+      properties:
+        code:
+          type: string
+          description: 6 digits, shown once.
+        expires_at:
+          type: string
+          format: date-time
+        learner_name:
+          type: string
+    MyApplication:
+      type: object
+      description: One of the learner's applications (support passport).
+      required: [id, job_id, job_title, employer_name, status, share_support, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_id:
+          type: string
+          format: uuid
+        job_title:
+          type: string
+        employer_name:
+          type: string
+          description: Empty for an imported job without an employer.
+        status:
+          type: string
+          enum: [submitted, seen, withdrawn]
+        share_support:
+          type: boolean
+          description: This employer may see the learner's support needs.
+        created_at:
+          type: string
+          format: date-time
+    MyApplicationList:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MyApplication"
+        next_cursor:
+          type: string
+          nullable: true
+    UpdateMyApplicationRequest:
+      type: object
+      required: [share_support]
+      properties:
+        share_support:
+          type: boolean
+          description: true to share the support needs with this employer, false to stop.
     EmployerApplication:
       type: object
       required:
@@ -3629,6 +3980,10 @@ components:
               description: E.164, or empty.
             language:
               type: string
+            identity_level:
+              type: string
+              enum: [self_declared, partner_attested, verified]
+              description: "`partner_attested`: a partner organisation that met them vouched for them (trusted referral)."
         support:
           type: object
           nullable: true

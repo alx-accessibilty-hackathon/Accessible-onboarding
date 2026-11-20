@@ -100,7 +100,7 @@ Only learners who **finished** signing up **on your site**.
 
 | You receive | You never receive |
 |---|---|
-| `learner_id`, `full_name` (name, father's name, grandfather's name), `preferred_name` (no longer asked, normally empty), `language`, `status`, `identity_level` (`self_declared`), contact method, phone (if given) with `verified: false`, `registered_at` | support needs and the free text about them, date of birth, sex, region, education, ID type, document details or photo, referrals, consents |
+| `learner_id`, `full_name` (name, father's name, grandfather's name), `preferred_name` (no longer asked, normally empty), `language`, `status`, `identity_level` (`self_declared`, or `partner_attested` when a referral organisation vouched for them), contact method, phone (if given) with `verified: false`, `registered_at` | support needs and the free text about them, date of birth, sex, region, education, ID type, document details or photo, referrals, consents |
 
 - **Support needs** are encrypted on our server. An employer sees them only when the learner chooses to attach them to one application.
 - **Identity is not verified.** The optional "last 4 characters" of a document is a reference for staff, not a check, and Bridge never claims otherwise. Real Fayda verification (one-time code through the National ID Program) is on the roadmap.

@@ -12,6 +12,9 @@ import (
 )
 
 type Querier interface {
+	AddVouchCodeFailure(ctx context.Context, id uuid.UUID) (int32, error)
+	// The learner's latest identity evidence (from the sign-up) records who vouched and when.
+	AttestLatestIdentityEvidence(ctx context.Context, arg AttestLatestIdentityEvidenceParams) error
 	// Job applications (Dev A). UNIQUE (job_id, learner_id): applying twice fails with 23505.
 	// After editing, run `sqlc generate` (from backend/).
 	CreateApplication(ctx context.Context, arg CreateApplicationParams) (Application, error)
@@ -39,6 +42,7 @@ type Querier interface {
 	// Queries for resume tokens, verification codes and outbox messages.
 	CreateResumeToken(ctx context.Context, arg CreateResumeTokenParams) (ResumeToken, error)
 	CreateVerificationCode(ctx context.Context, arg CreateVerificationCodeParams) (VerificationCode, error)
+	CreateVouchCode(ctx context.Context, arg CreateVouchCodeParams) (CreateVouchCodeRow, error)
 	// `bridge tts-clear`: forget every clip (they are made again, once, when next asked for).
 	DeleteAllTTSAudio(ctx context.Context) (int64, error)
 	// Everything else about the learner goes with it (ON DELETE CASCADE): registrations → answers
@@ -52,6 +56,8 @@ type Querier interface {
 	// sign-up answers goes too.
 	DeletePhoneAnswersByLearner(ctx context.Context, learnerID uuid.UUID) error
 	GetActiveVerificationCode(ctx context.Context, arg GetActiveVerificationCodeParams) (VerificationCode, error)
+	// The learner's newest unused code (expired ones too: the use case says "expired").
+	GetActiveVouchCode(ctx context.Context, learnerID uuid.UUID) (GetActiveVouchCodeRow, error)
 	// ---- answers ----
 	GetAnswer(ctx context.Context, arg GetAnswerParams) (Answer, error)
 	GetAuthSessionByTokenHash(ctx context.Context, tokenHash []byte) (AuthSession, error)
@@ -95,6 +101,9 @@ type Querier interface {
 	// The applicant's support request comes only when they attached it to this application,
 	// and stays encrypted here (the use case decrypts it and writes the audit log).
 	ListApplicationsForEmployerJob(ctx context.Context, arg ListApplicationsForEmployerJobParams) ([]ListApplicationsForEmployerJobRow, error)
+	// The learner's own applications, newest first, with the job and employer names (support
+	// passport: which employers may see their support needs).
+	ListApplicationsForLearner(ctx context.Context, learnerID uuid.UUID) ([]ListApplicationsForLearnerRow, error)
 	ListConsentsByLearnerID(ctx context.Context, learnerID uuid.UUID) ([]Consent, error)
 	ListJobsByEmployer(ctx context.Context, employerID *uuid.UUID) ([]ListJobsByEmployerRow, error)
 	ListLearnersByPartnerID(ctx context.Context, partnerID uuid.UUID) ([]Learner, error)
@@ -110,6 +119,8 @@ type Querier interface {
 	// After editing, run `sqlc generate` (from backend/).
 	// The partner's referrals, newest first.
 	ListReferralsByPartner(ctx context.Context, partnerID uuid.UUID) ([]ListReferralsByPartnerRow, error)
+	// What the SMS provider said: status 'sent' (accepted for delivery) or 'failed' (with the reason).
+	MarkOutboxMessage(ctx context.Context, arg MarkOutboxMessageParams) error
 	// Only a draft can be submitted. 0 rows affected means it was already submitted
 	// (the row lock also stops two submits running at the same time).
 	MarkRegistrationSubmitted(ctx context.Context, id uuid.UUID) (int64, error)
@@ -120,10 +131,19 @@ type Querier interface {
 	PublishJob(ctx context.Context, arg PublishJobParams) (PublishJobRow, error)
 	// Two servers may make the same clip at once: the first one stays.
 	PutTTSAudio(ctx context.Context, arg PutTTSAudioParams) error
+	// Trusted referral: one-time codes partner staff make to vouch for a learner (migration 00007).
+	// After editing, run `sqlc generate` (from backend/).
+	// A new code replaces the older unused ones of the same referral.
+	RetireVouchCodes(ctx context.Context, referralID uuid.UUID) error
 	RevokeAuthSession(ctx context.Context, id uuid.UUID) error
 	// Saves an answer only if the client saw the latest version (R15, TECHNICAL_PLAN.md 5.2).
 	// base_version 0 means "nothing saved yet". No row returned means another device saved first.
 	SaveAnswerIfVersion(ctx context.Context, arg SaveAnswerIfVersionParams) (Answer, error)
+	// Share or stop sharing the support needs with the employer of one application. Only the
+	// learner's own application: 0 rows means it isn't theirs (or doesn't exist).
+	SetApplicationSupportSharing(ctx context.Context, arg SetApplicationSupportSharingParams) (int64, error)
+	SetLearnerIdentityLevel(ctx context.Context, arg SetLearnerIdentityLevelParams) error
+	SetReferralAttested(ctx context.Context, id uuid.UUID) error
 	SupportRequestExists(ctx context.Context, learnerID uuid.UUID) (bool, error)
 	// Records that the session was used. Learner sessions also slide their expiry (30 days from now);
 	// pass NULL to keep the expiry (staff and partner-server sessions).
@@ -142,6 +162,8 @@ type Querier interface {
 	// After editing, run `sqlc generate` (from backend/).
 	// One support request per learner: saving again replaces it.
 	UpsertSupportRequest(ctx context.Context, arg UpsertSupportRequestParams) (time.Time, error)
+	// 0 rows: someone used it a moment ago.
+	UseVouchCode(ctx context.Context, id uuid.UUID) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

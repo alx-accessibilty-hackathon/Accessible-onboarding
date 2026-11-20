@@ -47,6 +47,36 @@ func (r *ApplicationRepository) Create(ctx context.Context, app *domain.Applicat
 	return toApplication(row), nil
 }
 
+// ListForLearner returns the learner's own applications, newest first.
+func (r *ApplicationRepository) ListForLearner(ctx context.Context, learnerID uuid.UUID) ([]*domain.LearnerApplication, error) {
+	rows, err := r.Q.ListApplicationsForLearner(ctx, learnerID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*domain.LearnerApplication, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, &domain.LearnerApplication{
+			ID: row.ID, JobID: row.JobID, JobTitle: row.JobTitle, EmployerName: row.EmployerName,
+			Status: row.Status, ShareSupport: row.AttachSupport, CreatedAt: row.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+// SetSupportSharing changes attach_support on one of the learner's own applications.
+func (r *ApplicationRepository) SetSupportSharing(ctx context.Context, learnerID, applicationID uuid.UUID, share bool) error {
+	n, err := r.Q.SetApplicationSupportSharing(ctx, sqlc.SetApplicationSupportSharingParams{
+		AttachSupport: share, ID: applicationID, LearnerID: learnerID,
+	})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 // ListForEmployerJob returns the applications to a job of this employer, newest first. The
 // support request is included (still encrypted) only when the applicant attached it.
 func (r *ApplicationRepository) ListForEmployerJob(ctx context.Context, jobID, employerID uuid.UUID) ([]*domain.EmployerApplication, error) {
@@ -73,6 +103,7 @@ func (r *ApplicationRepository) ListForEmployerJob(ctx context.Context, jobID, e
 				ContactMethod: deref(row.ContactMethod),
 				PhoneE164:     deref(row.PhoneE164),
 				Language:      row.Language,
+				IdentityLevel: row.IdentityLevel,
 			},
 		}
 		if row.AttachSupport && len(row.SupportCiphertext) > 0 {

@@ -1431,8 +1431,10 @@ curl -s "$API/me" "${H[@]}"</pre>
           <p><strong>Identity: what is recorded, and what is not.</strong></p>
           <p>
             Bridge does <strong>not</strong> verify identity. The learner says which ID they have,
-            and identity is recorded as <code>self_declared</code> (or handled in person through a
-            referral organisation for people with no ID). The last 4 characters of a document are
+            and identity is recorded as <code>self_declared</code>, or as
+            <code>partner_attested</code>
+            when a referral organisation that met a person with no ID vouches for them with a
+            one-time code (trusted referral). The last 4 characters of a document are
             <strong>not</strong> verification: they are an optional reference that helps staff match
             a document in person. Real Fayda verification would be OTP or biometric authentication
             through the national ID programme (NIDP) as a licensed relying party. That is on the
@@ -1532,7 +1534,8 @@ curl -s "$API/me" "${H[@]}"</pre>
             registration is a draft) returns a link
             (<code>&lt;PUBLIC_WEB_URL&gt;/r/&lt;token&gt;</code>) and a short code such as
             <code>K7M-9P2</code>. Both are single use and valid for 72 hours. With
-            <code>{"send_via":"sms"}</code> they are also texted (SMS is simulated today).
+            <code>{"send_via":"sms"}</code> they are also texted (through SMS Ethiopia when the
+            server sets <code>SMS_PROVIDER=smsethiopia</code>; otherwise the SMS is only logged).
           </li>
           <li>
             <strong>Look it up.</strong> <code>POST /api/v1/resume/lookup</code> with

@@ -63,6 +63,15 @@ INSERT INTO messages_outbox (
 )
 RETURNING id, channel, recipient, body, status, provider, error, created_at, sent_at;
 
+-- name: MarkOutboxMessage :exec
+-- What the SMS provider said: status 'sent' (accepted for delivery) or 'failed' (with the reason).
+UPDATE messages_outbox
+SET status = sqlc.arg(status),
+    provider = sqlc.arg(provider),
+    error = sqlc.narg(error),
+    sent_at = CASE WHEN sqlc.arg(status) = 'sent' THEN now() ELSE sent_at END
+WHERE id = sqlc.arg(id);
+
 -- name: ListQueuedOutboxMessages :many
 SELECT id, channel, recipient, body, status, provider, error, created_at, sent_at
 FROM messages_outbox

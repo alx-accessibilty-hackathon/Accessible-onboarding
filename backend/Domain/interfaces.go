@@ -88,6 +88,11 @@ type JobUsecaseI interface {
 // ApplicationUsecaseI submits job applications.
 type ApplicationUsecaseI interface {
 	Apply(ctx context.Context, actor Actor, app *Application) (*Application, error)
+	// ListMine: the signed-in learner's applications (support passport), newest first.
+	ListMine(ctx context.Context, actor Actor) ([]*LearnerApplication, error)
+	// SetSupportSharing shares (or stops sharing) the learner's support needs with the employer
+	// of one of their applications. Another learner's application is ErrNotFound.
+	SetSupportSharing(ctx context.Context, actor Actor, applicationID uuid.UUID, share bool) (*LearnerApplication, error)
 }
 
 // LearnerUsecaseI: the partner API (level 2). partnerID is the calling partner server's ID;
@@ -114,6 +119,11 @@ type ReferralUsecaseI interface {
 	ListPartnerReferrals(ctx context.Context, actor Actor) ([]*PartnerReferral, error)
 	// UpdatePartnerReferral: another partner's referral is ErrNotFound.
 	UpdatePartnerReferral(ctx context.Context, actor Actor, id uuid.UUID, status string) (*PartnerReferral, error)
+	// MakeVouchCode (partner staff): a one-time code to vouch for the learner of this referral.
+	// confirmed is the staff member's statement that they met or spoke with the person.
+	MakeVouchCode(ctx context.Context, actor Actor, referralID uuid.UUID, confirmed bool) (*VouchCodeIssued, error)
+	// ConfirmVouch (the learner): enter the code; the learner becomes "confirmed by a partner".
+	ConfirmVouch(ctx context.Context, actor Actor, code string) (*Vouched, error)
 }
 
 // EmployerApplicationUsecaseI: applications to the signed-in employer's own jobs (C3, Q7).
@@ -212,6 +222,9 @@ type JobRepositoryI interface {
 // ApplicationRepositoryI: job applications.
 type ApplicationRepositoryI interface {
 	Create(ctx context.Context, app *Application) (*Application, error) // ErrAlreadyExists if applied before
+	ListForLearner(ctx context.Context, learnerID uuid.UUID) ([]*LearnerApplication, error)
+	// SetSupportSharing: ErrNotFound unless the application is this learner's.
+	SetSupportSharing(ctx context.Context, learnerID, applicationID uuid.UUID, share bool) error
 }
 
 // ProfileRepositoryI: what /me reads, changes and deletes. ErrNotFound when there is no row.
@@ -229,6 +242,8 @@ type ProfileRepositoryI interface {
 
 // ReferralRepositoryI: referrals with their learner, for the referral partner's staff.
 type ReferralRepositoryI interface {
+	// Get returns ErrNotFound if the referral doesn't exist or isn't this partner's.
+	Get(ctx context.Context, id, partnerID uuid.UUID) (*PartnerReferral, error)
 	ListByPartner(ctx context.Context, partnerID uuid.UUID) ([]*PartnerReferral, error) // newest first
 	// UpdateStatus returns ErrNotFound if the referral doesn't exist or isn't this partner's.
 	UpdateStatus(ctx context.Context, id, partnerID uuid.UUID, status string) (*PartnerReferral, error)
@@ -238,6 +253,20 @@ type ReferralRepositoryI interface {
 // with the applicant and (only when attach_support) the sealed support request.
 type EmployerApplicationRepositoryI interface {
 	ListForEmployerJob(ctx context.Context, jobID, employerID uuid.UUID) ([]*EmployerApplication, error)
+}
+
+// VouchRepositoryI: one-time codes for the trusted referral.
+type VouchRepositoryI interface {
+	// Create retires the referral's older unused codes and stores the new one (with an audit row).
+	Create(ctx context.Context, code *VouchCode, audit *AuditEntry) error
+	// Active is the learner's newest unused code (ErrNotFound if none).
+	Active(ctx context.Context, learnerID uuid.UUID) (*VouchCode, error)
+	// AddFailure counts a wrong try and returns the total.
+	AddFailure(ctx context.Context, id uuid.UUID) (int, error)
+	// Attest uses the code and, in one transaction, makes the learner "confirmed by a partner"
+	// (learner, latest identity evidence, referral "attested", audit row). ErrNotFound if the
+	// code was used meanwhile.
+	Attest(ctx context.Context, code *VouchCode, audit *AuditEntry) error
 }
 
 // AuditRepositoryI writes audit_log rows.
@@ -295,5 +324,12 @@ type SpeechService interface {
 	Synthesize(ctx context.Context, text, language string) ([]byte, error)
 }
 type MessageService interface {
+	// SendMessage hands a message to the SMS provider. A real provider sends in the background
+	// and records the result on msg.OutboxID, so the caller never waits for the network.
 	SendMessage(ctx context.Context, msg *Message) error
+}
+
+// OutboxStatusI records what the provider said about an outbox message ("sent" or "failed").
+type OutboxStatusI interface {
+	MarkOutboxMessage(ctx context.Context, id uuid.UUID, status, provider string, errText *string) error
 }

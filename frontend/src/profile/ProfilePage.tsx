@@ -11,8 +11,10 @@ import { answerParts, formatDate, keyPart } from '../a11y/readParts';
 import type { Part } from '../a11y/speaker';
 import { rememberHostTitle, restoreHostTitle, setStepTitle } from '../a11y/title';
 import { forgetEverything, loadSession, type LearnerSession } from '../api/auth';
+import { listMyApplications, setSupportSharing, type MyApplication } from '../api/applications';
 import { ApiError, errorCode, type ApiConfig } from '../api/client';
 import {
+  confirmVouch,
   deleteMe,
   exportMe,
   fetchMe,
@@ -133,6 +135,18 @@ export function ProfilePage({
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  // Support passport: my applications and which employers may see my support needs.
+  const [apps, setApps] = useState<MyApplication[] | null>(null);
+  const [appsError, setAppsError] = useState<string | null>(null);
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const [passportNote, setPassportNote] = useState<string | null>(null);
+
+  // Trusted referral: the code an organisation (such as AAAPD) gave the learner.
+  const [vouchCode, setVouchCode] = useState('');
+  const [vouchError, setVouchError] = useState<string | null>(null);
+  const [vouching, setVouching] = useState(false);
+  const [vouchDone, setVouchDone] = useState<string | null>(null);
+
   const headingRef = useRef<HTMLHeadingElement>(null);
   const questionHeadingRef = useRef<HTMLHeadingElement>(null);
   const savedRef = useRef<HTMLDivElement>(null);
@@ -165,6 +179,19 @@ export function ProfilePage({
       try {
         const data = await fetchMe({ ...api, token: s.token });
         if (!active) return;
+        if (data.status !== 'draft') {
+          // The support passport; the rest of the profile shows even if this fails.
+          try {
+            const list = await listMyApplications({ ...api, token: s.token });
+            if (!active) return;
+            setApps(list);
+            setAppsError(null);
+          } catch (err) {
+            if (!active) return;
+            setApps(null);
+            setAppsError(errorCode(err));
+          }
+        }
         setMe(data);
         setViewReason('load');
         setScreen({ name: 'view' });
@@ -359,13 +386,124 @@ export function ProfilePage({
 
   const handleVoiceClip = async (clipId: string, step: Step): Promise<VoiceClipOutcome | null> => {
     if (!learnerApi) return { code: 'speech_unavailable' };
-    const res = await transcribeClip(learnerApi, clipId, step, lang);
+    const res = await transcribeClip(learnerApi, clipId, step, lang, me?.registration_id);
     if ('text' in res) {
       if (step.type !== 'single_choice') setValue(res.text);
       return res;
     }
     announce(t(lang, `errors.${res.code}`));
     return res;
+  };
+
+  /* ---------------------------------------------------------------- */
+  /*  Support passport: share with an employer, or stop, in one tap   */
+  /* ---------------------------------------------------------------- */
+
+  const employerOf = (a: MyApplication) =>
+    a.employer_name || t(lang, 'profile.passport_this_employer');
+
+  const toggleSharing = async (app: MyApplication) => {
+    // Not disabled while saving (focus would be lost): a second press does nothing.
+    if (!learnerApi || sharingId) return;
+    setSharingId(app.id);
+    setAppsError(null);
+    setPassportNote(null);
+    try {
+      const updated = await setSupportSharing(learnerApi, app.id, !app.share_support);
+      setApps((list) => list?.map((a) => (a.id === updated.id ? updated : a)) ?? null);
+      const note = t(
+        lang,
+        updated.share_support ? 'profile.passport_now_shared' : 'profile.passport_now_stopped',
+        { employer: employerOf(updated) },
+      );
+      setPassportNote(note);
+      announce(note);
+    } catch (err) {
+      const code = errorCode(err);
+      setAppsError(code);
+      announce(t(lang, `errors.${code}`));
+    } finally {
+      setSharingId(null);
+    }
+  };
+
+  /* ---------------------------------------------------------------- */
+  /*  Trusted referral: enter the code the organisation gave me        */
+  /* ---------------------------------------------------------------- */
+
+  const canVouch = (data: Me) =>
+    !!data.referral &&
+    data.status !== 'draft' &&
+    data.identity?.level !== 'partner_attested' &&
+    data.identity?.level !== 'verified';
+
+  const partnerOf = (data: Me) =>
+    data.referral?.partner_name || t(lang, 'profile.passport_this_employer');
+
+  const submitVouch = async () => {
+    if (!me || !learnerApi || vouching) return;
+    const partner = partnerOf(me);
+    const fail = (msg: string) => {
+      setVouchError(msg);
+      announce(msg);
+    };
+    if (!vouchCode.trim()) {
+      fail(t(lang, 'profile.vouch_required'));
+      return;
+    }
+    setVouching(true);
+    setVouchError(null);
+    try {
+      const res = await confirmVouch(learnerApi, vouchCode);
+      const name = res.partner_name || partner;
+      setMe({
+        ...me,
+        identity: me.identity ? { ...me.identity, level: res.identity_level } : me.identity,
+        referral: me.referral ? { ...me.referral, status: 'attested' } : me.referral,
+      });
+      setVouchCode('');
+      const msg = t(lang, 'profile.vouch_done', { partner: name });
+      setVouchDone(msg);
+      announce(msg);
+    } catch (err) {
+      const fieldCode =
+        err instanceof ApiError ? err.errors.find((e) => e.field === 'code')?.code : '';
+      if (fieldCode === 'code_expired') fail(t(lang, 'profile.vouch_expired', { partner }));
+      else if (fieldCode === 'code_wrong') fail(t(lang, 'profile.vouch_wrong', { partner }));
+      else if (fieldCode === 'required') fail(t(lang, 'profile.vouch_required'));
+      else fail(t(lang, `errors.${errorCode(err)}`));
+    } finally {
+      setVouching(false);
+    }
+  };
+
+  const vouchParts = (data: Me): Part[] =>
+    canVouch(data)
+      ? [
+          keyPart(lang, 'profile.vouch_title'),
+          t(lang, 'profile.vouch_body', { partner: partnerOf(data) }),
+        ]
+      : [];
+
+  const hasNeeds = (data: Me) =>
+    (data.support?.needs?.length ?? 0) > 0 || !!data.support?.other_text?.trim();
+
+  const passportParts = (data: Me): Part[] => {
+    const parts: Part[] = [keyPart(lang, 'profile.passport_title')];
+    if (!hasNeeds(data)) {
+      parts.push(keyPart(lang, 'profile.passport_no_needs'));
+      return parts;
+    }
+    parts.push(keyPart(lang, 'profile.passport_intro'));
+    if (apps && apps.length === 0) parts.push(keyPart(lang, 'profile.passport_none'));
+    for (const a of apps ?? []) {
+      parts.push(
+        a.job_title,
+        employerOf(a),
+        keyPart(lang, a.share_support ? 'profile.passport_shared' : 'profile.passport_not_shared'),
+      );
+    }
+    return parts;
   };
 
   /* ---------------------------------------------------------------- */
@@ -584,6 +722,8 @@ export function ProfilePage({
     const parts: Part[] = [keyPart(lang, 'profile.title'), keyPart(lang, 'profile.intro')];
     if (draft) parts.push(keyPart(lang, 'profile.draft_body'));
     for (const row of rows(me)) parts.push(row.label, ...row.spoken);
+    parts.push(...vouchParts(me));
+    if (!draft) parts.push(...passportParts(me));
     parts.push(keyPart(lang, 'profile.export_title'), keyPart(lang, 'profile.export_body'));
     parts.push(keyPart(lang, 'profile.delete_title'), keyPart(lang, 'profile.delete_body'));
     return parts;
@@ -799,6 +939,180 @@ export function ProfilePage({
           </div>
         ))}
       </dl>
+
+      {vouchDone && (
+        <Banner variant="success" quiet>
+          {vouchDone}
+        </Banner>
+      )}
+
+      {canVouch(me) && (
+        <section
+          aria-labelledby="bo-vouch-title"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--bo-space-3)',
+            padding: 'var(--bo-space-4)',
+            border: '2px solid var(--bo-border-strong)',
+            borderRadius: 'var(--bo-radius)',
+            background: 'var(--bo-surface)',
+          }}
+        >
+          <h2 id="bo-vouch-title" style={{ fontSize: '1.1em', margin: 0 }}>
+            {t(lang, 'profile.vouch_title')}
+          </h2>
+          <p id="bo-vouch-body" style={{ margin: 0 }}>
+            {t(lang, 'profile.vouch_body', { partner: partnerOf(me) })}
+          </p>
+          <form
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitVouch();
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 'var(--bo-space-3)' }}
+          >
+            <label htmlFor="bo-vouch-code" style={{ fontWeight: 700 }}>
+              {t(lang, 'profile.vouch_label', { partner: partnerOf(me) })}
+            </label>
+            {vouchError && (
+              <p
+                id="bo-vouch-error"
+                style={{ margin: 0, color: 'var(--bo-error)', fontWeight: 600 }}
+              >
+                <span className="bo-visually-hidden">{t(lang, 'common.error_prefix')} </span>
+                {vouchError}
+              </p>
+            )}
+            <input
+              id="bo-vouch-code"
+              className="bo-input"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={7}
+              value={vouchCode}
+              aria-invalid={!!vouchError}
+              aria-describedby={vouchError ? 'bo-vouch-body bo-vouch-error' : 'bo-vouch-body'}
+              onChange={(e) => {
+                setVouchCode(e.target.value);
+                setVouchError(null);
+              }}
+              style={{ maxWidth: '12em', fontSize: '1.4em', letterSpacing: '0.15em' }}
+            />
+            <div>
+              <Button variant="primary" type="submit" aria-busy={vouching || undefined}>
+                {t(lang, 'profile.vouch_button')}
+              </Button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {!draft && (
+        <section
+          aria-labelledby="bo-passport-title"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--bo-space-3)',
+            padding: 'var(--bo-space-4)',
+            border: '2px solid var(--bo-border-strong)',
+            borderRadius: 'var(--bo-radius)',
+            background: 'var(--bo-surface)',
+          }}
+        >
+          <h2 id="bo-passport-title" style={{ fontSize: '1.1em', margin: 0 }}>
+            {t(lang, 'profile.passport_title')}
+          </h2>
+          {!hasNeeds(me) ? (
+            <>
+              <p style={{ margin: 0 }}>{t(lang, 'profile.passport_no_needs')}</p>
+              <div>
+                <Button variant="secondary" onClick={() => openEdit('support_needs')}>
+                  {t(lang, 'profile.passport_add_needs')}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={{ margin: 0 }}>{t(lang, 'profile.passport_intro')}</p>
+              {passportNote && (
+                <Banner variant="success" quiet>
+                  {passportNote}
+                </Banner>
+              )}
+              {apps && apps.length === 0 && (
+                <p className="bo-hint" style={{ margin: 0 }}>
+                  {t(lang, 'profile.passport_none')}
+                </p>
+              )}
+              {apps && apps.length > 0 && (
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'var(--bo-space-3)',
+                  }}
+                >
+                  {apps.map((a) => (
+                    <li
+                      key={a.id}
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 'var(--bo-space-3)',
+                        padding: 'var(--bo-space-3)',
+                        border: a.share_support
+                          ? '3px solid var(--bo-primary)'
+                          : '2px solid var(--bo-border-subtle)',
+                        borderRadius: 'var(--bo-radius)',
+                        background: a.share_support ? 'var(--bo-selected-bg)' : 'var(--bo-bg)',
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ margin: 0, fontWeight: 700 }}>{a.job_title}</p>
+                        <p style={{ margin: 0 }}>{employerOf(a)}</p>
+                        <p style={{ margin: 0, fontWeight: 600 }}>
+                          <span aria-hidden="true">{a.share_support ? '✓ ' : '✕ '}</span>
+                          {t(
+                            lang,
+                            a.share_support
+                              ? 'profile.passport_shared'
+                              : 'profile.passport_not_shared',
+                          )}
+                        </p>
+                      </div>
+                      <Button
+                        variant={a.share_support ? 'secondary' : 'primary'}
+                        onClick={() => void toggleSharing(a)}
+                        aria-busy={sharingId === a.id || undefined}
+                      >
+                        {t(
+                          lang,
+                          a.share_support ? 'profile.passport_stop' : 'profile.passport_share',
+                          { employer: employerOf(a) },
+                        )}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+          {appsError && (
+            <Banner variant="error" quiet>
+              {t(lang, `errors.${appsError}`)}
+            </Banner>
+          )}
+        </section>
+      )}
 
       <section
         aria-labelledby="bo-export-title"

@@ -24,7 +24,7 @@ type Config struct {
 	CodeHashKey       string // CODE_HASH_KEY: base64, 32 bytes (resume codes)
 
 	STTProviders      []string      // STT_PROVIDERS: tried in order, e.g. "azure,local"
-	STTTimeout        time.Duration // STT_TIMEOUT_MS (default 8000)
+	STTTimeout        time.Duration // STT_TIMEOUT_MS (default 20000: an upload to a cloud service from a phone on 3G)
 	AzureSpeechKey    string        // AZURE_SPEECH_KEY
 	AzureSpeechRegion string        // AZURE_SPEECH_REGION
 	LocalSTTURL       string        // LOCAL_STT_URL
@@ -34,7 +34,9 @@ type Config struct {
 	TTSCacheDir       string        // TTS_CACHE_DIR: on-disk read-aloud clip cache, "" for none (default ./data/tts_cache)
 	TTSDailyLimit     int           // TTS_DAILY_LIMIT: paid read-aloud calls per day, 0 = no limit (default 300); cache hits are free
 
-	SMSProvider string // SMS_PROVIDER: console | afromessage | africastalking | twilio
+	SMSProvider       string // SMS_PROVIDER: console (log only, the default) | smsethiopia
+	SMSEthiopiaAPIKey string // SMSETHIOPIA_API_KEY: SMS Ethiopia key (Dashboard → Console → API Keys)
+	SMSDailyLimit     int    // SMS_DAILY_LIMIT: SMS sent per day, 0 = no limit (default 50)
 
 	DevAllowedOriginSuffix string   // DEV_ALLOWED_ORIGIN_SUFFIX: e.g. .trycloudflare.com (dev only)
 	ExtraAllowedOrigins    []string // EXTRA_ALLOWED_ORIGINS: e.g. a phone on the LAN, http://192.168.1.20:5173 (dev only)
@@ -59,7 +61,7 @@ func Load() (Config, error) {
 		DataEncryptionKey:      os.Getenv("DATA_ENCRYPTION_KEY"),
 		CodeHashKey:            os.Getenv("CODE_HASH_KEY"),
 		STTProviders:           splitList(os.Getenv("STT_PROVIDERS")),
-		STTTimeout:             time.Duration(getInt("STT_TIMEOUT_MS", 8000)) * time.Millisecond,
+		STTTimeout:             time.Duration(getInt("STT_TIMEOUT_MS", 20000)) * time.Millisecond,
 		AzureSpeechKey:         os.Getenv("AZURE_SPEECH_KEY"),
 		AzureSpeechRegion:      os.Getenv("AZURE_SPEECH_REGION"),
 		LocalSTTURL:            os.Getenv("LOCAL_STT_URL"),
@@ -69,6 +71,8 @@ func Load() (Config, error) {
 		TTSCacheDir:            getEnvOrEmpty("TTS_CACHE_DIR", "./data/tts_cache"),
 		TTSDailyLimit:          getInt("TTS_DAILY_LIMIT", 300),
 		SMSProvider:            getEnv("SMS_PROVIDER", "console"),
+		SMSEthiopiaAPIKey:      os.Getenv("SMSETHIOPIA_API_KEY"),
+		SMSDailyLimit:          getInt("SMS_DAILY_LIMIT", 50),
 		DevAllowedOriginSuffix: os.Getenv("DEV_ALLOWED_ORIGIN_SUFFIX"),
 		ExtraAllowedOrigins:    splitList(os.Getenv("EXTRA_ALLOWED_ORIGINS")),
 		TelegramWebhookSecret:  os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
