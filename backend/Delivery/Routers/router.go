@@ -23,6 +23,7 @@ type Controllers struct {
 	Learner      *controllers.LearnerController
 
 	// Round 3. Left nil (as in the router tests), their routes answer 501.
+	Partner             *controllers.PartnerController
 	Me                  *controllers.MeController
 	Referral            *controllers.ReferralController
 	EmployerApplication *controllers.EmployerApplicationController
@@ -34,6 +35,8 @@ type Middlewares struct {
 	IPLimiter     *infrastructure.IPRateLimiter     // per client IP, every request
 	GlobalLimiter *infrastructure.GlobalRateLimiter // whole server
 	StrictLimiter *infrastructure.IPRateLimiter     // per IP: sign-in, OAuth, new registrations, resume
+
+	PartnerSignupLimiter *infrastructure.IPRateLimiter // per IP: POST /partners
 
 	CORS              gin.HandlerFunc
 	PartnerKey        gin.HandlerFunc // X-Partner-Key + allowed origin
@@ -50,6 +53,14 @@ func orPass(h gin.HandlerFunc) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	}
 	return h
+}
+
+// partnerSignup limits POST /partners per IP (its own limiter, or the strict one).
+func (m *Middlewares) partnerSignup() gin.HandlerFunc {
+	if m.PartnerSignupLimiter == nil {
+		return m.strict()
+	}
+	return m.PartnerSignupLimiter.Middleware()
 }
 
 func (m *Middlewares) strict() gin.HandlerFunc {
@@ -115,7 +126,8 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 	v1.GET("/feeds/jobposting.jsonld", ctrl.Job.GetJobPostingFeedController) // every published job
 	v1.POST("/auth/staff/login", mw.strict(), ctrl.Auth.StaffLoginController)
 	v1.POST("/oauth/token", mw.strict(), ctrl.Auth.OAuthTokenController)
-	v1.POST("/auth/logout", ctrl.Auth.LogoutController) // learner or staff token, checked by the use case
+	v1.POST("/partners", mw.partnerSignup(), ctrl.Partner.CreatePartnerController) // self-service: a working key at once
+	v1.POST("/auth/logout", ctrl.Auth.LogoutController)                            // learner or staff token, checked by the use case
 	v1.POST("/telegram/webhook", orPass(mw.TelegramSecret), ctrl.Registration.TelegramWebhookController)
 
 	// Widget routes: partner key only
@@ -149,6 +161,8 @@ func SetupRouter(ctrl *Controllers, mw *Middlewares) *gin.Engine {
 		learner.GET("/me/applications", ctrl.Application.ListMyApplicationsController)        // support passport
 		learner.PATCH("/me/applications/:id", ctrl.Application.UpdateMyApplicationController) // share or withdraw
 		learner.POST("/me/vouch", mw.strict(), ctrl.Referral.ConfirmVouchController)
+		learner.GET("/me/sign-in-code", ctrl.Me.GetSignInCodeController)                            // the code to sign in again on another phone
+		learner.POST("/me/sign-in-code", mw.strict(), ctrl.Me.NewSignInCodeController)              // a new one (the old one stops working)
 		learner.POST("/me/phone-verification", mw.strict(), ctrl.Me.SendPhoneCodeController)        // optional phone check: send a code
 		learner.POST("/me/phone-verification/confirm", mw.strict(), ctrl.Me.ConfirmPhoneController) // check the code          // enter a vouch code
 	}

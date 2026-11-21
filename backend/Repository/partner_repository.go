@@ -26,6 +26,7 @@ type PartnerRepository struct {
 
 // Compile-time check that PartnerRepository implements the domain interface.
 var _ domain.PartnerRepositoryI = (*PartnerRepository)(nil)
+var _ domain.PartnerCreatorI = (*PartnerRepository)(nil)
 
 func NewPartnerRepo(db *pgxpool.Pool) *PartnerRepository {
 	return &PartnerRepository{
@@ -103,6 +104,31 @@ func (r *PartnerRepository) GetByClientID(ctx context.Context, clientID string) 
 		return nil, nil, err
 	}
 	return p, row.ClientSecretHash, nil
+}
+
+// Create saves a self-service partner. A taken slug, key or client ID is ErrAlreadyExists.
+func (r *PartnerRepository) Create(ctx context.Context, p domain.NewPartner) (*domain.Partner, error) {
+	config, err := json.Marshal(p.Config)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.Q.CreatePartner(ctx, sqlc.CreatePartnerParams{
+		Slug:             p.Slug,
+		Name:             p.Name,
+		Kind:             p.Kind,
+		PublishableKey:   p.PublishableKey,
+		AllowedOrigins:   p.AllowedOrigins,
+		ClientID:         nilIfEmpty(p.ClientID),
+		ClientSecretHash: p.SecretHash,
+		Config:           config,
+	})
+	if hasPgCode(err, pgUniqueViolation) {
+		return nil, domain.ErrAlreadyExists
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toPartner(row.ID, row.Slug, row.Name, row.Kind, row.PublishableKey, row.AllowedOrigins, row.ClientID, row.Config, row.CreatedAt)
 }
 
 func toPartner(id uuid.UUID, slug, name, kind, key string, origins []string, clientID *string, config json.RawMessage, createdAt time.Time) (*domain.Partner, error) {

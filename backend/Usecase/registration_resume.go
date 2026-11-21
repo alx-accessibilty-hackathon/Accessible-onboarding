@@ -15,10 +15,24 @@ import (
 // Continue on another device (resume link or code), partner consent codes and the Telegram
 // bot (Dev B). These are methods of RegistrationUsecase (registration_usecase.go).
 
-func (u *RegistrationUsecase) ResumeLookup(ctx context.Context, codeOrToken string) (*domain.ResumeLookupResult, error) {
+// isSignInCode: 8 letters and digits (XXXX-XXXX) is a sign-in code; a resume code has 6, and a
+// link token starts with k_ (or r_) and is much longer.
+func (u *RegistrationUsecase) isSignInCode(input string) bool {
+	if strings.HasPrefix(input, "k_") || strings.HasPrefix(input, "r_") {
+		return false
+	}
+	return len(u.Security.NormalizeCode(input)) == signInCodeLength
+}
+
+// ResumeLookup finds a resume code or link (an unfinished sign-up) or a sign-in code (a
+// finished profile, signin_codes.go) and says what the person must confirm.
+func (u *RegistrationUsecase) ResumeLookup(ctx context.Context, actor domain.Actor, codeOrToken string) (*domain.ResumeLookupResult, error) {
 	trimmed := strings.TrimSpace(codeOrToken)
 	if trimmed == "" {
 		return nil, domain.ErrInvalidInput
+	}
+	if u.isSignInCode(trimmed) {
+		return u.signInLookup(ctx, actor, trimmed)
 	}
 
 	tokenRecord, err := u.findResumeToken(ctx, trimmed)
@@ -61,10 +75,13 @@ func (u *RegistrationUsecase) ResumeLookup(ctx context.Context, codeOrToken stri
 	}, nil
 }
 
-func (u *RegistrationUsecase) ResumeVerify(ctx context.Context, codeOrToken string, dob *domain.ResumeDOB, phoneLast4 string) (*domain.ResumeVerifyResult, int, error) {
+func (u *RegistrationUsecase) ResumeVerify(ctx context.Context, actor domain.Actor, codeOrToken string, dob *domain.ResumeDOB, phoneLast4 string) (*domain.ResumeVerifyResult, int, error) {
 	trimmed := strings.TrimSpace(codeOrToken)
 	if trimmed == "" {
 		return nil, 0, domain.ErrInvalidInput
+	}
+	if u.isSignInCode(trimmed) {
+		return u.signInVerify(ctx, actor, trimmed, dob, phoneLast4)
 	}
 
 	tokenRecord, err := u.findResumeToken(ctx, trimmed)

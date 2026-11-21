@@ -27,8 +27,9 @@ type RegistrationUsecase struct {
 	SessionRepo      domain.SessionRepositoryI // resume tokens, verification codes, outbox
 	Security         domain.SecurityService
 	Messages         domain.MessageService
-	PublicURL        string // PUBLIC_WEB_URL, for resume links (set in main.go)
-	SMSNotices       bool   // text "you are signed up" (only when real SMS is on, set in main.go)
+	PublicURL        string       // PUBLIC_WEB_URL, for resume links (set in main.go)
+	SMSNotices       bool         // text "you are signed up" (only when real SMS is on, set in main.go)
+	SignIn           *SignInCodes // sign-in codes typed on the resume screen (signin_codes.go); set in main.go
 }
 
 var _ domain.RegistrationUsecaseI = (*RegistrationUsecase)(nil)

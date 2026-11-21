@@ -16,6 +16,7 @@ info:
     | A website with the widget | `X-Partner-Key: pk_…` (public, not a secret). A browser call must also come from one of the partner's allowed origins (`Origin` header), or it gets `403 origin_not_allowed`. Calls without an `Origin` header (curl, a server) skip the origin check. | Widget routes |
     | A learner | `Authorization: Bearer lt_…` from `POST /api/v1/registrations` or `POST /api/v1/resume/verify`, **plus** the partner key. The token must belong to a learner of that partner. | Learner routes |
     | Staff (employers, partner staff) | `Authorization: Bearer st_…` from `POST /api/v1/auth/staff/login`, plus a role check. | Staff routes |
+    | Anyone (the partner guide's form) | Nothing. Rate-limited. | `POST /api/v1/partners` (creates a partner key) |
     | A partner's server | `Authorization: Bearer pt_…` from `POST /api/v1/oauth/token` (OAuth 2.0 client credentials) with the scope `learners:read`. | `/api/v1/partner-api/…` |
 
     Tokens are opaque random strings (not JWTs). Only their SHA-256 hash is stored.
@@ -70,6 +71,8 @@ servers:
 tags:
   - name: System
     description: Health check and these API docs.
+  - name: Partners
+    description: Self-service partner sign-up. A working partner key and an OAuth client at once.
   - name: Widget
     description: Partner settings for the widget.
   - name: Registrations
@@ -265,6 +268,123 @@ paths:
                 type: string
         "429":
           $ref: "#/components/responses/RateLimited"
+
+  # ------------------------------------------------------------------ Partners
+  /api/v1/partners:
+    post:
+      operationId: createPartner
+      tags: [Partners]
+      summary: Create a partner and get a working key (self-service)
+      description: |
+        **Who:** anyone. The form on the partner guide (`/partners.html`) calls it. No key, no
+        sign-in. Its own rate limit (30 per hour per IP) and a daily cap
+        (`PARTNER_SIGNUP_DAILY_LIMIT`, 500 by default); `PARTNER_SELF_SERVICE=off` turns it off.
+
+        The server makes the publishable key (`pk_live_…`, 128 random bits) and an OAuth client
+        for the partner server API (`client_id`, and a `client_secret` with 256 random bits).
+        **The secret is in this answer only**: just its SHA-256 hash is stored. The key works at
+        once, from the listed origins only (the CORS list reloads straight away). Both partner
+        kinds can be made. A referral organisation is offered to every learner who chooses
+        "I have none of these" at the ID step.
+
+        Checks (all reported at once, `422`): `name` 2–80 characters; `slug` 2–40 lower-case
+        letters, digits and dashes; `allowed_origins` 1–20, each exactly
+        `http(s)://host[:port]` (no path, query or wildcard; returned lower-case without a
+        trailing slash); `languages` codes of 2–3 letters (default `["am","en"]`);
+        `default_language` one of them; `help.phone` digits, spaces, `()-` and an optional `+`;
+        `help.telegram` a handle (an `@` is added); `theme.primary` `#rrggbb`.
+        There is no way to change a partner here yet: create another one.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePartnerRequest"
+            example:
+              name: Acme Learning
+              slug: acme
+              kind: platform
+              allowed_origins: ["https://learn.acme.example", "http://localhost:3000"]
+              languages: [am, en]
+              default_language: am
+              help:
+                phone: "+251 11 123 4567"
+                telegram: "@acme_help"
+              theme:
+                primary: "#cc3636"
+      responses:
+        "201":
+          description: The partner, its key and its OAuth client. Sent with `Cache-Control no-store`.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedPartner"
+              example:
+                partner:
+                  id: 4b304dcd-4716-4ec7-b431-f07b59ed0ee9
+                  slug: acme
+                  name: Acme Learning
+                  kind: platform
+                  allowed_origins: ["https://learn.acme.example", "http://localhost:3000"]
+                  config:
+                    languages: [am, en]
+                    default_language: am
+                    help:
+                      phone: "+251 11 123 4567"
+                      telegram: "@acme_help"
+                    theme:
+                      primary: "#cc3636"
+                publishable_key: pk_live_63d63bb18ccec296465edffa540ee806
+                client_id: acme-2bc8e1
+                client_secret: cs_c2VjcmV0LXNob3duLW9uY2UtZXhhbXBsZS1vbmx5LTEyMw
+                scope: learners:read
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "409":
+          description: The `slug` is taken (`already_exists`). Choose another one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 409
+                code: already_exists
+                title: Already exists
+        "422":
+          description: A field is missing or wrong (`validation_failed`). Codes include `required`, `too_short`, `too_long`, `too_many`, `invalid`, `invalid_choice` and `invalid_origin`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 422
+                code: validation_failed
+                title: Validation failed
+                errors:
+                  - field: slug
+                    code: invalid
+                  - field: allowed_origins
+                    code: invalid_origin
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          description: Self-service is turned off on this server (`partner_signup_off`, `PARTNER_SELF_SERVICE=off`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 503
+                code: partner_signup_off
+                title: Partner sign-up is turned off
 
   # ------------------------------------------------------------------ Widget
   /api/v1/config:
@@ -943,13 +1063,22 @@ paths:
     post:
       operationId: resumeLookup
       tags: [Resume]
-      summary: Find a sign-up from a resume code or link token
+      summary: Find a sign-up from a resume code, link token or sign-in code
       description: |
         **Who:** anyone with the partner key, from an allowed origin. Strict rate limit.
 
         Says which registration the code (or link token) belongs to and which check the
         learner must pass next: `dob` (date of birth) or `phone` (last 4 digits). Send `code`
         or `token`. After 5 failed checks the code is locked.
+
+        Two kinds of code (`kind` in the answer):
+        - `resume`: a 6-character resume code (`K7M-9P2`) or a link token, for an
+          **unfinished** sign-up. One use, 72 hours.
+        - `sign_in`: the 8-character **sign-in code** (`ABCD-2345`) of a learner who has
+          finished signing up (see `GET /api/v1/me/sign-in-code`). It can be used again and
+          again, and only with the key of the learner's own partner (`404` otherwise). If the
+          learner has neither a date of birth nor a phone, `check` is `none`: call verify with
+          the code alone. 5 wrong checks lock it for 15 minutes.
       security:
         - PartnerKey: []
       requestBody:
@@ -967,9 +1096,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResumeLookupResponse"
-              example:
-                registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
-                check: phone
+              examples:
+                resume:
+                  summary: A resume code (unfinished sign-up)
+                  value:
+                    registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
+                    check: phone
+                    kind: resume
+                sign_in:
+                  summary: A sign-in code (finished profile)
+                  value:
+                    registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
+                    check: dob
+                    kind: sign_in
         "400":
           description: Neither `code` nor `token` was sent, or the JSON is unreadable (`invalid_request`).
           content:
@@ -1002,9 +1141,14 @@ paths:
         **Who:** anyone with the partner key, from an allowed origin. Strict rate limit.
 
         Send the code (or token) and the check: `dob` (`year`, `month`, `day`) or
-        `phone_last4` (exactly 4 digits). On a match the code is used up and a new learner
-        token (30 days) is returned. On a mismatch you get `401 resume_check_failed` with
-        `attempts_left`; after 5 failures the code is locked (`429 too_many_attempts`).
+        `phone_last4` (exactly 4 digits). On a match a new learner token (30 days) is
+        returned. On a mismatch you get `401 resume_check_failed` with `attempts_left`; after 5
+        failures the code is locked (`429 too_many_attempts`).
+
+        A resume code is used up by a match. A **sign-in code** (`kind: sign_in`) is not: it
+        signs the learner in to their finished profile every time (the widget then opens the
+        profile, not the sign-up). Its lock lasts 15 minutes. `dob` may be sent in the
+        `ethiopian` or `gregorian` calendar.
       security:
         - PartnerKey: []
       requestBody:
@@ -1025,6 +1169,7 @@ paths:
                 $ref: "#/components/schemas/ResumeVerifyResponse"
               example:
                 registration_id: 3f2a9c4e-8b1d-4e7a-9c3f-5d6e7f8a9b0c
+                kind: resume
                 session:
                   token: lt_TmV3RGV2aWNlVG9rZW5YWQ
                   expires_at: "2026-12-15T10:00:00Z"
@@ -1758,6 +1903,93 @@ paths:
           $ref: "#/components/responses/LearnerForbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/sign-in-code:
+    get:
+      operationId: getMySignInCode
+      tags: [Learner profile]
+      summary: My sign-in code (to sign in again on another phone)
+      description: |
+        **Who:** a learner who has finished signing up, with the partner key and their own
+        learner token.
+
+        The 8-character code (`XXXX-XXXX`, letters and digits without 0, O, 1, I or L) that
+        signs the learner in again on another phone, or after "Forget me on this phone": they
+        type it in "Continue with a code" (`POST /api/v1/resume/lookup` and `/verify`) with
+        their date of birth or the last 4 digits of their phone. It is made the first time it
+        is asked for and stays the same until `POST` replaces it. The widget shows it on the
+        Done screen and on the profile page. Stored as a keyed hash (for the lookup) and
+        encrypted (only to show it again). Sent with `Cache-Control no-store`.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "200":
+          description: The code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignInCode"
+              example:
+                code: ABCD-2345
+                created_at: "2026-11-21T09:30:00Z"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "409":
+          description: "`not_registered`: finish signing up first."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 409
+                code: not_registered
+                title: Finish signing up first
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      operationId: newMySignInCode
+      tags: [Learner profile]
+      summary: Make a new sign-in code (the old one stops working)
+      description: |
+        **Who:** a learner who has finished signing up, with the partner key and their own
+        learner token. Strict rate limit. No body.
+
+        For when someone else may have seen the code. The old code stops working at once, and
+        any lock from wrong checks ends.
+      security:
+        - PartnerKey: []
+          LearnerBearer: []
+      responses:
+        "200":
+          description: The new code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignInCode"
+              example:
+                code: QRST-6789
+                created_at: "2026-11-21T09:35:00Z"
+        "401":
+          $ref: "#/components/responses/LearnerUnauthorized"
+        "403":
+          $ref: "#/components/responses/LearnerForbidden"
+        "409":
+          description: "`not_registered`: finish signing up first."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                status: 409
+                code: not_registered
+                title: Finish signing up first
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -3420,6 +3652,100 @@ components:
           format: date
           example: "2017-09-25"
 
+    # ---------------------------------------------------------- partners
+    CreatePartnerRequest:
+      type: object
+      required: [name, slug, allowed_origins]
+      properties:
+        name:
+          type: string
+          description: Shown to learners (and in SMS for a referral organisation). 2–80 characters.
+          example: Acme Learning
+        slug:
+          type: string
+          description: Short unique ID, lower-case letters, digits and dashes.
+          pattern: "^[a-z0-9][a-z0-9-]{1,39}$"
+          example: acme
+        kind:
+          type: string
+          enum: [platform, referral_org]
+          default: platform
+        allowed_origins:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: Every website (origin) that will show the widget, exactly as the browser sends it.
+          items:
+            type: string
+            example: https://learn.acme.example
+        languages:
+          type: array
+          description: Language codes the widget offers. Default `["am","en"]`.
+          items:
+            type: string
+            example: am
+        default_language:
+          type: string
+          description: One of `languages`. Default the first one.
+          example: am
+        help:
+          type: object
+          description: Contacts in the widget's "Get help" panel. Both optional.
+          properties:
+            phone:
+              type: string
+              example: "+251 11 123 4567"
+            telegram:
+              type: string
+              example: "@acme_help"
+        theme:
+          type: object
+          properties:
+            primary:
+              type: string
+              description: Brand colour, used in light mode if it has 4.5:1 contrast on white.
+              example: "#cc3636"
+    CreatedPartner:
+      type: object
+      required: [partner, publishable_key, client_id, client_secret, scope]
+      properties:
+        partner:
+          type: object
+          required: [id, slug, name, kind, allowed_origins, config]
+          properties:
+            id:
+              type: string
+              format: uuid
+            slug:
+              type: string
+            name:
+              type: string
+            kind:
+              type: string
+              enum: [platform, referral_org]
+            allowed_origins:
+              type: array
+              items:
+                type: string
+            config:
+              type: object
+              description: The saved settings (`languages`, `default_language`, `help`, `theme`), as `GET /api/v1/config` reads them.
+              additionalProperties: true
+        publishable_key:
+          type: string
+          description: The partner key for the `partner` attribute and `X-Partner-Key`. Public.
+          example: pk_live_63d63bb18ccec296465edffa540ee806
+        client_id:
+          type: string
+          description: For `POST /api/v1/oauth/token`.
+          example: acme-2bc8e1
+        client_secret:
+          type: string
+          description: For `POST /api/v1/oauth/token`. **Shown only here**; keep it on your server.
+        scope:
+          type: string
+          example: learners:read
+
     # ---------------------------------------------------------- config
     Config:
       type: object
@@ -3790,8 +4116,23 @@ components:
           format: uuid
         check:
           type: string
-          enum: [dob, phone]
-          description: Which check `POST /api/v1/resume/verify` needs.
+          enum: [dob, phone, none]
+          description: Which check `POST /api/v1/resume/verify` needs. `none` only for a sign-in code of a learner with no date of birth and no phone.
+        kind:
+          type: string
+          enum: [resume, sign_in]
+          description: "`resume`: an unfinished sign-up. `sign_in`: a sign-in code of a finished profile."
+    SignInCode:
+      type: object
+      required: [code, created_at]
+      properties:
+        code:
+          type: string
+          pattern: "^[A-Z2-9]{4}-[A-Z2-9]{4}$"
+          example: ABCD-2345
+        created_at:
+          type: string
+          format: date-time
     ResumeVerifyRequest:
       type: object
       description: Send `code` or `token`, and `dob` or `phone_last4`.
@@ -3822,6 +4163,11 @@ components:
         registration_id:
           type: string
           format: uuid
+          description: The sign-up (for a sign-in code, the learner's latest one).
+        kind:
+          type: string
+          enum: [resume, sign_in]
+          description: "`sign_in`: signed in to a finished profile (open the profile, not the sign-up)."
         session:
           $ref: "#/components/schemas/Session"
 

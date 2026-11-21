@@ -358,6 +358,47 @@
       .callout p {
         margin: 0.25rem 0;
       }
+      .callout.success {
+        background: var(--doc-success-bg);
+        border-left-color: var(--doc-success-text);
+      }
+      .error-summary {
+        border: 3px solid var(--doc-brand-text);
+        border-radius: 6px;
+        padding: 0.85rem 1.1rem;
+        margin: 0 0 1.25rem;
+        background: var(--doc-surface);
+      }
+      .error-summary:focus {
+        outline: 3px solid var(--doc-focus);
+        outline-offset: 2px;
+      }
+      .error-summary h3 {
+        margin: 0 0 0.5rem;
+        font-size: 1.05rem;
+      }
+      .error-summary ul {
+        margin: 0;
+        padding-left: 1.25rem;
+      }
+      .error-summary a {
+        color: var(--doc-brand-text);
+        font-weight: 600;
+      }
+      .field-error {
+        color: var(--doc-brand-text);
+        font-weight: 600;
+        font-size: 0.85rem;
+        margin: 0.25rem 0;
+      }
+      .copy-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .btn:disabled {
+        opacity: 0.7;
+        cursor: progress;
+      }
     </style>
   </head>
   <body>
@@ -394,10 +435,9 @@
             and your languages.
           </li>
           <li>
-            <strong>Send them to the Bridge operator.</strong> There is no self-service sign-up yet.
-            The operator creates your partner in the database (the SQL tab shows the query) and
-            confirms your partner key. The key works only after that. A new origin can take up to 2
-            minutes to be accepted.
+            <strong>Create your key.</strong> Press "Create my partner key". The Bridge API creates
+            your partner and the key works at once, from the origins you listed. You also get a
+            client ID and secret for the partner server API. The secret is shown only once.
           </li>
           <li>
             <strong>Add the component to your page.</strong> Copy the HTML snippet. Put the element
@@ -409,8 +449,8 @@
             needs. See <a href="#events">Events</a>.
           </li>
           <li>
-            <strong>Optional: read your learners from your server.</strong> Ask the operator for a
-            client ID and secret, then use the
+            <strong>Optional: read your learners from your server.</strong> Use the client ID and
+            secret you got with your key and the
             <a href="/docs.html#oauth-setup">partner server API</a> (OAuth 2.0 client credentials,
             scope <code>learners:read</code>).
           </li>
@@ -419,14 +459,6 @@
             <a href="/docs.html#get-jsonld">JobPosting JSON-LD</a>, with no key.
           </li>
         </ol>
-        <div class="callout">
-          <p>
-            <strong>The first load can be slow.</strong> The hosted API runs on a free plan that
-            sleeps when nobody uses it. The component retries reading requests for up to about 75
-            seconds and shows: "Connecting to the service. The first time, this can take up to a
-            minute."
-          </p>
-        </div>
       </section>
 
       <div class="grid-layout">
@@ -434,12 +466,16 @@
         <section class="card">
           <h2 class="card-title">1. Your organisation and settings</h2>
           <p class="card-subtitle">
-            This form runs only in your browser and sends nothing. It prepares your settings and the
-            code for your page. To go live, send the "SQL for the operator" tab to the Bridge team:
-            they create your partner, and only then does your key work.
+            Fill in your settings, then press "Create my partner key". The code for your page
+            updates as you type. Nothing is sent until you press the button.
           </p>
 
-          <form id="partnerForm">
+          <div id="formErrors" class="error-summary" tabindex="-1" hidden>
+            <h3 id="formErrorsTitle">There is a problem</h3>
+            <ul id="formErrorsList"></ul>
+          </div>
+
+          <form id="partnerForm" novalidate>
             <div class="form-group">
               <label for="orgName">Organisation name *</label>
               <input type="text" id="orgName" class="form-control" value="Acme Learning" required />
@@ -573,8 +609,8 @@
               </div>
             </div>
 
-            <button type="button" id="generateBtn" class="btn" style="margin-top: 1rem">
-              Suggest a different key
+            <button type="submit" id="createBtn" class="btn" style="margin-top: 1rem">
+              Create my partner key
             </button>
           </form>
         </section>
@@ -591,31 +627,53 @@
             "
           >
             <h2 class="card-title" style="margin-bottom: 0">2. Your integration code</h2>
-            <span class="badge" id="statusBadge" role="status">Up to date</span>
+            <span class="badge" id="statusBadge" role="status">No key yet</span>
           </div>
           <p class="card-subtitle">
-            The code updates as you type. The key stays the same until you ask for a different one.
+            The code updates as you type. Your key appears here once you have created it.
           </p>
 
           <label style="font-weight: 600; font-size: 0.9rem" for="keyDisplay"
-            >Your partner key (not active yet)</label
+            >Your partner key</label
           >
           <div class="key-display">
-            <output id="keyDisplay">pk_live_0000000000000000</output>
-            <button type="button" class="copy-btn" id="copyKeyBtn">Copy key</button>
+            <output id="keyDisplay">Not created yet</output>
+            <button type="button" class="copy-btn" id="copyKeyBtn" disabled>Copy key</button>
           </div>
-          <div class="callout" role="note">
-            <p>
-              <strong>This key does not work yet.</strong> It is a proposal made in your browser. It
-              works once the Bridge team has created your partner with it (the "SQL for the
-              operator" tab). Until then the API answers <code>401 partner_key_invalid</code>.
+          <div class="callout" id="keyNote" role="note" tabindex="-1">
+            <p id="keyNoteText">
+              <strong>No key yet.</strong> Press "Create my partner key". The key works at once from
+              the origins you listed.
             </p>
             <p>
-              <strong>Want to try the component today?</strong> Use our demo site:
-              <a href="/demo/savanna/signup.html">the Savanna demo</a>, which uses the demo key
+              <strong>Just looking?</strong> Our demo site,
+              <a href="/demo/savanna/signup.html">the Savanna demo</a>, uses the demo key
               <code>pk_demo_savanna</code>.
             </p>
             <p>The key is public: it goes in your HTML. It is not a password.</p>
+          </div>
+
+          <div id="serverCreds" hidden>
+            <h3 style="font-size: 1.05rem; margin: 1rem 0 0.5rem">Partner server API (OAuth)</h3>
+            <p class="card-subtitle" style="margin-bottom: 0.5rem">
+              For reading your learners from your server (scope <code>learners:read</code>).
+              <strong>Save the secret now.</strong> We keep only a hash of it, so we can't show it
+              again. Never put it in a web page.
+            </p>
+            <label style="font-weight: 600; font-size: 0.9rem" for="clientIdDisplay"
+              >Client ID</label
+            >
+            <div class="key-display">
+              <output id="clientIdDisplay"></output>
+              <button type="button" class="copy-btn" id="copyClientIdBtn">Copy client ID</button>
+            </div>
+            <label style="font-weight: 600; font-size: 0.9rem" for="clientSecretDisplay"
+              >Client secret</label
+            >
+            <div class="key-display">
+              <output id="clientSecretDisplay"></output>
+              <button type="button" class="copy-btn" id="copySecretBtn">Copy secret</button>
+            </div>
           </div>
 
           <div class="tab-bar" role="tablist" aria-label="Integration code">
@@ -637,7 +695,7 @@
               aria-controls="sqlTab"
               data-tab="sqlTab"
             >
-              SQL for the operator
+              SQL (your own server)
             </button>
             <button
               type="button"
@@ -663,7 +721,7 @@
           <!-- SQL Tab -->
           <div id="sqlTab" class="tab-content" role="tabpanel" style="display: none">
             <div class="code-header">
-              <span>The operator runs this in the Bridge database:</span>
+              <span>Only if you run your own Bridge server. Run this in its database:</span>
               <button type="button" class="copy-btn" id="copySqlBtn">Copy SQL</button>
             </div>
             <pre tabindex="0"><code id="sqlCode"></code></pre>
@@ -672,7 +730,7 @@
           <!-- cURL Tab -->
           <div id="curlTab" class="tab-content" role="tabpanel" style="display: none">
             <div class="code-header">
-              <span>After the Bridge team has created your partner, check your settings:</span>
+              <span>Check your settings:</span>
               <button type="button" class="copy-btn" id="copyCurlBtn">Copy curl</button>
             </div>
             <pre tabindex="0"><code id="curlCode"></code></pre>
@@ -997,9 +1055,9 @@
         <h2 class="card-title">Partner settings</h2>
         <p class="card-subtitle">
           Each partner has a JSON <code>config</code> in the <code>partners</code> table.
-          <code>GET /api/v1/config</code> returns it, with defaults for anything missing. There is
-          no settings page yet: ask the Bridge team and they change it for you (the SQL below is
-          what they run).
+          <code>GET /api/v1/config</code> returns it, with defaults for anything missing. The form
+          above sets it when you create your key. There is no settings page yet: to change it later,
+          create a new key, or ask the Bridge team to run the SQL below.
         </p>
         <div class="table-wrap">
           <table class="info-table">
@@ -1083,8 +1141,8 @@ UPDATE partners SET allowed_origins = array_remove(allowed_origins, 'https://you
 WHERE publishable_key = 'pk_…';</code></pre>
         <p>
           Settings are read on every request, so a change shows the next time the component loads.
-          The browser permission (CORS) list of origins is reloaded every 2 minutes, so a new origin
-          can take up to 2 minutes to work.
+          Origins of a key made with the form work at once. An origin added with SQL can take up to
+          2 minutes to work (the browser permission list, CORS, is reloaded every 2 minutes).
         </p>
       </section>
 
@@ -1249,6 +1307,11 @@ WHERE publishable_key = 'pk_…';</code></pre>
 
     <script>
       const HOST = 'https://accessible-onboarding.vercel.app';
+      // Keys are made by the API behind this page (on the hosted site, /api goes to the API).
+      const CREATE_URL = '/api/v1/partners';
+      const LOCAL_PAGE =
+        ['localhost', '127.0.0.1'].includes(location.hostname) ||
+        location.hostname.endsWith('.trycloudflare.com');
 
       function randomHex(bytes = 6) {
         const a = new Uint8Array(bytes);
@@ -1262,19 +1325,18 @@ WHERE publishable_key = 'pk_…';</code></pre>
       const attr = (s) =>
         String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-      // The key is random only: it doesn't change while you type your organisation's name.
-      let suffix = randomHex(8);
+      // Only for the SQL tab (your own Bridge server): a key made in this browser.
+      const sqlSuffix = randomHex(16);
+      // The key the API made (null until "Create my partner key").
+      let created = null;
+      // The form as it was when the key was made, to notice later changes.
+      let createdForm = '';
 
-      function updateOutputs() {
-        const name = document.getElementById('orgName').value.trim() || 'My Organisation';
-        const slug =
-          document.getElementById('orgSlug').value.trim() ||
-          name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '');
+      function readForm() {
+        const name = document.getElementById('orgName').value.trim();
+        const slug = document.getElementById('orgSlug').value.trim();
         const kind = document.getElementById('orgKind').value;
-        const color = document.getElementById('colorHex').value.trim() || '#cc3636';
+        const color = document.getElementById('colorHex').value.trim();
         const defaultLang = document.getElementById('defaultLang').value;
         const origins = document
           .getElementById('allowedOrigins')
@@ -1289,9 +1351,20 @@ WHERE publishable_key = 'pk_…';</code></pre>
         if (document.getElementById('langEn').checked) languages.push('en');
         if (languages.length === 0) languages.push('en');
         const lang = languages.includes(defaultLang) ? defaultLang : languages[0];
+        return { name, slug, kind, color, origins, phone, telegram, languages, lang };
+      }
 
-        const key = `pk_live_${suffix}`;
-        document.getElementById('keyDisplay').textContent = key;
+      function updateOutputs() {
+        const f = readForm();
+        const name = f.name || 'My Organisation';
+        const slug =
+          f.slug ||
+          name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+        const lang = created ? created.partner.config.default_language || f.lang : f.lang;
+        const key = created ? created.publishable_key : 'pk_live_YOUR_KEY';
 
         const embedHtml = `<!-- 1. Where the form should appear -->
 <div style="max-width: 40rem">
@@ -1319,18 +1392,23 @@ WHERE publishable_key = 'pk_…';</code></pre>
         document.getElementById('embedCode').textContent = embedHtml;
 
         const help = {};
-        if (phone) help.phone = phone;
-        if (telegram) help.telegram = telegram;
-        const config = { languages, default_language: lang, help, theme: { primary: color } };
-
-        const sql = `-- Create the partner (run by the Bridge operator)
+        if (f.phone) help.phone = f.phone;
+        if (f.telegram) help.telegram = f.telegram;
+        const config = {
+          languages: f.languages,
+          default_language: f.lang,
+          help,
+          theme: { primary: f.color || '#cc3636' },
+        };
+        const sqlKey = `pk_live_${sqlSuffix}`;
+        const sql = `-- Only for your own Bridge server: the hosted service makes keys with the form.
 INSERT INTO partners (slug, name, kind, publishable_key, allowed_origins, config)
 VALUES (
   ${sqlText(slug)},
   ${sqlText(name)},
-  ${sqlText(kind)},
-  ${sqlText(key)},
-  ARRAY[${origins.map(sqlText).join(', ')}]::text[],
+  ${sqlText(f.kind)},
+  ${sqlText(sqlKey)},
+  ARRAY[${f.origins.map(sqlText).join(', ')}]::text[],
   ${sqlText(JSON.stringify(config))}::jsonb
 );
 
@@ -1339,16 +1417,208 @@ VALUES (
 UPDATE partners
 SET client_id = ${sqlText(`${slug}-server`)},
     client_secret_hash = sha256(convert_to('<a long random secret>', 'UTF8'))
-WHERE publishable_key = ${sqlText(key)};`;
+WHERE publishable_key = ${sqlText(sqlKey)};`;
         document.getElementById('sqlCode').textContent = sql;
 
         const curl = `curl -s -H "X-Partner-Key: ${key}" \\
-  ${HOST}/api/v1/config`;
+  ${HOST}/api/v1/config${
+    created
+      ? `
+
+# Partner server API: a token, then your learners (keep the secret on your server)
+curl -s -X POST ${HOST}/api/v1/oauth/token \\
+  -d grant_type=client_credentials -d scope=learners:read \\
+  -d client_id=${created.client_id} -d client_secret=YOUR_CLIENT_SECRET
+curl -s -H "Authorization: Bearer pt_…" ${HOST}/api/v1/partner-api/learners`
+      : ''
+  }`;
         document.getElementById('curlCode').textContent = curl;
 
         const badge = document.getElementById('statusBadge');
-        badge.textContent = 'Up to date';
+        if (!created) badge.textContent = 'No key yet';
+        else if (JSON.stringify(f) !== createdForm) badge.textContent = 'Form changed since';
+        else badge.textContent = 'Key works';
+        document.getElementById('createBtn').textContent = created
+          ? 'Create another key'
+          : 'Create my partner key';
       }
+
+      // ---- Creating the key ----
+
+      // Field of the API answer → the input it belongs to.
+      const FIELD_INPUTS = {
+        name: 'orgName',
+        slug: 'orgSlug',
+        kind: 'orgKind',
+        allowed_origins: 'allowedOrigins',
+        languages: 'langAm',
+        default_language: 'defaultLang',
+        'help.phone': 'helpPhone',
+        'help.telegram': 'helpTelegram',
+        'theme.primary': 'colorHex',
+      };
+      const FIELD_LABELS = {
+        name: 'Organisation name',
+        slug: 'Short ID (slug)',
+        kind: 'Partner type',
+        allowed_origins: 'Allowed origins',
+        languages: 'Languages offered',
+        default_language: 'Starting language',
+        'help.phone': 'Help phone number',
+        'help.telegram': 'Help Telegram',
+        'theme.primary': 'Brand colour',
+      };
+      function errorText(field, code) {
+        if (field === 'slug' && code === 'already_exists')
+          return 'This short ID is taken. Choose another one.';
+        if (code === 'required') return 'Enter this.';
+        if (code === 'too_short') return 'This is too short.';
+        if (code === 'too_long') return 'This is too long.';
+        if (code === 'too_many') return 'There are too many.';
+        if (code === 'invalid_origin')
+          return 'Write each origin like https://your-site.example (no path, no wildcard).';
+        if (code === 'invalid_choice') {
+          return field === 'default_language'
+            ? 'Choose one of the languages you offer.'
+            : 'Choose one of the options.';
+        }
+        if (field === 'slug') return 'Use lower-case letters, digits and dashes (2 to 40).';
+        if (field === 'help.phone') return 'Use digits, spaces and an optional + only.';
+        if (field === 'help.telegram') return 'Write a Telegram handle like @your_handle.';
+        if (field === 'theme.primary') return 'Write the colour like #cc3636.';
+        return 'Check this.';
+      }
+
+      function clearErrors() {
+        document.getElementById('formErrors').hidden = true;
+        document.getElementById('formErrorsList').replaceChildren();
+        document.querySelectorAll('.field-error').forEach((el) => el.remove());
+        document.querySelectorAll('[aria-invalid="true"]').forEach((el) => {
+          el.removeAttribute('aria-invalid');
+          const ids = (el.getAttribute('aria-describedby') || '')
+            .split(' ')
+            .filter((id) => id && !id.endsWith('-error'));
+          if (ids.length) el.setAttribute('aria-describedby', ids.join(' '));
+          else el.removeAttribute('aria-describedby');
+        });
+      }
+
+      // Shows the error summary (focused) and a message by each field. errors: [{field, code}]
+      // or [{message}] for a problem with no field.
+      function showErrors(errors) {
+        clearErrors();
+        const list = document.getElementById('formErrorsList');
+        errors.forEach(({ field, code, message }) => {
+          const li = document.createElement('li');
+          const inputId = FIELD_INPUTS[field];
+          const text = message || `${FIELD_LABELS[field] || field}: ${errorText(field, code)}`;
+          if (inputId) {
+            const input = document.getElementById(inputId);
+            const a = document.createElement('a');
+            a.href = `#${inputId}`;
+            a.textContent = text;
+            a.addEventListener('click', (e) => {
+              e.preventDefault();
+              input.focus();
+            });
+            li.append(a);
+            if (!document.getElementById(`${inputId}-error`)) {
+              const p = document.createElement('p');
+              p.className = 'field-error';
+              p.id = `${inputId}-error`;
+              p.textContent = errorText(field, code);
+              const group = input.closest('.form-group') || input.parentElement;
+              group.insertBefore(p, group.querySelector('.hint') || null);
+              input.setAttribute('aria-invalid', 'true');
+              const ids = (input.getAttribute('aria-describedby') || '').split(' ').filter(Boolean);
+              input.setAttribute('aria-describedby', [p.id, ...ids].join(' '));
+            }
+          } else {
+            li.textContent = text;
+          }
+          list.append(li);
+        });
+        const box = document.getElementById('formErrors');
+        box.hidden = false;
+        box.focus();
+      }
+
+      function showCreated(answer) {
+        created = answer;
+        createdForm = JSON.stringify(readForm());
+        document.getElementById('keyDisplay').textContent = answer.publishable_key;
+        document.getElementById('copyKeyBtn').disabled = false;
+        document.getElementById('clientIdDisplay').textContent = answer.client_id;
+        document.getElementById('clientSecretDisplay').textContent = answer.client_secret;
+        document.getElementById('serverCreds').hidden = false;
+
+        const note = document.getElementById('keyNote');
+        note.classList.add('success');
+        const origins = answer.partner.allowed_origins.join(', ');
+        const where = LOCAL_PAGE
+          ? ` It was made on the server behind this page (${location.origin}). If the hosted site uses another database, set api="${location.origin}" in the snippet.`
+          : '';
+        document.getElementById('keyNoteText').textContent =
+          `This key works now, from ${origins}. Copy the HTML snippet into your page. ` +
+          `To change the settings later, create another key.${where}`;
+        updateOutputs();
+        note.focus();
+      }
+
+      document.getElementById('partnerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const f = readForm();
+        const body = {
+          name: f.name,
+          slug: f.slug,
+          kind: f.kind,
+          allowed_origins: f.origins,
+          languages: f.languages,
+          default_language: f.lang,
+          help: { phone: f.phone, telegram: f.telegram },
+          theme: { primary: f.color },
+        };
+        const btn = document.getElementById('createBtn');
+        btn.disabled = true;
+        btn.textContent = 'Creating your key…';
+        try {
+          const res = await fetch(CREATE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const answer = await res.json().catch(() => ({}));
+          if (res.status === 201) {
+            clearErrors();
+            showCreated(answer);
+          } else if (res.status === 422 && Array.isArray(answer.errors)) {
+            showErrors(answer.errors);
+          } else if (res.status === 409) {
+            showErrors([{ field: 'slug', code: 'already_exists' }]);
+          } else if (res.status === 429) {
+            showErrors([{ message: 'Too many keys were made just now. Try again later.' }]);
+          } else if (answer.code === 'partner_signup_off') {
+            showErrors([
+              {
+                message:
+                  'Creating keys is turned off on this server. Ask the Bridge team for a key.',
+              },
+            ]);
+          } else {
+            showErrors([{ message: 'Something went wrong. Try again in a minute.' }]);
+          }
+        } catch {
+          showErrors([
+            {
+              message:
+                'We could not reach the Bridge service. Check your connection and try again. The first try after a quiet time can take up to a minute.',
+            },
+          ]);
+        } finally {
+          btn.disabled = false;
+          updateOutputs();
+        }
+      });
 
       // Keep the colour picker and the text field in step
       const colorPicker = document.getElementById('primaryColor');
@@ -1383,13 +1653,6 @@ WHERE publishable_key = ${sqlText(key)};`;
         document.getElementById(id).addEventListener('change', updateOutputs);
       });
 
-      // A fresh random part for the suggested key
-      document.getElementById('generateBtn').addEventListener('click', () => {
-        suffix = randomHex(8);
-        updateOutputs();
-        document.getElementById('statusBadge').textContent = 'New key suggested';
-      });
-
       // Tabs
       const tabs = document.querySelectorAll('.tab');
       tabs.forEach((tab) => {
@@ -1420,6 +1683,8 @@ WHERE publishable_key = ${sqlText(key)};`;
         ['copyEmbedBtn', 'embedCode'],
         ['copySqlBtn', 'sqlCode'],
         ['copyCurlBtn', 'curlCode'],
+        ['copyClientIdBtn', 'clientIdDisplay'],
+        ['copySecretBtn', 'clientSecretDisplay'],
       ].forEach(([btnId, targetId]) => {
         const btn = document.getElementById(btnId);
         btn.addEventListener('click', () => copyFrom(btn, targetId));

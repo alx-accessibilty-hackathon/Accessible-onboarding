@@ -41,6 +41,7 @@ import { gregorianToEthiopian, type DateAnswerValue } from '../lib/ethiopianCale
 import { formatEthiopianPhoneDisplay } from '../lib/phone';
 import { loadSnapshot, saveNeeds } from '../offline/snapshot';
 import { QuestionScreen } from '../screens/QuestionScreen';
+import { SignInCodeCard } from '../shell/SignInCodeCard';
 import { transcribeClip } from '../voice/transcribeClip';
 import type { VoiceClipOutcome } from '../voice/types';
 
@@ -56,6 +57,8 @@ export interface ProfilePageProps {
   focusOnMount?: boolean;
   /** "Sign up" or "Continue signing up". */
   onSignUp: () => void;
+  /** "I have a sign-in code": the code screen (sign in on this phone). */
+  onSignIn?: () => void;
   /** The language was changed here: the widget switches to it. */
   onLanguage: (lang: string) => void;
   onSimple: (simple: boolean) => void;
@@ -113,6 +116,7 @@ export function ProfilePage({
   manageTitle,
   focusOnMount = false,
   onSignUp,
+  onSignIn,
   onLanguage,
   onSimple,
   onDeleted,
@@ -892,9 +896,16 @@ export function ProfilePage({
       <p style={{ margin: 0 }}>
         {t(lang, draftLike ? 'profile.draft_body' : 'profile.none_body')}
       </p>,
-      <Button variant="primary" onClick={onSignUp}>
-        {t(lang, draftLike ? 'profile.continue_signup' : 'apply.signup_first_action')}
-      </Button>,
+      <>
+        <Button variant="primary" onClick={onSignUp}>
+          {t(lang, draftLike ? 'profile.continue_signup' : 'apply.signup_first_action')}
+        </Button>
+        {!draftLike && onSignIn && (
+          <Button variant="secondary" onClick={onSignIn}>
+            {t(lang, 'profile.sign_in_with_code')}
+          </Button>
+        )}
+      </>,
     );
   }
 
@@ -1037,6 +1048,8 @@ export function ProfilePage({
           </div>
         ))}
       </dl>
+
+      {!draft && <SignInCodeCard api={api} lang={lang} allowNew />}
 
       {phoneDone && (
         <Banner variant="success" quiet>

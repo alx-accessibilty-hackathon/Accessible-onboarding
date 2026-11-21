@@ -161,7 +161,7 @@ func TestRegistrationUsecase_ResumeLookup_SuccessCode(t *testing.T) {
 
 	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
 
-	res, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
+	res, err := uc.ResumeLookup(context.Background(), domain.Actor{}, "K7M-9P2")
 	require.NoError(t, err)
 	assert.Equal(t, regID, res.RegistrationID)
 	assert.Equal(t, "dob", res.Check)
@@ -185,7 +185,7 @@ func TestRegistrationUsecase_ResumeLookup_Expired(t *testing.T) {
 
 	uc := NewRegistrationUsecase(nil, nil, nil, nil, nil, nil, sessionRepo, sec, nil)
 
-	_, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
+	_, err := uc.ResumeLookup(context.Background(), domain.Actor{}, "K7M-9P2")
 	require.ErrorIs(t, err, domain.ErrResumeExpired)
 }
 
@@ -208,7 +208,7 @@ func TestRegistrationUsecase_ResumeLookup_TooManyAttempts(t *testing.T) {
 
 	uc := NewRegistrationUsecase(nil, nil, nil, nil, nil, nil, sessionRepo, sec, nil)
 
-	_, err := uc.ResumeLookup(context.Background(), "K7M-9P2")
+	_, err := uc.ResumeLookup(context.Background(), domain.Actor{}, "K7M-9P2")
 	require.ErrorIs(t, err, domain.ErrTooManyAttempts)
 }
 
@@ -266,7 +266,7 @@ func TestRegistrationUsecase_ResumeVerify_SuccessDOB(t *testing.T) {
 
 	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
 
-	res, attemptsLeft, err := uc.ResumeVerify(context.Background(), "K7M-9P2", &domain.ResumeDOB{
+	res, attemptsLeft, err := uc.ResumeVerify(context.Background(), domain.Actor{}, "K7M-9P2", &domain.ResumeDOB{
 		Year:  2000,
 		Month: 1,
 		Day:   15,
@@ -331,7 +331,7 @@ func TestRegistrationUsecase_ResumeVerify_FailedCheck(t *testing.T) {
 	uc := NewRegistrationUsecase(learnerRepo, regRepo, nil, nil, nil, nil, sessionRepo, sec, nil)
 
 	// Wrong DOB
-	res, attemptsLeft, err := uc.ResumeVerify(context.Background(), "K7M-9P2", &domain.ResumeDOB{
+	res, attemptsLeft, err := uc.ResumeVerify(context.Background(), domain.Actor{}, "K7M-9P2", &domain.ResumeDOB{
 		Year:  1999,
 		Month: 12,
 		Day:   31,

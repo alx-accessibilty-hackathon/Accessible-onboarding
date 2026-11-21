@@ -132,7 +132,7 @@ func (rc *RegistrationController) ResumeLookupController(c *gin.Context) {
 		return
 	}
 
-	result, err := rc.RegistrationUc.ResumeLookup(c.Request.Context(), codeOrToken)
+	result, err := rc.RegistrationUc.ResumeLookup(c.Request.Context(), infrastructure.ActorFrom(c), codeOrToken)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.AbortWithStatusJSON(http.StatusNotFound, ErrorResponse{
@@ -170,6 +170,7 @@ func (rc *RegistrationController) ResumeLookupController(c *gin.Context) {
 	c.JSON(http.StatusOK, ResumeLookupResponse{
 		RegistrationID: result.RegistrationID,
 		Check:          result.Check,
+		Kind:           resumeKind(result.SignIn),
 	})
 }
 
@@ -208,7 +209,7 @@ func (rc *RegistrationController) ResumeVerifyController(c *gin.Context) {
 		}
 	}
 
-	result, attemptsLeft, err := rc.RegistrationUc.ResumeVerify(c.Request.Context(), codeOrToken, dob, req.PhoneLast4)
+	result, attemptsLeft, err := rc.RegistrationUc.ResumeVerify(c.Request.Context(), infrastructure.ActorFrom(c), codeOrToken, dob, req.PhoneLast4)
 	if err != nil {
 		if errors.Is(err, domain.ErrResumeCheckFailed) {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -254,6 +255,7 @@ func (rc *RegistrationController) ResumeVerifyController(c *gin.Context) {
 
 	c.JSON(http.StatusOK, ResumeVerifyResponse{
 		RegistrationID: result.RegistrationID,
+		Kind:           resumeKind(result.SignIn),
 		Session: SessionDTO{
 			Token:     result.SessionToken,
 			ExpiresAt: result.ExpiresAt.UTC().Format(time.RFC3339),

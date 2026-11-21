@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	domain "bridge/Domain"
@@ -209,8 +210,20 @@ func RequireScope(scope string) gin.HandlerFunc {
 // ---- CORS ----
 
 // CORSMiddleware allows browser calls only from origins in partners.allowed_origins (refreshed
-// every 2 minutes) or allowed by the development policy, and answers OPTIONS preflights.
+// every 2 minutes, and at most every 10 seconds when an unknown origin asks, so the site of a
+// partner made a moment ago works at once) or allowed by the development policy, and answers
+// OPTIONS preflights.
 func CORSMiddleware(partners PartnerLookup, policy OriginPolicy) gin.HandlerFunc {
+	return corsMiddleware(partners, policy, &originsChanged)
+}
+
+// originsChanged asks the CORS list in this process to reload on the next browser call.
+var originsChanged atomic.Bool
+
+// AllowedOriginsChanged: a partner was just created here; reload the CORS list now.
+func AllowedOriginsChanged() { originsChanged.Store(true) }
+
+func corsMiddleware(partners PartnerLookup, policy OriginPolicy, changed *atomic.Bool) gin.HandlerFunc {
 	var (
 		mu       sync.Mutex
 		allowed  map[string]bool
@@ -222,7 +235,8 @@ func CORSMiddleware(partners PartnerLookup, policy OriginPolicy) gin.HandlerFunc
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		if allowed == nil || time.Since(loadedAt) > 2*time.Minute {
+		age := time.Since(loadedAt)
+		if allowed == nil || age > 2*time.Minute || (!allowed[origin] && (age > 10*time.Second || changed.Swap(false))) {
 			origins, err := partners.ListAllowedOrigins(ctx)
 			if err != nil {
 				log.Print("error : load allowed origins: ", err)

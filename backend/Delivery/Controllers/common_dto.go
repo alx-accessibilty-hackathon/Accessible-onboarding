@@ -191,6 +191,8 @@ func respondError(c *gin.Context, err error) {
 		status, code, title = http.StatusUnauthorized, "resume_check_failed", "The check didn't match"
 	case errors.Is(err, domain.ErrSMSUnavailable):
 		status, code, title = http.StatusServiceUnavailable, "sms_unavailable", "SMS is not available"
+	case errors.Is(err, domain.ErrPartnerSignupOff):
+		status, code, title = http.StatusServiceUnavailable, "partner_signup_off", "Partner sign-up is turned off"
 	case errors.Is(err, domain.ErrInvalidInput):
 		status, code, title = http.StatusBadRequest, "invalid_request", "Invalid request"
 	default:

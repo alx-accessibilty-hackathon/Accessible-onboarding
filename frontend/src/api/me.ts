@@ -117,3 +117,18 @@ export async function confirmPhoneCode(cfg: ApiConfig, code: string): Promise<Me
     body: JSON.stringify({ code }),
   });
 }
+
+/** My sign-in code (XXXX-XXXX), to sign in again on another phone. 409 not_registered for a draft. */
+export interface SignInCode {
+  code: string;
+  created_at: string;
+}
+
+export async function getSignInCode(cfg: ApiConfig): Promise<SignInCode> {
+  return apiFetch<SignInCode>(cfg, '/me/sign-in-code');
+}
+
+/** A new sign-in code; the old one stops working. */
+export async function newSignInCode(cfg: ApiConfig): Promise<SignInCode> {
+  return apiFetch<SignInCode>(cfg, '/me/sign-in-code', { method: 'POST' });
+}

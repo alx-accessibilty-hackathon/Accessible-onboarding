@@ -25,8 +25,9 @@ var (
 	ErrTooManyAttempts   = errors.New("too many failed attempts")
 	ErrResumeCheckFailed = errors.New("resume check failed")
 	ErrInvalidInput      = errors.New("invalid input")
-	ErrNotRegistered     = errors.New("not registered")  // 409 not_registered: finish signing up first
-	ErrSMSUnavailable    = errors.New("sms unavailable") // 503 sms_unavailable: real SMS is not set up
+	ErrNotRegistered     = errors.New("not registered")      // 409 not_registered: finish signing up first
+	ErrSMSUnavailable    = errors.New("sms unavailable")     // 503 sms_unavailable: real SMS is not set up
+	ErrPartnerSignupOff  = errors.New("partner sign-up off") // 503 partner_signup_off: PARTNER_SELF_SERVICE=off
 )
 
 // FieldError is one problem with one field: Field is the JSON field or flow step ID,
@@ -170,6 +171,38 @@ type Partner struct {
 	ClientID       string
 	Config         map[string]any // languages, help contact, theme, id routes
 	CreatedAt      time.Time
+}
+
+// NewPartner is a partner made by POST /partners (self-service): the server makes the key
+// and the OAuth client. Config holds languages, default_language, help and theme.
+type NewPartner struct {
+	Slug           string
+	Name           string
+	Kind           string // platform | referral_org
+	PublishableKey string
+	AllowedOrigins []string
+	ClientID       string
+	SecretHash     []byte // SHA-256 of the client secret
+	Config         map[string]any
+}
+
+// PartnerSignup is the form of POST /partners, before checks.
+type PartnerSignup struct {
+	Name            string
+	Slug            string
+	Kind            string
+	AllowedOrigins  []string
+	Languages       []string
+	DefaultLanguage string
+	HelpPhone       string
+	HelpTelegram    string
+	ThemePrimary    string
+}
+
+// CreatedPartner is the answer of POST /partners. ClientSecret is shown once and never stored.
+type CreatedPartner struct {
+	Partner      *Partner
+	ClientSecret string
 }
 
 // ClientConfig holds the resolved settings the onboarding widget needs for a partner.
@@ -571,13 +604,34 @@ type ResumeLink struct {
 
 type ResumeLookupResult struct {
 	RegistrationID uuid.UUID
-	Check          string // "dob" | "phone"
+	Check          string // "dob" | "phone" | "none" (a sign-in code of a learner with neither)
+	SignIn         bool   // a sign-in code of a learner who finished signing up (not a resume code)
 }
 
 type ResumeVerifyResult struct {
 	RegistrationID uuid.UUID
 	SessionToken   string
 	ExpiresAt      time.Time
+	SignIn         bool // signed in to a finished profile: open the profile, not the sign-up
+}
+
+// SignInCode: a registered learner's reusable sign-in code (migration 00008). Only its keyed
+// hash is searched; the code itself is kept encrypted so the profile can show it again.
+type SignInCode struct {
+	LearnerID      uuid.UUID
+	CodeHash       []byte
+	CodeNonce      []byte
+	CodeCiphertext []byte
+	FailedAttempts int
+	LockedUntil    *time.Time
+	LastUsedAt     *time.Time
+	CreatedAt      time.Time
+}
+
+// SignInCodeShown is what the learner sees: the code as XXXX-XXXX.
+type SignInCodeShown struct {
+	Code      string
+	CreatedAt time.Time
 }
 
 type TelegramUpdate struct {

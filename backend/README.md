@@ -153,16 +153,18 @@ The partner key may also come from the query string (`?key=` or `?partner_key=`)
 **Built:**
 - **Registrations:** answers, progress, submit, the support request (encrypted) and consents
 - **Continue on another device:** resume links, lookup and verify
+- **Sign in again with a code:** `GET /me/sign-in-code` (made the first time, for registered learners only) and `POST /me/sign-in-code` (a new one). `POST /resume/lookup` and `/verify` take it too: 8 letters and digits is a sign-in code (`Usecase/signin_codes.go`, table `signin_codes`, migration 00008), 6 is a resume code. The answer has `kind: sign_in` and the widget opens the profile. Reusable; checked against the learner's date of birth or phone; 5 wrong checks lock it for 15 minutes; only for learners of the key's partner
 - **The learner's own data (`/me`):** see, change and delete (below)
 - **Jobs:** public jobs, JobPosting JSON-LD, the JSON-LD vocabulary of its `acc` prefix (`GET /ns/accommodations`, public, outside `/api/v1` so that `PUBLIC_WEB_URL/ns/accommodations` can be forwarded to it), employer jobs, applications, and the employer's view of the applications to their jobs
 - **Start-up check:** `serve` logs a `WARNING` when `PUBLIC_WEB_URL` is not set, or is a localhost address outside `APP_ENV=dev` (`Config.PublicWebURLProblem`): JobPosting and resume links are built from it
 - **Partner staff:** the consent code, the referral queue and the trusted referral (vouch code, `Usecase/vouch_usecase.go`; the learner enters it at `POST /me/vouch`)
+- **Self-service partners:** `POST /partners` (public, 30 an hour per IP, `PARTNER_SIGNUP_DAILY_LIMIT` a day, `PARTNER_SELF_SERVICE=off` turns it off; `Usecase/partner_signup.go`). It checks the form, makes `pk_live_` + 128 random bits, a `client_id` and a secret (only its SHA-256 hash is stored, the secret is in the answer only) and inserts the partner (`CreatePartner` in `queries/partners.sql`; a taken slug is `409 already_exists`). The CORS list reloads at once (`infrastructure.AllowedOriginsChanged`), and an unknown origin reloads it at most every 10 seconds, so the new site works straight away. No migration was needed.
 - **Platform:** `/config`, speech-to-text (Addis AI, Azure, local, mock), the partner API (list and detail)
 - **Read aloud (server voice):** `POST /speech/synthesis` in `Infrastructure/tts.go`. Amharic is read by Addis AI with one fixed voice (`ADDIS_AI_API_KEY`, `ADDIS_AI_VOICE_ID`), then Azure if set up. Each clip is cached under provider + voice + language + SHA-256 of the text, in RAM, on disk (`TTS_CACHE_DIR`) and in the database (`tts_cache`, migration 00006, `Repository/tts_cache_repository.go`): a provider is called once per clip; parallel requests for a new clip share one call; a started call finishes and is stored even if the client leaves; `TTS_DAILY_LIMIT` caps paid calls per day. Logs: `[TTS HIT - RAM|DISK|DB]`, `[TTS MISS - CALLING ADDIS]`, `[TTS MADE - ADDIS]`, `[TTS STORED - …]`, `[TTS WAIT]`, `[TTS LIMIT]`, `[TTS ERROR - …]`. At start-up the API logs Addis AI's Amharic voices and warns if `ADDIS_AI_VOICE_ID` isn't available. Before an Amharic text is sent (and cached), `Infrastructure/tts_text.go` turns it into plain Amharic words (numbers and times as words, English words and acronyms in Amharic letters, no symbols or trailing punctuation); nothing Amharic left → `422 not_amharic`. `go run . tts-clear` empties the database and folder cache (restart the API after it).
 - **Running it:** `migrate` and `seed`, the dev SMS inbox, and Docker
 
 **Not built yet (Shoulds):**
-- learner phone-code sign-in
+- learner sign-in with an SMS code (the sign-in code above works without SMS)
 - downloading `/me` as a file
 - the other partner-staff routes (start a registration for a learner, confirm consent, attest)
 - the support inbox

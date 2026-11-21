@@ -18,9 +18,9 @@ describe('ResumeScreen', () => {
     render(<ResumeScreen api={mockApi} lang="en" onSuccess={vi.fn()} />);
 
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Continue on another device' }),
+      screen.getByRole('heading', { level: 1, name: 'Continue with a code' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Resume code')).toBeInTheDocument();
+    expect(screen.getByLabelText('Code')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
   });
 
@@ -41,7 +41,7 @@ describe('ResumeScreen', () => {
 
     render(<ResumeScreen api={mockApi} lang="en" onSuccess={vi.fn()} />);
 
-    const input = screen.getByLabelText('Resume code');
+    const input = screen.getByLabelText('Code');
     fireEvent.change(input, { target: { value: 'K7M-9P2' } });
 
     const submitBtn = screen.getByRole('button', { name: 'Continue' });
@@ -71,7 +71,7 @@ describe('ResumeScreen', () => {
     render(<ResumeScreen api={mockApi} lang="en" onSuccess={onSuccess} />);
 
     // Step 1: Submit code
-    const input = screen.getByLabelText('Resume code');
+    const input = screen.getByLabelText('Code');
     fireEvent.change(input, { target: { value: 'K7M9P2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -86,6 +86,7 @@ describe('ResumeScreen', () => {
       expect(onSuccess).toHaveBeenCalledWith({
         token: 'token-learner-abc',
         registrationId: 'reg-123',
+        signIn: false,
       });
     });
   });
@@ -98,7 +99,7 @@ describe('ResumeScreen', () => {
 
     render(<ResumeScreen api={mockApi} lang="en" onSuccess={vi.fn()} />);
 
-    const input = screen.getByLabelText('Resume code');
+    const input = screen.getByLabelText('Code');
     fireEvent.change(input, { target: { value: 'K7M9P2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -106,7 +107,7 @@ describe('ResumeScreen', () => {
     fireEvent.click(backBtn);
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Continue on another device' }),
+      await screen.findByRole('heading', { level: 1, name: 'Continue with a code' }),
     ).toBeInTheDocument();
   });
 });

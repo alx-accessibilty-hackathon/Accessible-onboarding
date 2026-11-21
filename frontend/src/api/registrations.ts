@@ -63,11 +63,15 @@ export interface ResumeLink {
 
 export interface ResumeLookupResponse {
   registration_id: string;
-  check: 'dob' | 'phone';
+  /** 'none': a sign-in code of a learner with no date of birth or phone (nothing to confirm). */
+  check: 'dob' | 'phone' | 'none';
+  /** 'resume': an unfinished sign-up; 'sign_in': a sign-in code of a finished profile. */
+  kind?: 'resume' | 'sign_in';
 }
 
 export interface ResumeVerifyResponse {
   registration_id: string;
+  kind?: 'resume' | 'sign_in';
   session: SessionInfo;
 }
 

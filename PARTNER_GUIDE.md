@@ -18,14 +18,15 @@ Hosted demo: **https://accessible-onboarding.vercel.app** (the API is behind it 
 
 ## 2. Before you start
 
-Ask the Bridge operator for:
+Get your key yourself on the [partner guide page](https://accessible-onboarding.vercel.app/partners.html): fill in the form and press **"Create my partner key"**. You get:
 
-1. **A partner key** (`pk_…`). It is public and goes in your HTML.
-2. **Your website's origins on the allowed list**: scheme, host and port, no path, no trailing slash, e.g. `https://learn.your-site.example`. The key works only from those origins.
-3. **The script and API addresses.** Hosted demo: script `https://accessible-onboarding.vercel.app/v1/bridge-onboarding.js`, API `https://accessible-onboarding.vercel.app`.
-4. **For server access (optional)**: an OAuth `client_id` and secret, to read your learners from your server (step 5).
+1. **A partner key** (`pk_live_…`). It is public and goes in your HTML. It works at once.
+2. **Your website's origins on the allowed list**, as you typed them: scheme, host and port, no path, no trailing slash, e.g. `https://learn.your-site.example`. The key works only from those origins.
+3. **An OAuth `client_id` and secret** (optional use), to read your learners from your server (step 5). The secret is shown only once: save it.
 
-The operator does this with SQL (README, section 3, "For the operator").
+The script and API addresses of the hosted demo: script `https://accessible-onboarding.vercel.app/v1/bridge-onboarding.js`, API `https://accessible-onboarding.vercel.app`.
+
+To change a partner later, create another key or ask the Bridge team (README, section 3, "For the operator"). The API behind the form is `POST /api/v1/partners`.
 
 ## 3. Add the widget (one script tag)
 
@@ -120,7 +121,7 @@ All jobs in one request: `GET https://accessible-onboarding.vercel.app/api/v1/fe
 
 ## 8. Your settings
 
-Stored per partner and returned by `GET /api/v1/config`; changes show the next time the widget loads. There is no settings page yet: **ask the Bridge team** and they change it for you (the SQL below is what they run).
+Stored per partner and returned by `GET /api/v1/config`; changes show the next time the widget loads. The form sets them when you create your key. There is no settings page yet: to change them, create another key or **ask the Bridge team** (the SQL below is what they run).
 
 | Setting | Example | Effect |
 |---|---|---|
@@ -156,4 +157,4 @@ What a new language gets: all screen text once translated. Read aloud uses the p
 - [ ] Operator: `APP_ENV=production` and `PUBLIC_WEB_URL` set to the public site (the API logs a warning otherwise), HTTPS everywhere (the microphone needs it).
 - [ ] Free hosting sleeps: the first request after a quiet time can take up to a minute. The widget waits and says "Connecting to the service…". Open the site once before a demo.
 
-Questions or a new partner key: contact the Bridge team.
+Questions: contact the Bridge team. A new partner key: the form on the partner guide page.

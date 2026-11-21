@@ -359,6 +359,7 @@
 
         <div class="sidebar-title">Widget &amp; Jobs</div>
         <ul class="sidebar-nav">
+          <li><a href="#post-partners">POST /partners (get a key)</a></li>
           <li><a href="#get-config">GET /config</a></li>
           <li><a href="#get-jobs">GET /jobs</a></li>
           <li><a href="#get-job-detail">GET /jobs/{id}</a></li>
@@ -393,7 +394,7 @@
           <li><a href="#me-vouch">Trusted referral code</a></li>
           <li><a href="#me-phone">Optional phone check</a></li>
           <li><a href="#partner-staff">Partner staff: vouching</a></li>
-          <li><a href="#resume">Resume on another device</a></li>
+          <li><a href="#resume">Resume or sign in with a code</a></li>
           <li><a href="#speech">Speech (STT &amp; TTS)</a></li>
         </ul>
 
@@ -535,7 +536,10 @@
                   <code>X-Partner-Key: pk_…</code>. The browser also sends <code>Origin</code>,
                   which must be on the partner's allowed list.
                 </td>
-                <td>the Bridge operator</td>
+                <td>
+                  <a href="#post-partners"><code>POST /partners</code></a> (the form on the Partner
+                  Guide) or the Bridge operator
+                </td>
                 <td>until changed</td>
               </tr>
               <tr>
@@ -705,8 +709,10 @@
           <li>
             <strong>Rate limits</strong> (per API process): 120 requests a minute per IP, 1000
             requests every 10 seconds for the whole server, and 20 a minute per IP on staff sign-in,
-            OAuth tokens, starting a registration and resume lookup/verify. Over the limit you get
-            <code>429 rate_limited</code> and a <code>Retry-After</code> header in seconds.
+            OAuth tokens, starting a registration and resume lookup/verify. Creating a partner
+            (<code>POST /partners</code>) has its own limit: 30 an hour per IP, and 500 a day for
+            the server. Over the limit you get <code>429 rate_limited</code> and a
+            <code>Retry-After</code> header in seconds.
           </li>
           <li>
             <strong>Lists</strong> look like
@@ -718,6 +724,118 @@
         </ul>
 
         <hr class="divider" />
+
+        <!-- Endpoint: POST /partners -->
+        <h2 id="post-partners">Get a partner key (self-service)</h2>
+        <div class="endpoint-card">
+          <div class="endpoint-header">
+            <span class="method-tag method-post">POST</span>
+            <span>/api/v1/partners</span>
+            <span class="badge">Public</span>
+          </div>
+          <div class="endpoint-body">
+            <p>
+              Creates your partner and answers with a <strong>working</strong> partner key and an
+              OAuth client for the partner server API. The form on the
+              <a href="/partners.html">Partner Guide</a> calls it for you. No key or sign-in is
+              needed. The key works at once, from the origins you list only.
+            </p>
+            <p>
+              <strong>The <code>client_secret</code> is in this answer only.</strong> The server
+              keeps just its SHA-256 hash, so save it on your server straight away. Both partner
+              kinds can be made: <code>platform</code> (the default) and
+              <code>referral_org</code> (offered to every learner who has no ID). There is no way to
+              change a partner here yet: create another one.
+            </p>
+
+            <h3 class="sub-heading">Body</h3>
+            <div class="table-wrap">
+              <table class="param-table">
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Required</th>
+                    <th>Rule</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>name</code></td>
+                    <td>yes</td>
+                    <td>2 to 80 characters. Learners see it.</td>
+                  </tr>
+                  <tr>
+                    <td><code>slug</code></td>
+                    <td>yes</td>
+                    <td>2 to 40 lower-case letters, digits and dashes. Must be unused.</td>
+                  </tr>
+                  <tr>
+                    <td><code>allowed_origins</code></td>
+                    <td>yes</td>
+                    <td>
+                      1 to 20, each exactly <code>https://host[:port]</code> (or
+                      <code>http://</code>), with no path, query or wildcard.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>kind</code></td>
+                    <td>no</td>
+                    <td><code>platform</code> (default) or <code>referral_org</code></td>
+                  </tr>
+                  <tr>
+                    <td><code>languages</code>, <code>default_language</code></td>
+                    <td>no</td>
+                    <td>
+                      Codes of 2 or 3 letters. Default <code>["am","en"]</code> and the first one.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>help.phone</code>, <code>help.telegram</code></td>
+                    <td>no</td>
+                    <td>Digits, spaces and an optional <code>+</code>; a Telegram handle.</td>
+                  </tr>
+                  <tr>
+                    <td><code>theme.primary</code></td>
+                    <td>no</td>
+                    <td><code>#rrggbb</code></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3 class="sub-heading">Example request</h3>
+            <div class="code-block" tabindex="0">
+              <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+              <pre>
+curl -s -X POST https://accessible-onboarding.vercel.app/api/v1/partners \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Acme Learning","slug":"acme","allowed_origins":["https://learn.acme.example"],
+       "languages":["am","en"],"help":{"telegram":"@acme_help"}}'</pre>
+            </div>
+
+            <h3 class="sub-heading">Example response (201)</h3>
+            <div class="code-block" tabindex="0">
+              <pre>
+{
+  "partner": {
+    "id": "4b304dcd-…", "slug": "acme", "name": "Acme Learning", "kind": "platform",
+    "allowed_origins": ["https://learn.acme.example"],
+    "config": { "languages": ["am", "en"], "default_language": "am", "help": { "telegram": "@acme_help" } }
+  },
+  "publishable_key": "pk_live_63d63bb18ccec296465edffa540ee806",
+  "client_id": "acme-2bc8e1",
+  "client_secret": "cs_…",
+  "scope": "learners:read"
+}</pre>
+            </div>
+            <p>
+              Errors: <code>422 validation_failed</code> (every field problem at once, for example
+              <code>invalid_origin</code>), <code>409 already_exists</code> (the slug is taken),
+              <code>429 rate_limited</code>, <code>503 partner_signup_off</code> (the operator set
+              <code>PARTNER_SELF_SERVICE=off</code>).
+            </p>
+          </div>
+        </div>
 
         <!-- Endpoint: GET /config -->
         <h2 id="get-config">Partner configuration</h2>
@@ -1675,7 +1793,7 @@ curl -s "$API/me" "${H[@]}"</pre>
         </div>
 
         <!-- Resume -->
-        <h2 id="resume">Resume on another device</h2>
+        <h2 id="resume">Resume or sign in with a code</h2>
         <ol>
           <li>
             <strong>Make a link and a code.</strong>
@@ -1706,6 +1824,32 @@ POST /api/v1/resume/verify
 # → {"registration_id":"3f2a9c4e-…","session":{"token":"lt_…","expires_at":"…"}}</pre>
         </div>
         <p>These calls need the partner key and have the strict rate limit.</p>
+
+        <h3 id="sign-in-code">Sign in again with the sign-in code</h3>
+        <p>
+          Every learner who has finished signing up has an 8-character
+          <strong>sign-in code</strong> such as <code>ABCD-2345</code>. The component shows it on
+          the Done screen and on the profile page. <code>GET /api/v1/me/sign-in-code</code> (learner
+          token) returns it, made the first time; <code>POST /api/v1/me/sign-in-code</code> makes a
+          new one and the old one stops working (<code>409 not_registered</code> before the sign-up
+          is finished).
+        </p>
+        <p>
+          On another phone, or after "Forget me on this phone", the learner types it in "Continue
+          with a code". The same <code>/resume/lookup</code> and <code>/resume/verify</code> calls
+          take it, with the date of birth (or <code>phone_last4</code>). The answers then have
+          <code>"kind": "sign_in"</code>, and the component opens the profile instead of the
+          sign-up. Unlike a resume code, it works again and again. It works only with the key of the
+          learner's own partner (<code>404</code> otherwise); 5 wrong checks lock it for 15 minutes
+          (<code>429 too_many_attempts</code>).
+        </p>
+        <div class="code-block" tabindex="0">
+          <pre>
+POST /api/v1/resume/lookup   { "code": "ABCD-2345" }
+# → {"registration_id":"3f2a9c4e-…","check":"dob","kind":"sign_in"}
+POST /api/v1/resume/verify   { "code": "ABCD-2345", "dob": { "calendar": "gregorian", "year": 1995, "month": 3, "day": 14 } }
+# → {"registration_id":"3f2a9c4e-…","kind":"sign_in","session":{"token":"lt_…","expires_at":"…"}}</pre>
+        </div>
 
         <!-- Speech -->
         <h2 id="speech">Speech</h2>
@@ -1755,11 +1899,13 @@ POST /api/v1/resume/verify
           credentials: a <code>client_id</code> and a secret, swapped for a 1-hour token with the
           scope <code>learners:read</code>. Never call it from a browser.
         </p>
-        <h3>Step 1. Get a client ID and secret (operator)</h3>
+        <h3>Step 1. Get a client ID and secret</h3>
         <p>
-          The Bridge operator gives your partner a client ID and secret. The secret is stored only
-          as a SHA-256 hash, so it is handed over once. Make it with
-          <code>openssl rand -base64 32</code>.
+          You get them with your key from
+          <a href="#post-partners"><code>POST /partners</code></a> (the form on the Partner Guide).
+          The secret is stored only as a SHA-256 hash, so it is shown once. For a partner made with
+          SQL, the Bridge operator gives them instead (make the secret with
+          <code>openssl rand -base64 32</code>):
         </p>
         <div class="code-block" tabindex="0">
           <button class="copy-btn" onclick="copySnippet(this)">Copy</button>

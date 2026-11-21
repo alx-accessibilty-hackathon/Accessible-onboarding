@@ -23,7 +23,8 @@ export interface ResumeScreenProps {
   initialToken?: string | null;
   initialCode?: string | null;
   manageTitle?: boolean;
-  onSuccess: (session: { token: string; registrationId: string }) => void;
+  /** signIn: a sign-in code of a finished profile (open the profile, not the sign-up). */
+  onSuccess: (session: { token: string; registrationId: string; signIn: boolean }) => void;
   onCancel?: () => void;
 }
 
@@ -81,6 +82,21 @@ export function ResumeScreen({
     headingRef.current?.focus();
   }, [stage]);
 
+  // The last step: the check (or none) → a learner session.
+  const finishVerify = useCallback(
+    async (body: { code?: string; token?: string; dob?: ResumeDob; phone_last4?: string }) => {
+      const res = await resumeVerify(api, body);
+      const signIn = res.kind === 'sign_in';
+      announce(t(lang, signIn ? 'resume.success_sign_in' : 'resume.success'));
+      onSuccess({
+        token: res.session.token,
+        registrationId: String(res.registration_id),
+        signIn,
+      });
+    },
+    [api, lang, onSuccess],
+  );
+
   // Lookup logic
   const performLookup = useCallback(
     async (codeOrToken: { code?: string; token?: string }) => {
@@ -88,6 +104,11 @@ export function ResumeScreen({
       setError(null);
       try {
         const res = await resumeLookup(api, codeOrToken);
+        if (res.check === 'none') {
+          // A sign-in code with nothing to confirm (no date of birth or phone): sign in now.
+          await finishVerify(codeOrToken);
+          return;
+        }
         setLookupResult(res);
         setStage('check');
         announce(t(lang, 'resume.verify_title'));
@@ -99,7 +120,7 @@ export function ResumeScreen({
         setLoading(false);
       }
     },
-    [api, lang],
+    [api, lang, finishVerify],
   );
 
   // If launched with an initial token (from /r/<token>), look it up immediately
@@ -178,17 +199,11 @@ export function ResumeScreen({
     setLoading(true);
     try {
       const cleanCode = code ? normalizeCodeInput(code) : undefined;
-      const res = await resumeVerify(api, {
+      await finishVerify({
         code: cleanCode,
         token: token ?? undefined,
         dob: verifyDob,
         phone_last4: verifyPhone,
-      });
-
-      announce(t(lang, 'resume.success'));
-      onSuccess({
-        token: res.session.token,
-        registrationId: String(res.registration_id),
       });
     } catch (err) {
       const codeErr = errorCode(err);
@@ -363,7 +378,14 @@ export function ResumeScreen({
 
           <div className="bo-actions">
             <Button variant="primary" type="submit" disabled={loading}>
-              {loading ? t(lang, 'resume.loading_verify') : t(lang, 'resume.verify_button')}
+              {loading
+                ? t(lang, 'resume.loading_verify')
+                : t(
+                    lang,
+                    lookupResult?.kind === 'sign_in'
+                      ? 'resume.sign_in_button'
+                      : 'resume.verify_button',
+                  )}
             </Button>
             <Button
               variant="secondary"

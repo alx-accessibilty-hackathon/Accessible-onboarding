@@ -36,6 +36,8 @@ type Querier interface {
 	// ---- learners ----
 	CreateLearner(ctx context.Context, arg CreateLearnerParams) (Learner, error)
 	CreateOutboxMessage(ctx context.Context, arg CreateOutboxMessageParams) (MessagesOutbox, error)
+	// Self-service partners (POST /partners): the server made the key and the OAuth client.
+	CreatePartner(ctx context.Context, arg CreatePartnerParams) (CreatePartnerRow, error)
 	CreateReferral(ctx context.Context, arg CreateReferralParams) (Referral, error)
 	// ---- registrations ----
 	CreateRegistration(ctx context.Context, arg CreateRegistrationParams) (Registration, error)
@@ -84,6 +86,9 @@ type Querier interface {
 	GetRegistrationByID(ctx context.Context, id uuid.UUID) (Registration, error)
 	GetResumeTokenByCodeHash(ctx context.Context, codeHash []byte) (ResumeToken, error)
 	GetResumeTokenByTokenHash(ctx context.Context, tokenHash []byte) (ResumeToken, error)
+	GetSignInCodeByHash(ctx context.Context, codeHash []byte) (SigninCode, error)
+	// Sign-in codes (migration 00008): one per learner who finished signing up.
+	GetSignInCodeByLearner(ctx context.Context, learnerID uuid.UUID) (SigninCode, error)
 	// Staff accounts (partner staff, employers, support, admin). Table: staff_users.
 	// After editing, run `sqlc generate` (from backend/).
 	// Emails are compared without case: "Employer@Example.org" signs in as employer@example.org.
@@ -131,6 +136,9 @@ type Querier interface {
 	PublishJob(ctx context.Context, arg PublishJobParams) (PublishJobRow, error)
 	// Two servers may make the same clip at once: the first one stays.
 	PutTTSAudio(ctx context.Context, arg PutTTSAudioParams) error
+	// A wrong check. The 5th in a row locks the code for 15 minutes and starts the count again.
+	RecordSignInFailure(ctx context.Context, learnerID uuid.UUID) (SigninCode, error)
+	RecordSignInSuccess(ctx context.Context, learnerID uuid.UUID) error
 	// Trusted referral: one-time codes partner staff make to vouch for a learner (migration 00007).
 	// After editing, run `sqlc generate` (from backend/).
 	// A new code replaces the older unused ones of the same referral.
@@ -161,6 +169,8 @@ type Querier interface {
 	// 0 rows affected: the referral doesn't exist or belongs to another partner.
 	UpdateReferralStatus(ctx context.Context, arg UpdateReferralStatusParams) (int64, error)
 	UpdateRegistrationProgress(ctx context.Context, arg UpdateRegistrationProgressParams) (int64, error)
+	// A new code replaces the old one (and its wrong tries).
+	UpsertSignInCode(ctx context.Context, arg UpsertSignInCodeParams) (SigninCode, error)
 	// Support requests (Dev A). The needs are stored only as AES-GCM ciphertext.
 	// After editing, run `sqlc generate` (from backend/).
 	// One support request per learner: saving again replaces it.
