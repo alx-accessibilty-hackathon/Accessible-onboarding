@@ -25,14 +25,14 @@ type mockRegistrationUc struct {
 	handleTelegramWebhookFn     func(ctx context.Context, update *domain.TelegramUpdate) error
 }
 
-func (m *mockRegistrationUc) ResumeLookup(ctx context.Context, codeOrToken string) (*domain.ResumeLookupResult, error) {
+func (m *mockRegistrationUc) ResumeLookup(ctx context.Context, _ domain.Actor, codeOrToken string) (*domain.ResumeLookupResult, error) {
 	if m.resumeLookupFn != nil {
 		return m.resumeLookupFn(ctx, codeOrToken)
 	}
 	return nil, domain.ErrNotFound
 }
 
-func (m *mockRegistrationUc) ResumeVerify(ctx context.Context, codeOrToken string, dob *domain.ResumeDOB, phoneLast4 string) (*domain.ResumeVerifyResult, int, error) {
+func (m *mockRegistrationUc) ResumeVerify(ctx context.Context, _ domain.Actor, codeOrToken string, dob *domain.ResumeDOB, phoneLast4 string) (*domain.ResumeVerifyResult, int, error) {
 	if m.resumeVerifyFn != nil {
 		return m.resumeVerifyFn(ctx, codeOrToken, dob, phoneLast4)
 	}

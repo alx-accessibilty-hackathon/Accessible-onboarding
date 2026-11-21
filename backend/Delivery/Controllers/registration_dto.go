@@ -157,7 +157,16 @@ type ResumeLookupRequest struct {
 
 type ResumeLookupResponse struct {
 	RegistrationID uuid.UUID `json:"registration_id"`
-	Check          string    `json:"check"` // "dob" | "phone"
+	Check          string    `json:"check"` // "dob" | "phone" | "none" (sign-in code only)
+	Kind           string    `json:"kind"`  // "resume" (an unfinished sign-up) | "sign_in" (a finished profile)
+}
+
+// resumeKind: "sign_in" for a sign-in code (a finished profile), else "resume".
+func resumeKind(signIn bool) string {
+	if signIn {
+		return "sign_in"
+	}
+	return "resume"
 }
 
 // POST /resume/verify
@@ -177,6 +186,7 @@ type ResumeDOB struct {
 
 type ResumeVerifyResponse struct {
 	RegistrationID uuid.UUID  `json:"registration_id"`
+	Kind           string     `json:"kind"` // "sign_in": open the profile, not the sign-up
 	Session        SessionDTO `json:"session"`
 }
 

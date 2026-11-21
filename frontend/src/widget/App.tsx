@@ -24,6 +24,7 @@ import { darkenHex, isAccessibleAgainstWhite } from '../lib/color';
 import { ProfilePage } from '../profile/ProfilePage';
 import { LanguageScreen } from '../shell/LanguageScreen';
 import { ResumeScreen } from '../shell/ResumeScreen';
+import { SignInCodeCard } from '../shell/SignInCodeCard';
 import { WidgetFrame } from '../shell/WidgetFrame';
 import { emit, type WidgetEvent } from './emit';
 import { SignupFlow } from './SignupFlow';
@@ -330,25 +331,28 @@ function WidgetInner(props: WidgetProps) {
                 onSaveState={() => setSaveKey((k) => k + 1)}
                 onResume={() => go({ name: 'resume' })}
                 doneExtra={
-                  <div className="bo-actions">
-                    {pendingJob && (
-                      <Button
-                        variant="primary"
-                        onClick={() => go({ name: 'apply', ...pendingJob })}
-                      >
-                        {t('apply.continue_application')}
+                  <>
+                    <SignInCodeCard api={api} lang={lang} />
+                    <div className="bo-actions">
+                      {pendingJob && (
+                        <Button
+                          variant="primary"
+                          onClick={() => go({ name: 'apply', ...pendingJob })}
+                        >
+                          {t('apply.continue_application')}
+                        </Button>
+                      )}
+                      {/* What the Done screen says you can do now: finding a job comes first */}
+                      {!pendingJob && (
+                        <Button variant="primary" onClick={() => go({ name: 'jobs' })}>
+                          {t('jobs.title')}
+                        </Button>
+                      )}
+                      <Button variant="link" onClick={openProfile}>
+                        {t('profile.open')}
                       </Button>
-                    )}
-                    {/* What the Done screen says you can do now: finding a job comes first */}
-                    {!pendingJob && (
-                      <Button variant="primary" onClick={() => go({ name: 'jobs' })}>
-                        {t('jobs.title')}
-                      </Button>
-                    )}
-                    <Button variant="link" onClick={openProfile}>
-                      {t('profile.open')}
-                    </Button>
-                  </div>
+                    </div>
+                  </>
                 }
               />
             )}
@@ -364,7 +368,8 @@ function WidgetInner(props: WidgetProps) {
                   void saveSession(s.token, s.registrationId).then(() => {
                     setSession({ token: s.token, registrationId: s.registrationId });
                     setSignupKey((k) => k + 1);
-                    go({ name: 'signup' });
+                    // A sign-in code: the sign-up is finished, so open the profile.
+                    go(s.signIn ? { name: 'profile', opened: true } : { name: 'signup' });
                   });
                 }}
                 onCancel={() => go({ name: 'signup' })}
@@ -380,6 +385,7 @@ function WidgetInner(props: WidgetProps) {
                 manageTitle={manageTitle}
                 focusOnMount={!!view.opened}
                 onSignUp={() => go({ name: 'signup' })}
+                onSignIn={() => go({ name: 'resume' })}
                 onLanguage={(l) => {
                   setChosenLanguage(l);
                   setLang(l);

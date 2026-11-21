@@ -126,3 +126,32 @@ func (mc *MeController) ConfirmPhoneController(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, toMeDTO(p))
 }
+
+// GET /api/v1/me/sign-in-code: the learner's sign-in code (made the first time it is asked for).
+// 409 not_registered before the sign-up is finished.
+func (mc *MeController) GetSignInCodeController(c *gin.Context) {
+	if !mc.ready(c) {
+		return
+	}
+	code, err := mc.MeUc.GetSignInCode(c.Request.Context(), infrastructure.ActorFrom(c))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, toSignInCodeDTO(code))
+}
+
+// POST /api/v1/me/sign-in-code: a new sign-in code; the old one stops working.
+func (mc *MeController) NewSignInCodeController(c *gin.Context) {
+	if !mc.ready(c) {
+		return
+	}
+	code, err := mc.MeUc.NewSignInCode(c.Request.Context(), infrastructure.ActorFrom(c))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, toSignInCodeDTO(code))
+}

@@ -31,8 +31,10 @@ type RegistrationUsecaseI interface {
 	SaveAnswer(ctx context.Context, actor Actor, regID uuid.UUID, questionID string, value json.RawMessage, inputMethod string, baseVersion int) (*Answer, error)
 	Submit(ctx context.Context, actor Actor, regID uuid.UUID) (*SubmitResult, error)
 
-	ResumeLookup(ctx context.Context, codeOrToken string) (*ResumeLookupResult, error)
-	ResumeVerify(ctx context.Context, codeOrToken string, dob *ResumeDOB, phoneLast4 string) (*ResumeVerifyResult, int, error)
+	// ResumeLookup / ResumeVerify: a resume code or link (unfinished sign-up), or a sign-in code
+	// (XXXX-XXXX, a finished profile of the key's partner; then the result has SignIn).
+	ResumeLookup(ctx context.Context, actor Actor, codeOrToken string) (*ResumeLookupResult, error)
+	ResumeVerify(ctx context.Context, actor Actor, codeOrToken string, dob *ResumeDOB, phoneLast4 string) (*ResumeVerifyResult, int, error)
 	// CreateResumeLink makes a link and a short code to continue on another device (R15),
 	// optionally sending them by SMS or Telegram.
 	CreateResumeLink(ctx context.Context, actor Actor, regID uuid.UUID, sendVia, phone string) (*ResumeLink, error)
@@ -119,6 +121,10 @@ type MeUsecaseI interface {
 	SendPhoneCode(ctx context.Context, actor Actor) (*PhoneCodeSent, error)
 	// ConfirmPhone checks the code; the phone becomes verified (phone_verified = true).
 	ConfirmPhone(ctx context.Context, actor Actor, code string) (*LearnerProfile, error)
+	// GetSignInCode: the learner's sign-in code (made the first time). ErrNotRegistered for a draft.
+	GetSignInCode(ctx context.Context, actor Actor) (*SignInCodeShown, error)
+	// NewSignInCode replaces the code; the old one stops working.
+	NewSignInCode(ctx context.Context, actor Actor) (*SignInCodeShown, error)
 }
 
 // ReferralUsecaseI: the referral queue of a referral organisation's staff (R7).
@@ -140,6 +146,26 @@ type EmployerApplicationUsecaseI interface {
 }
 
 // ---- Repositories (implemented in Repository/) ----
+
+// SignInCodeRepositoryI keeps sign-in codes. GetBy… return ErrNotFound; Save returns
+// ErrAlreadyExists when another learner has the same code hash.
+type SignInCodeRepositoryI interface {
+	GetByLearner(ctx context.Context, learnerID uuid.UUID) (*SignInCode, error)
+	GetByHash(ctx context.Context, codeHash []byte) (*SignInCode, error)
+	Save(ctx context.Context, c *SignInCode) (*SignInCode, error)
+	RecordFailure(ctx context.Context, learnerID uuid.UUID) (*SignInCode, error)
+	RecordSuccess(ctx context.Context, learnerID uuid.UUID) error
+}
+
+// PartnerSignupUsecaseI: self-service partners (POST /partners). The key works at once.
+type PartnerSignupUsecaseI interface {
+	CreatePartner(ctx context.Context, in PartnerSignup) (*CreatedPartner, error)
+}
+
+// PartnerCreatorI saves a new partner. A slug, key or client ID that is taken is ErrAlreadyExists.
+type PartnerCreatorI interface {
+	Create(ctx context.Context, p NewPartner) (*Partner, error)
+}
 
 type PartnerRepositoryI interface {
 	GetByPublishableKey(ctx context.Context, key string) (*Partner, error) // ErrNotFound if unknown

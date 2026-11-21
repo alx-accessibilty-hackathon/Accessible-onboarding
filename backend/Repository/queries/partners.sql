@@ -27,3 +27,9 @@ WHERE id = $1;
 SELECT id, slug, name, kind, publishable_key, allowed_origins, client_id, client_secret_hash, config, created_at
 FROM partners
 WHERE client_id = $1;
+
+-- Self-service partners (POST /partners): the server made the key and the OAuth client.
+-- name: CreatePartner :one
+INSERT INTO partners (slug, name, kind, publishable_key, allowed_origins, client_id, client_secret_hash, config)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, slug, name, kind, publishable_key, allowed_origins, client_id, config, created_at;

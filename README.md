@@ -62,12 +62,13 @@ Built for the **ALX Digital Bridge Accessibility Hackathon 2026, Track 1 (access
 | Area | Built | Not built yet |
 |---|---|---|
 | Sign-up | Every question and branch, save as you go, offline queue, version check between devices, support needs (encrypted), consent, submit, referral for "no ID" | Duplicate check ("is this you?"), automatic clean-up of old drafts |
-| Continue elsewhere | API: resume link and code, lookup, verify; resume screen with `/r/<token>` and 6-char code; Save panel continue cards | |
+| Continue elsewhere | API: resume link and code, lookup, verify; resume screen ("Continue with a code") with `/r/<token>` and 6-char code; Save panel continue cards | |
+| Signing in again | Every learner who finished signing up gets an 8-character **sign-in code** (`ABCD-2345`), shown on the Done screen and on the profile page (`GET /me/sign-in-code`; "Make a new code" replaces it). Typed in "Continue with a code" with the date of birth (or the last 4 digits of the phone), it opens their profile on any phone, also after "Forget me on this phone". Reusable; 5 wrong checks lock it for 15 minutes; only on the partner's own key | Sign in with an SMS code (SMS Ethiopia reaches only Ethio Telecom numbers) |
 | SMS | **Off by default** (`SMS_PROVIDER=console`: the resume link and consent code go to a simulated inbox). Real sending through SMS Ethiopia is built (`SMS_PROVIDER=smsethiopia`); only then a learner who chose phone contact also gets "you are signed up" and "application sent" | Answering by SMS or USSD (SMS Ethiopia only sends), delivery reports |
-| Learner data | Profile page: see, change, delete, download data (`/me`, `/me/export`); confirm the phone number with an SMS code (optional, needs real SMS); the support passport; enter a vouching code | Sign in with a phone code on a new device |
+| Learner data | Profile page: see, change, delete, download data (`/me`, `/me/export`); the sign-in code; confirm the phone number with an SMS code (optional, needs real SMS); the support passport; enter a vouching code | |
 | Careers | Job list with private needs filter, job detail, apply, employer form, publish, JobPosting JSON-LD (one job, or every job in one feed, each with a link to apply on `/apply.html`), employer reads applications, **support passport** (see "Support passport" below) | Importing JobPosting from other boards |
 | Staff | Sign-in, employer pages, referral list for partner staff, **trusted referral** (partner staff vouch for a learner with no ID: see "Identity" below), consent code by SMS (API) | Partner staff registering a learner for them, support inbox, admin pages, account management, Amharic staff pages |
-| Partners | Partner key + allowed origins, OAuth partner API, partner settings in the database (languages, starting language, ID routes, help contacts, brand colour) | A settings page for partners, per-partner questions |
+| Partners | Self-service partner keys (partner guide form → `POST /partners`: a working key and an OAuth client at once), allowed origins, OAuth partner API, partner settings in the database (languages, starting language, ID routes, help contacts, brand colour) | A settings page for partners (changing a partner after it is made), per-partner questions |
 | Identity | Self-declared ID route and document type, the "I have no ID" referral, vouching by a partner organisation (`partner_attested`) | Fayda verification, document checks |
 | Accessibility | Keyboard-only use, read aloud on by default, text size up to 400%, Simple mode, dark mode; axe in the Playwright end-to-end test and a manual axe sweep of every screen in light and dark mode (0 critical, 0 serious) | A written WCAG 2.2 AA conformance report, a co-design log |
 | Speech | Browser speech recognition, server speech-to-text (Addis AI for Amharic and English, Azure, local, mock), read aloud with the device voice, an Amharic server voice (Addis AI, one fixed voice) and Azure voices, every server clip cached in the database | Recorded read-aloud clips, a local speech-to-text container in Docker Compose, Telegram bot replies |
@@ -102,17 +103,17 @@ Sign in to the staff app as `employer@example.org` or `staff@aaapd.example` with
 
 ## 3. Integration level 1: one script tag
 
-### What you need from us
+### What you need
 
-1. **A partner key**, such as `pk_live_acme_7f3k9q`. It is public: it goes in your HTML. It tells our API which partner you are.
-2. **Your website's address on our allowed list.** Browsers may use your key only from the origins (scheme + host + port) we have listed for you.
+1. **A partner key**, such as `pk_live_63d63bb18ccec296465edffa540ee806`. It is public: it goes in your HTML. It tells our API which partner you are.
+2. **Your website's address on the allowed list.** Browsers may use your key only from the origins (scheme + host + port) listed for it.
 3. **The address of the widget script** and of the API, for example `https://bridge.example/v1/bridge-onboarding.js` and `https://bridge.example`.
 
-There is no self-service page for this yet. The operator of the Bridge server creates the partner in the database.
+**Get the key yourself** on the partner guide page (`/partners.html`, hosted: https://accessible-onboarding.vercel.app/partners.html). Fill in your organisation, your origins, help contacts and languages, then press "Create my partner key". The API (`POST /api/v1/partners`) creates the partner and the key works at once, from those origins. You also get an OAuth client ID and secret for the partner server API; the secret is shown only once. Both partner kinds can be made this way (a referral organisation is offered to every learner who has no ID). There is no page to change a partner yet: create another key, or ask the operator. The operator can turn self-service off with `PARTNER_SELF_SERVICE=off`.
 
-### For the operator: create a partner and allow its website
+### For the operator: create a partner with SQL
 
-Partners live in the `partners` table. `publishable_key` is any unique text; we suggest `pk_` plus random characters (`openssl rand -hex 12`). An origin is written exactly as the browser sends it: scheme, host and port if not the default, with **no path and no trailing slash**. There are no wildcards.
+For your own Bridge server, or to change a partner later. Partners live in the `partners` table. `publishable_key` is any unique text; we suggest `pk_` plus random characters (`openssl rand -hex 12`). An origin is written exactly as the browser sends it: scheme, host and port if not the default, with **no path and no trailing slash**. There are no wildcards.
 
 ```sql
 INSERT INTO partners (slug, name, kind, publishable_key, allowed_origins, config)
@@ -131,7 +132,7 @@ UPDATE partners SET allowed_origins = array_remove(allowed_origins, 'https://sta
 WHERE slug = 'acme';
 ```
 
-The partner-key check sees the change at once. The browser permission (CORS) list is reloaded every **2 minutes**, so a new origin can take up to 2 minutes to work (or restart the API).
+The partner-key check sees the change at once. The browser permission (CORS) list is reloaded every **2 minutes**, so an origin added with SQL can take up to 2 minutes to work (or restart the API). Origins of a key made on the partner guide page work at once.
 
 `kind` is `platform` for a site that hosts the widget, or `referral_org` for an organisation that helps people without ID. **Every** `referral_org` partner is offered to learners who choose "I have none of these".
 
@@ -178,7 +179,7 @@ Set the attributes in your HTML. Changing them after the widget has started is n
 | `language` | The language screen first, every time, then the sign-up. |
 | `jobs` | The job list with the "Support I need" filter, pre-filled with the needs the learner gave at sign-up on this device. Matching happens on the device. Each job has details and Apply. |
 | `job-application` | The application for `job-id`. Only a learner who finished signing up **on this device** can apply; anyone else sees "Finish signing up first" with a Sign up button, and after signing up the Done screen offers "Continue to your job application". |
-| `profile` | "My profile": see, change or delete what we keep. It works for the sign-up made on this device; elsewhere it says so (signing in on another device is not built yet). |
+| `profile` | "My profile": see, change or delete what we keep. It works for the sign-up made on this device. On another device it offers "I have a sign-in code" (the code from the Done screen or the profile, with the date of birth). |
 
 The job-application questions are: are these contact details right, why do you want this job, when can you start, and whether to ask this employer for the support you need (if yes, the employer sees the supports the learner chose).
 
@@ -302,8 +303,8 @@ The full contract is [`api/openapi.yaml`](api/openapi.yaml), served with Swagger
 
 | Caller | Send | Get it from | Lifetime |
 |---|---|---|---|
-| A website | `X-Partner-Key: pk_…` (and the browser sends `Origin`, which must be allowed) | the operator | until changed |
-| A learner | `X-Partner-Key` **and** `Authorization: Bearer lt_…` | `POST /registrations` or `POST /resume/verify` | 30 days, renewed each time it is used |
+| A website | `X-Partner-Key: pk_…` (and the browser sends `Origin`, which must be allowed) | the partner guide page (`POST /partners`) or the operator | until changed |
+| A learner | `X-Partner-Key` **and** `Authorization: Bearer lt_…` | `POST /registrations`, or `POST /resume/verify` (a resume code, or the learner's sign-in code) | 30 days, renewed each time it is used |
 | Staff | `Authorization: Bearer st_…` | `POST /auth/staff/login` | 12 hours |
 | A partner's server | `Authorization: Bearer pt_…` | `POST /oauth/token` | 1 hour |
 
@@ -447,7 +448,7 @@ The order and branches come from [`shared/flows/signup.json`](shared/flows/signu
 
 A partner's server can read the learners who signed up on its site. This uses OAuth 2.0 client credentials: a `client_id` and a secret, swapped for a 1-hour token.
 
-**For the operator: give a partner a client ID and secret.** The secret is stored as a SHA-256 hash, so give the secret to the partner once and keep only the hash:
+A key made on the partner guide page comes with its client ID and secret. **For the operator: give a partner a client ID and secret with SQL.** The secret is stored as a SHA-256 hash, so give the secret to the partner once and keep only the hash:
 
 ```sql
 UPDATE partners
@@ -767,6 +768,8 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 | `SMS_PROVIDER` | optional | `console` | `console`: SMS are only logged and listed by `/api/v1/dev/messages`. `smsethiopia`: SMS are really sent through [SMS Ethiopia](https://smsethiopia.com) (needs `SMSETHIOPIA_API_KEY`). See "SMS" below. |
 | `SMSETHIOPIA_API_KEY` | with `smsethiopia` | | SMS Ethiopia key: sign up at smsethiopia.com, then **Dashboard → Console → API Keys**. The free test campaign (100 SMS) only delivers to numbers verified in its dashboard. |
 | `SMS_DAILY_LIMIT` | optional | `50` | At most this many SMS per day and per API process (`0` = no limit). There is also a fixed limit of 5 an hour to one number. |
+| `PARTNER_SELF_SERVICE` | optional | `on` | `off` turns off `POST /api/v1/partners` (the partner guide's "Create my partner key"); it then answers `503 partner_signup_off`. |
+| `PARTNER_SIGNUP_DAILY_LIMIT` | optional | `500` | At most this many new partners per day and per API process (`0` = no limit). There is also a limit of 30 an hour per IP. |
 | `DEV_ALLOWED_ORIGIN_SUFFIX` | optional, dev only | | For example `.trycloudflare.com`: any `https://…<suffix>` origin may use the widget. |
 | `EXTRA_ALLOWED_ORIGINS` | optional, dev only | | Comma list of more origins, for example a phone on your Wi-Fi `http://192.168.1.20:5173`. |
 | `TELEGRAM_WEBHOOK_SECRET` | optional | | Checked against Telegram's `X-Telegram-Bot-Api-Secret-Token`. |
@@ -778,7 +781,7 @@ The API reads these once at start (`backend/Config/config.go`), from the environ
 
 Frontend (`frontend/.env.local`, build time): `VITE_API_PROXY_TARGET` (where the dev server forwards `/api`, default `http://localhost:8080`) and `VITE_API_ORIGIN` (API origin for the staff app; empty = same site). The widget gets its API origin from the `api` attribute.
 
-Docker Compose reads the root `.env`: `DATA_ENCRYPTION_KEY`, `CODE_HASH_KEY` and `SEED_STAFF_PASSWORD` are required; `SEED_CLIENT_SECRET`, `STT_PROVIDERS`, `EXTRA_ALLOWED_ORIGINS`, `APP_ENV`, `PUBLIC_WEB_URL`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `ADDIS_AI_API_KEY`, `ADDIS_AI_VOICE_ID`, `TTS_DAILY_LIMIT`, `SMS_PROVIDER`, `SMSETHIOPIA_API_KEY` and `SMS_DAILY_LIMIT` are optional.
+Docker Compose reads the root `.env`: `DATA_ENCRYPTION_KEY`, `CODE_HASH_KEY` and `SEED_STAFF_PASSWORD` are required; `SEED_CLIENT_SECRET`, `STT_PROVIDERS`, `EXTRA_ALLOWED_ORIGINS`, `APP_ENV`, `PUBLIC_WEB_URL`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `ADDIS_AI_API_KEY`, `ADDIS_AI_VOICE_ID`, `TTS_DAILY_LIMIT`, `SMS_PROVIDER`, `SMSETHIOPIA_API_KEY`, `SMS_DAILY_LIMIT`, `PARTNER_SELF_SERVICE` and `PARTNER_SIGNUP_DAILY_LIMIT` are optional.
 
 **SMS** (off unless `SMS_PROVIDER=smsethiopia` and a key are set; with `console` only the resume link and consent code are kept, in the simulated inbox). With SMS on, Bridge texts a learner who chose to be contacted by phone: "you are signed up" (and, on the "no ID" route, which organisation will contact them), "your application for … was sent", "<organisation> confirmed who you are" (trusted referral), plus the resume link and the consent code when those are asked for. Messages are in the learner's language and kept short (an Amharic SMS holds 70 characters). Each one is written to `messages_outbox` first, then sent in the background, so no request waits; the row then says `sent` or `failed` with the reason, and the log shows `[SMS SENT - SMSETHIOPIA]` or `[SMS FAILED - SMSETHIOPIA]` with a masked number, never the text. Limits of SMS Ethiopia: it sends only to Ethio Telecom numbers (`+2519…`), it has no incoming SMS (so learners can't answer by SMS), and its free test campaign delivers only to numbers verified in its dashboard (error 10007 otherwise).
 
@@ -881,6 +884,7 @@ GitHub Actions runs the backend checks and the frontend checks (not the end-to-e
 | Consents (yes or no, how, when) | `consents` | |
 | Learner, staff and partner-server tokens | `auth_sessions` | **SHA-256 hash only** |
 | Resume link tokens and codes, consent and phone-check codes | `resume_tokens`, `verification_codes` | SHA-256 (link) and **HMAC-SHA256 with `CODE_HASH_KEY`** (codes); single use, 72 hours (resume) or 10 minutes (consent, phone check), 5 tries |
+| Sign-in codes | `signin_codes` | **HMAC-SHA256 with `CODE_HASH_KEY`** for the lookup, and AES-256-GCM (learner ID as additional data) only so the profile can show the code again; reusable, plus the date of birth or last 4 phone digits; 5 wrong checks lock it for 15 minutes; replaced with "Make a new code"; deleted with the learner |
 | Staff passwords | `staff_users` | **bcrypt**; unknown email and wrong password answer the same way |
 | OAuth client secrets | `partners.client_secret_hash` | SHA-256, compared in constant time |
 | SMS and Telegram messages | `messages_outbox` | the text, with the result (`queued`, `sent`, `failed` and why). With real SMS, codes and resume links are hidden in the stored copy (`••••••`); with the console provider (the simulated inbox) the full text is kept and logged |

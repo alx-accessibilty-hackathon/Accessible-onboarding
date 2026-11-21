@@ -38,6 +38,9 @@ type Config struct {
 	SMSEthiopiaAPIKey string // SMSETHIOPIA_API_KEY: SMS Ethiopia key (Dashboard → Console → API Keys)
 	SMSDailyLimit     int    // SMS_DAILY_LIMIT: SMS sent per day, 0 = no limit (default 50)
 
+	PartnerSelfService      bool // PARTNER_SELF_SERVICE: POST /partners creates partners and keys (default on; "off" turns it off)
+	PartnerSignupDailyLimit int  // PARTNER_SIGNUP_DAILY_LIMIT: new partners per day, 0 = no limit (default 500)
+
 	DevAllowedOriginSuffix string   // DEV_ALLOWED_ORIGIN_SUFFIX: e.g. .trycloudflare.com (dev only)
 	ExtraAllowedOrigins    []string // EXTRA_ALLOWED_ORIGINS: e.g. a phone on the LAN, http://192.168.1.20:5173 (dev only)
 	TelegramWebhookSecret  string   // TELEGRAM_WEBHOOK_SECRET: checked on POST /telegram/webhook
@@ -52,32 +55,34 @@ func Load() (Config, error) {
 	_ = godotenv.Load(".env")
 
 	cfg := Config{
-		Port:                   getEnv("PORT", "8080"),
-		AppEnv:                 getEnv("APP_ENV", "dev"),
-		DatabaseURL:            os.Getenv("DATABASE_URL"),
-		FlowsDir:               getEnv("FLOWS_DIR", "../shared/flows"),
-		NeedsFile:              getEnv("NEEDS_FILE", "../shared/vocab/needs.json"),
-		PublicWebURL:           getEnv("PUBLIC_WEB_URL", "http://localhost:5173"),
-		DataEncryptionKey:      os.Getenv("DATA_ENCRYPTION_KEY"),
-		CodeHashKey:            os.Getenv("CODE_HASH_KEY"),
-		STTProviders:           splitList(os.Getenv("STT_PROVIDERS")),
-		STTTimeout:             time.Duration(getInt("STT_TIMEOUT_MS", 20000)) * time.Millisecond,
-		AzureSpeechKey:         os.Getenv("AZURE_SPEECH_KEY"),
-		AzureSpeechRegion:      os.Getenv("AZURE_SPEECH_REGION"),
-		LocalSTTURL:            os.Getenv("LOCAL_STT_URL"),
-		AddisAIAPIKey:          os.Getenv("ADDIS_AI_API_KEY"),
-		AddisAIVoiceID:         getEnv("ADDIS_AI_VOICE_ID", "am-hamen"),
-		AddisAISpeed:           getInt("ADDIS_AI_SPEED", 0),
-		TTSCacheDir:            getEnvOrEmpty("TTS_CACHE_DIR", "./data/tts_cache"),
-		TTSDailyLimit:          getInt("TTS_DAILY_LIMIT", 300),
-		SMSProvider:            getEnv("SMS_PROVIDER", "console"),
-		SMSEthiopiaAPIKey:      os.Getenv("SMSETHIOPIA_API_KEY"),
-		SMSDailyLimit:          getInt("SMS_DAILY_LIMIT", 50),
-		DevAllowedOriginSuffix: os.Getenv("DEV_ALLOWED_ORIGIN_SUFFIX"),
-		ExtraAllowedOrigins:    splitList(os.Getenv("EXTRA_ALLOWED_ORIGINS")),
-		TelegramWebhookSecret:  os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
-		SeedStaffPassword:      os.Getenv("SEED_STAFF_PASSWORD"),
-		SeedClientSecret:       os.Getenv("SEED_CLIENT_SECRET"),
+		Port:                    getEnv("PORT", "8080"),
+		AppEnv:                  getEnv("APP_ENV", "dev"),
+		DatabaseURL:             os.Getenv("DATABASE_URL"),
+		FlowsDir:                getEnv("FLOWS_DIR", "../shared/flows"),
+		NeedsFile:               getEnv("NEEDS_FILE", "../shared/vocab/needs.json"),
+		PublicWebURL:            getEnv("PUBLIC_WEB_URL", "http://localhost:5173"),
+		DataEncryptionKey:       os.Getenv("DATA_ENCRYPTION_KEY"),
+		CodeHashKey:             os.Getenv("CODE_HASH_KEY"),
+		STTProviders:            splitList(os.Getenv("STT_PROVIDERS")),
+		STTTimeout:              time.Duration(getInt("STT_TIMEOUT_MS", 20000)) * time.Millisecond,
+		AzureSpeechKey:          os.Getenv("AZURE_SPEECH_KEY"),
+		AzureSpeechRegion:       os.Getenv("AZURE_SPEECH_REGION"),
+		LocalSTTURL:             os.Getenv("LOCAL_STT_URL"),
+		AddisAIAPIKey:           os.Getenv("ADDIS_AI_API_KEY"),
+		AddisAIVoiceID:          getEnv("ADDIS_AI_VOICE_ID", "am-hamen"),
+		AddisAISpeed:            getInt("ADDIS_AI_SPEED", 0),
+		TTSCacheDir:             getEnvOrEmpty("TTS_CACHE_DIR", "./data/tts_cache"),
+		TTSDailyLimit:           getInt("TTS_DAILY_LIMIT", 300),
+		SMSProvider:             getEnv("SMS_PROVIDER", "console"),
+		SMSEthiopiaAPIKey:       os.Getenv("SMSETHIOPIA_API_KEY"),
+		SMSDailyLimit:           getInt("SMS_DAILY_LIMIT", 50),
+		PartnerSelfService:      !isOff(os.Getenv("PARTNER_SELF_SERVICE")),
+		PartnerSignupDailyLimit: getInt("PARTNER_SIGNUP_DAILY_LIMIT", 500),
+		DevAllowedOriginSuffix:  os.Getenv("DEV_ALLOWED_ORIGIN_SUFFIX"),
+		ExtraAllowedOrigins:     splitList(os.Getenv("EXTRA_ALLOWED_ORIGINS")),
+		TelegramWebhookSecret:   os.Getenv("TELEGRAM_WEBHOOK_SECRET"),
+		SeedStaffPassword:       os.Getenv("SEED_STAFF_PASSWORD"),
+		SeedClientSecret:        os.Getenv("SEED_CLIENT_SECRET"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -129,6 +134,15 @@ func getInt(key string, fallback int) int {
 		return n
 	}
 	return fallback
+}
+
+// isOff: "off", "false", "0" or "no" (any case) turn a setting off; anything else keeps it on.
+func isOff(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "off", "false", "0", "no":
+		return true
+	}
+	return false
 }
 
 func splitList(s string) []string {

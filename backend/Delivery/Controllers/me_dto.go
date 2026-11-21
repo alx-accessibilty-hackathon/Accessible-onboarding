@@ -221,3 +221,13 @@ type PhoneCodeSentDTO struct {
 	SentTo    string    `json:"sent_to"`    // masked, e.g. "+2519•••••678"
 	ExpiresAt time.Time `json:"expires_at"` // 10 minutes
 }
+
+// 200 from GET and POST /me/sign-in-code: the code to sign in again on another phone.
+type SignInCodeDTO struct {
+	Code      string `json:"code"` // XXXX-XXXX
+	CreatedAt string `json:"created_at"`
+}
+
+func toSignInCodeDTO(s *domain.SignInCodeShown) SignInCodeDTO {
+	return SignInCodeDTO{Code: s.Code, CreatedAt: s.CreatedAt.UTC().Format(time.RFC3339)}
+}

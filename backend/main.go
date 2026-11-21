@@ -239,6 +239,10 @@ func serve(cfg config.Config) {
 	meUsecase.Phone = &usecase.PhoneCheck{
 		Codes: sessionRepo, Messages: messages, Available: messages.Sending(), EthioTelecomOnly: messages.Sending(),
 	}
+	// Sign in again with a code (+ date of birth or phone): GET /me/sign-in-code, and the resume
+	// screen accepts it (signin_codes.go, table signin_codes, migration 00008).
+	signInCodes := &usecase.SignInCodes{Repo: repository.NewSignInCodeRepo(db), Security: security, Profiles: profileRepo}
+	meUsecase.SignIn, registrationUsecase.SignIn = signInCodes, signInCodes
 	referralUsecase := usecase.NewReferralUsecase(referralRepo)
 	// Trusted referral: partner staff vouch for a learner with a one-time code.
 	referralUsecase.Vouch = repository.NewVouchRepo(db)
@@ -247,6 +251,9 @@ func serve(cfg config.Config) {
 		referralUsecase.SMSNotices, referralUsecase.Outbox, referralUsecase.Messages = true, sessionRepo, messages
 	}
 	employerApplicationUsecase := usecase.NewEmployerApplicationUsecase(jobRepo, applicationRepo, auditRepo, security)
+	// Self-service partners: POST /partners makes a working key and an OAuth client at once.
+	partnerSignupUsecase := usecase.NewPartnerSignupUsecase(partnerRepo, security.HashToken, cfg.PartnerSelfService, cfg.PartnerSignupDailyLimit)
+	partnerSignupUsecase.OnCreated = infrastructure.AllowedOriginsChanged // the new site's origin works at once
 
 	// Controllers
 	ctrls := &routers.Controllers{
@@ -260,6 +267,7 @@ func serve(cfg config.Config) {
 		Application:  controllers.NewApplicationController(applicationUsecase),
 		Learner:      controllers.NewLearnerController(learnerUsecase),
 
+		Partner:             controllers.NewPartnerController(partnerSignupUsecase),
 		Me:                  controllers.NewMeController(meUsecase),
 		Referral:            controllers.NewReferralController(referralUsecase),
 		EmployerApplication: controllers.NewEmployerApplicationController(employerApplicationUsecase),
@@ -268,16 +276,17 @@ func serve(cfg config.Config) {
 	// Middleware
 	origins := infrastructure.OriginPolicy{Dev: cfg.IsDev(), DevSuffix: cfg.DevAllowedOriginSuffix, Extra: cfg.ExtraAllowedOrigins}
 	mw := &routers.Middlewares{
-		IPLimiter:         infrastructure.NewIPRateLimiter(120, time.Minute),         // 120 requests per minute per IP
-		GlobalLimiter:     infrastructure.NewGlobalRateLimiter(1000, 10*time.Second), // 1000 requests per 10 seconds
-		StrictLimiter:     infrastructure.NewIPRateLimiter(20, time.Minute),          // sign-in, OAuth, new sign-ups, resume
-		CORS:              infrastructure.CORSMiddleware(partnerRepo, origins),
-		PartnerKey:        infrastructure.PartnerKeyMiddleware(partnerRepo, origins),
-		LearnerAuth:       infrastructure.LearnerAuthMiddleware(authUsecase),
-		StaffAuth:         infrastructure.StaffAuthMiddleware(authUsecase),
-		PartnerServerAuth: infrastructure.PartnerServerAuthMiddleware(authUsecase),
-		TelegramSecret:    infrastructure.TelegramSecretMiddleware(cfg.TelegramWebhookSecret, cfg.IsDev()),
-		DevRoutes:         cfg.IsDev(),
+		IPLimiter:            infrastructure.NewIPRateLimiter(120, time.Minute),         // 120 requests per minute per IP
+		GlobalLimiter:        infrastructure.NewGlobalRateLimiter(1000, 10*time.Second), // 1000 requests per 10 seconds
+		StrictLimiter:        infrastructure.NewIPRateLimiter(20, time.Minute),          // sign-in, OAuth, new sign-ups, resume
+		PartnerSignupLimiter: infrastructure.NewIPRateLimiter(30, time.Hour),            // POST /partners: 30 new partners per hour per IP
+		CORS:                 infrastructure.CORSMiddleware(partnerRepo, origins),
+		PartnerKey:           infrastructure.PartnerKeyMiddleware(partnerRepo, origins),
+		LearnerAuth:          infrastructure.LearnerAuthMiddleware(authUsecase),
+		StaffAuth:            infrastructure.StaffAuthMiddleware(authUsecase),
+		PartnerServerAuth:    infrastructure.PartnerServerAuthMiddleware(authUsecase),
+		TelegramSecret:       infrastructure.TelegramSecretMiddleware(cfg.TelegramWebhookSecret, cfg.IsDev()),
+		DevRoutes:            cfg.IsDev(),
 	}
 
 	// Router

@@ -179,6 +179,17 @@ type ResumeToken struct {
 	CreatedAt      time.Time
 }
 
+type SigninCode struct {
+	LearnerID      uuid.UUID
+	CodeHash       []byte
+	CodeNonce      []byte
+	CodeCiphertext []byte
+	FailedAttempts int32
+	LockedUntil    *time.Time
+	LastUsedAt     *time.Time
+	CreatedAt      time.Time
+}
+
 type StaffUser struct {
 	ID               uuid.UUID
 	Email            string

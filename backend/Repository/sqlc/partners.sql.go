@@ -13,6 +13,62 @@ import (
 	"github.com/google/uuid"
 )
 
+const createPartner = `-- name: CreatePartner :one
+INSERT INTO partners (slug, name, kind, publishable_key, allowed_origins, client_id, client_secret_hash, config)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, slug, name, kind, publishable_key, allowed_origins, client_id, config, created_at
+`
+
+type CreatePartnerParams struct {
+	Slug             string
+	Name             string
+	Kind             string
+	PublishableKey   string
+	AllowedOrigins   []string
+	ClientID         *string
+	ClientSecretHash []byte
+	Config           json.RawMessage
+}
+
+type CreatePartnerRow struct {
+	ID             uuid.UUID
+	Slug           string
+	Name           string
+	Kind           string
+	PublishableKey string
+	AllowedOrigins []string
+	ClientID       *string
+	Config         json.RawMessage
+	CreatedAt      time.Time
+}
+
+// Self-service partners (POST /partners): the server made the key and the OAuth client.
+func (q *Queries) CreatePartner(ctx context.Context, arg CreatePartnerParams) (CreatePartnerRow, error) {
+	row := q.db.QueryRow(ctx, createPartner,
+		arg.Slug,
+		arg.Name,
+		arg.Kind,
+		arg.PublishableKey,
+		arg.AllowedOrigins,
+		arg.ClientID,
+		arg.ClientSecretHash,
+		arg.Config,
+	)
+	var i CreatePartnerRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.Kind,
+		&i.PublishableKey,
+		&i.AllowedOrigins,
+		&i.ClientID,
+		&i.Config,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getPartnerByClientID = `-- name: GetPartnerByClientID :one
 SELECT id, slug, name, kind, publishable_key, allowed_origins, client_id, client_secret_hash, config, created_at
 FROM partners
